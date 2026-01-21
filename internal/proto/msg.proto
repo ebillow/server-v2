@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+option go_package = "./pb";
+//---------------说明---------------------------
+//各个模块消息
+//----------------------------------------------
+
+//import "msg_common.proto";
+package pb;
+
+
+//--------------妖尾项目保留的----------
+//-----------------道具---------------------------//
+message MsgItem{
+	string ID = 1;
+	sint64 Cnt = 2;
+}

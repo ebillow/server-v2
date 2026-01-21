@@ -1,0 +1,17 @@
+syntax = "proto3";
+option go_package = "./pb";
+package pb;
+
+message SrvMsg{
+    uint32  ID = 2;
+    bytes 	Msg = 3;
+		uint64 	RoleID = 4;
+}
+
+message SrvMsgs{
+	repeated SrvMsg Msgs = 1;
+}
+
+service SrvService {
+   rpc SrvSrv(stream SrvMsgs) returns (stream SrvMsgs);
+}

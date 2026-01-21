@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+option go_package = "./pb";
+
+//该文件包含其它proto，其它不要包含该proto
+//import "msg.proto";
+
+package pb;
+
+//玩家的详细信息
+message RoleData
+{
+	uint64	ID = 1;
+	sint32	Level = 3;
+	uint32 	Exp = 4;
+	string	Name = 5;
+	uint32 Country = 20;
+	
+	int64 OfflineTime = 23; //离线时间
+	int64 OnlineTime  = 24; //上线时间;
+	int64 CreateTime = 25;			//创建角色时间
+	sint64 ResetTime = 26;			//数据重置时间
+	sint64 DayChange = 27;		//下次触发跨天时间
+	sint64 DataResetMonth = 28;	
+
+	map<string, sint64> Items = 35;	//道具
+}

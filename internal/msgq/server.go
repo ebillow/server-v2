@@ -1,0 +1,5 @@
+package msgq
+
+func Serve() {
+
+}

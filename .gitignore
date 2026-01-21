@@ -1,0 +1,16 @@
+/bin
+.idea
+*.log
+*.exe
+*.sql
+.vscode
+.xmake
+.coverage.txt
+.DS_Store
+
+/cfg/game_local.yml
+/cfg/game_local.yaml
+cmd/test
+/deploy/bin
+/deploy/bins.tar.gz
+bravo_share
