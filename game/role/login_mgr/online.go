@@ -47,7 +47,7 @@ func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
 	case OpOnline:
 		m.opOnline(ctx, p)
 	case OpUnmarshal:
-		m.unmarshal(ctx, p.Data.Data, p.Login)
+		m.unmarshal(ctx, p.Data, p.Login)
 	case OpRepeatedLogin:
 		m.opLoginRepeated(ctx, p)
 	case OpOffline:
@@ -71,7 +71,7 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 	case stateOnline: // 重复登录
 		m.onLoginRepeated(v, op)
 	case stateOffline, stateCanDel:
-		m.unmarshal(ctx, v.RoleData, op.Login)
+		m.unmarshal(ctx, &role.DataToSave{ID: op.Login.RoleID, Data: v.Cache}, op.Login)
 	case statePending:
 		now := time.Now()
 		if now.Unix()-v.StateTime < StateTimeOut {
@@ -88,15 +88,15 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 	}
 }
 
-func (m *LoginMgr) unmarshal(ctx context.Context, dataStr string, login *pb.C2SLogin) {
-	r, err := role.NewRole(dataStr, login)
+func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *pb.C2SLogin) {
+	r, err := role.NewRole(data, login)
 	if err != nil {
 		log.Errorf("new role err:%v", err)
 		return
 	}
 
 	v := m.data[r.ID]
-	v.RoleData = dataStr
+	v.Cache = data.Data
 	v.LoginSeq = login.Seq
 	v.setState(stateOnline)
 	role.GetRoleMgr().Add(r.ID, r.SesID, r)
@@ -121,10 +121,10 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 func (m *LoginMgr) opLoginRepeated(ctx context.Context, p *Operator) {
 	v := m.data[p.Login.RoleID]
 	if v == nil {
-		zap.L().Warn("can not find login data")
+		zap.L().Warn("[login] can not find login data")
 		return
 	}
 
-	zap.L().Debug("[login] opLoginRepeated", zap.Uint64("id", p.Login.RoleID), zap.Any("data", v.RoleData))
-	m.unmarshal(ctx, v.RoleData, p.Login)
+	zap.L().Debug("[login] opLoginRepeated", zap.Uint64("id", p.Login.RoleID), zap.Any("data", v.Cache))
+	m.unmarshal(ctx, &role.DataToSave{ID: p.Login.RoleID, Data: v.Cache}, p.Login)
 }

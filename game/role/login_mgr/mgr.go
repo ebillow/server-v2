@@ -42,7 +42,7 @@ const (
 type loginData struct {
 	State     loginState
 	StateTime int64
-	RoleData  string
+	Cache     map[string]string
 	LoginSeq  uint32
 }
 
@@ -54,8 +54,8 @@ func (l *loginData) setState(state loginState) {
 type Operator struct {
 	Op uint32
 
-	Login *pb.C2SLogin   // 上线的参数
-	Data  *role.DataInDB // 下线，保存的参数
+	Login *pb.C2SLogin     // 上线的参数
+	Data  *role.DataToSave // 下线，保存的参数
 	IDs   []uint64
 }
 
@@ -113,11 +113,11 @@ func (m *LoginMgr) Online(msg *pb.C2SLogin) {
 }
 
 // Offline	角色下线
-func (m *LoginMgr) Offline(data *role.DataInDB) {
+func (m *LoginMgr) Offline(data *role.DataToSave) {
 	m.ops <- &Operator{Op: OpOffline, Data: data}
 }
 
-func (m *LoginMgr) SaveRole(data *role.DataInDB) {
+func (m *LoginMgr) SaveRole(data *role.DataToSave) {
 	m.ops <- &Operator{Op: OpSaveRole, Data: data}
 }
 
@@ -143,7 +143,7 @@ func (m *LoginMgr) roleOffline(p *opSaveData) {
 
 func (m *LoginMgr) saveOne(p *opSaveData, ld *loginData) {
 	if ld != nil {
-		ld.RoleData = p.Data
+		ld.Cache = p.Data
 	}
 	m.save.post(p)
 }
@@ -162,7 +162,7 @@ func (m *LoginMgr) checkClear() {
 
 	for k, v := range m.data {
 		if v.State == stateOffline && now-v.StateTime > Interval {
-			m.saveOne(&opSaveData{ID: k, Data: v.RoleData, Op: OpOffline}, v)
+			m.saveOne(&opSaveData{ID: k, Data: v.Cache, Op: OpOffline}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
 			// todo

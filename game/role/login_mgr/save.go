@@ -14,8 +14,16 @@ import (
 
 type opSaveData struct {
 	ID   uint64
-	Data string
+	Data map[string]string
 	Op   uint32
+}
+
+func (d *opSaveData) Values() []string {
+	ret := make([]string, 0, len(d.Data))
+	for k, v := range d.Data {
+		ret = append(ret, k, v)
+	}
+	return ret
 }
 
 type saver struct {
@@ -88,15 +96,16 @@ func (s *saver) saveBatch(batch map[uint64]*opSaveData) {
 	pipe := db.Redis.Pipeline()
 	toDB := make([]*opSaveData, 0, len(batch))
 	for _, v := range batch {
-		pipe.Set(ctx, model.KeyRole(v.ID), v.Data, time.Hour*24*7)
-		zap.L().Debug("save to redis", zap.Uint64("id", v.ID))
+		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values())
+		pipe.Expire(ctx, model.KeyRole(v.ID), time.Hour*24*7)
+		zap.L().Debug("[login] save to redis", zap.Uint64("id", v.ID))
 		if v.Op == OpOffline {
 			toDB = append(toDB, v)
 		}
 	}
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.Errorf("real save role err:%v", err)
+		log.Errorf("[login] real save role err:%v", err)
 		return
 	}
 
@@ -113,12 +122,12 @@ func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) {
 			{"data", toDB[i].Data},
 		}}})
 		models = append(models, mod)
-		log.Debugf("bulk write save role %d to db", toDB[i].ID)
+		log.Debugf("[login] bulk write save role %d to db", toDB[i].ID)
 	}
 
 	_, err := db.MongoDB.Collection("roles").BulkWrite(ctx, models)
 	if err != nil {
-		log.Errorf("bulk write save role err:%v", err)
+		log.Errorf("[login] bulk write save role err:%v", err)
 		return
 	}
 

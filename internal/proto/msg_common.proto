@@ -210,18 +210,7 @@ enum ESdkNumber{
 }
 
 enum TypeComp{
-	TCBegin = 0;
-	TCBuilding = 1;
-	TCSailing = 2; //英雄
-	TCItem = 3;
-	TCMail = 4;
-	TCTiLi = 6;
-	TCPay = 7;
-	TCAct = 8;
-	TCMisc = 10;
-	TCFriend = 11;
-	TCDailyTask = 12;
-	TCDailySign = 13;
-	TCChest = 14;
-	TCMax = 15;	//保持最大
+	TCBase = 0;
+	TCExample = 1;
+	TCEmptyExample = 2;
 }

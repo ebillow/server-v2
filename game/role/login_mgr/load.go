@@ -73,25 +73,26 @@ func (l *loader) loadBatch(batch []*Operator) {
 
 	pipe := db.Redis.Pipeline()
 	for _, op := range batch {
-		op.Data = &role.DataInDB{
+		op.Data = &role.DataToSave{
 			ID: op.Login.RoleID,
 		}
-		pipe.Get(ctx, model.KeyRole(op.Data.ID))
+		pipe.HGetAll(ctx, model.KeyRole(op.Data.ID))
 	}
-	cmds, err := pipe.Exec(ctx)
+	cmd, err := pipe.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
-		zap.L().Error("redis load batch failed", zap.Error(err))
+		zap.L().Error("[login] redis load batch failed", zap.Error(err))
 		return
 	}
 
-	batchFromDB := make([]*Operator, 0, len(cmds))
-	for i, c := range cmds {
-		if c.Err() == nil { // 加载成功
+	batchFromDB := make([]*Operator, 0, len(cmd))
+	for i, c := range cmd {
+		data := c.(*redis.MapStringStringCmd).Val()
+		if /*c.Err() == nil*/ len(data) > 0 { // 加载成功
 			op := batch[i]
 			op.Op = OpUnmarshal
-			op.Data.Data = c.(*redis.StringCmd).Val()
+			op.Data.Data = data
 			postOp(op)
-		} else if errors.Is(c.Err(), redis.Nil) { // redis里没有
+		} else /*if errors.Is(c.Err(), redis.Nil)*/ { // redis里没有
 			batchFromDB = append(batchFromDB, batch[i])
 		}
 	}
@@ -110,25 +111,27 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 	filter := bson.M{"id": bson.M{"$in": ids}}
 	cursor, err := db.MongoDB.Collection("roles").Find(ctx, filter)
 	if err != nil {
-		zap.L().Error("find role failed", zap.Error(err))
+		zap.L().Error("[login] find role failed", zap.Error(err))
 		return
 	}
-	defer cursor.Close(ctx)
+	defer func() {
+		_ = cursor.Close(ctx)
+	}()
 
-	var roles []*role.DataInDB
+	var roles []*role.DataToSave
 	if err = cursor.All(ctx, &roles); err != nil {
-		zap.L().Error("cursor all failed", zap.Error(err))
+		zap.L().Error("[login] cursor all failed", zap.Error(err))
 		return
 	}
-	result := make(map[uint64]string, len(roles))
+	result := make(map[uint64]*role.DataToSave, len(roles))
 	for _, r := range roles {
-		result[r.ID] = r.Data
+		result[r.ID] = r
 	}
 
 	for _, op := range batch {
 		op.Op = OpUnmarshal
 		if r, ok := result[op.Login.RoleID]; ok {
-			op.Data.Data = r
+			op.Data = r
 		} else {
 			rd, _ := newRoleInDB(op.Login.RoleID)
 			op.Data.Data = rd.Data
@@ -137,39 +140,23 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 	}
 }
 
-func insertBatch(ctx context.Context, ids []uint64) {
-	roles := make([]*role.DataInDB, 0, len(ids))
-	for _, id := range ids {
-		d, err := newRoleInDB(id)
-		if err != nil {
-			zap.L().Error("create role failed", zap.Error(err))
-			continue
-		}
-		roles = append(roles, d)
-	}
-	_, err := db.MongoDB.Collection("roles").InsertMany(ctx, roles)
-	if err != nil {
-		zap.L().Error("insert role failed", zap.Error(err))
-		return
-	}
-}
-
-func newRoleInDB(roleID uint64) (*role.DataInDB, error) {
+func newRoleInDB(roleID uint64) (*role.DataToSave, error) {
 	rData := pb.RoleData{
 		ID:    roleID,
 		Name:  util.ToString(roleID),
 		Level: 1,
 	}
 
-	rd := &role.DataInDB{
-		ID: roleID,
+	rd := &role.DataToSave{
+		ID:   roleID,
+		Data: make(map[string]string),
 	}
 
 	str, err := jsoniter.MarshalToString(&rData)
 	if err != nil {
-		log.Errorf("marshal role data err:%v", err)
+		log.Errorf("[login] marshal role data err:%v", err)
 		return nil, err
 	}
-	rd.Data = str
+	rd.Set(pb.TypeComp_TCBase, str)
 	return rd, nil
 }

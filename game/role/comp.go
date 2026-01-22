@@ -8,12 +8,6 @@ import (
 type IComp interface {
 }
 
-// ICompUnmarshal 序列化，反序列化数据
-type ICompMarshalUnmarshal interface {
-	Unmarshal(dats string, r *Role) error
-	Marshal(r *Role) string
-}
-
 // ICompSecLoop 如果需要每秒update，就实现该接口
 type ICompSecLoop interface {
 	SecLoop(now time.Time, r *Role) // 每秒更新

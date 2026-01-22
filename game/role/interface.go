@@ -9,13 +9,8 @@ type IRoleMgr interface {
 	PostEventBySesID(sesID uint64, evt Event)
 }
 
-type DataInDB struct {
-	ID   uint64
-	Data string
-}
-
 type ILoginMgr interface {
-	Offline(data *DataInDB)
+	Offline(data *DataToSave)
 }
 
 var (

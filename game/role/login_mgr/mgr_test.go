@@ -92,9 +92,10 @@ func (l *LoginCheck) CheckResult() {
 	defer l.mtx.Unlock()
 	ctx := context.Background()
 	for k, v := range l.loginCnt {
-		data := db.Redis.Get(ctx, model.KeyRole(k)).Val()
+		datas := db.Redis.HGetAll(ctx, model.KeyRole(k)).Val()
+		data := role.DataToSave{Data: datas}
 		r := pb.RoleData{}
-		err := jsoniter.UnmarshalFromString(data, &r)
+		err := jsoniter.UnmarshalFromString(data.Get(pb.TypeComp_TCBase), &r)
 		if err != nil {
 			panic(err)
 		}
@@ -107,10 +108,6 @@ func (l *LoginCheck) CheckResult() {
 		// }
 	}
 	fmt.Println("check result finished")
-}
-
-func TestInsertRoleBatch(t *testing.T) {
-	insertBatch(context.Background(), []uint64{1, 2, 3, 10})
 }
 
 func TestLoadBatch(t *testing.T) {
@@ -126,7 +123,7 @@ func TestLoadBatch(t *testing.T) {
 		return
 	}
 	defer cursor.Close(ctx)
-	var roles []*role.DataInDB
+	var roles []*role.DataToSave
 	if err = cursor.All(ctx, &roles); err != nil {
 		zap.L().Error("cursor all failed", zap.Error(err))
 		return
@@ -175,7 +172,6 @@ func TestDataDelete(t *testing.T) {
 func TestBson(t *testing.T) {
 	d := pb.RoleData{
 		ID:    2,
-		AccID: 2,
 		Level: 100,
 		Exp:   9999,
 		Name:  "testName",

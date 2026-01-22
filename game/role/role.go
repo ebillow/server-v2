@@ -4,14 +4,29 @@ import (
 	"context"
 	jsoniter "github.com/json-iterator/go"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
 	"server/internal/log"
+	"server/internal/model"
 	"server/internal/util"
 	"sync"
 
 	"server/internal/pb"
 	"time"
 )
+
+type DataToSave struct {
+	ID   uint64
+	Data map[string]string
+}
+
+func (d *DataToSave) Get(comID pb.TypeComp) string {
+	return d.Data[model.GetCompName(comID)]
+}
+
+func (d *DataToSave) Set(comID pb.TypeComp, data string) {
+	d.Data[model.GetCompName(comID)] = data
+}
 
 const EventChanSize = 128
 
@@ -25,7 +40,7 @@ type Event struct {
 type Role struct {
 	ID      uint64 // role_mgr需要访问
 	SesID   uint64
-	Comps   []IComp
+	Comps   map[pb.TypeComp]IComp
 	Data    *pb.RoleData // 入库数据
 	CliInfo *pb.ClientInfo
 	Seq     uint32
@@ -45,20 +60,19 @@ type Role struct {
 var CreateComps func(r *Role)
 
 // NewRole	新建一个角色
-func NewRole(dataStr string, login *pb.C2SLogin) (*Role, error) {
-	data := &pb.RoleData{}
-	err := jsoniter.UnmarshalFromString(dataStr, data)
+func NewRole(data *DataToSave, login *pb.C2SLogin) (*Role, error) {
+	dataBase := &pb.RoleData{}
+
+	err := jsoniter.UnmarshalFromString(data.Get(pb.TypeComp_TCBase), dataBase)
 	if err != nil {
 		return nil, err
 	}
 
-	data.Channel = login.Channel
-
 	r := &Role{
 		ID:      data.ID,
-		Data:    data,
+		Data:    dataBase,
 		SesID:   login.SesID,
-		Comps:   make([]IComp, pb.TypeComp_TCMax),
+		Comps:   make(map[pb.TypeComp]IComp),
 		CliInfo: login.CliInfo,
 	}
 
@@ -67,8 +81,19 @@ func NewRole(dataStr string, login *pb.C2SLogin) (*Role, error) {
 
 	CreateComps(r)
 
+	for i, comp := range r.Comps {
+		compData := data.Get(i)
+		if len(compData) == 0 {
+			continue
+		}
+		err = jsoniter.UnmarshalFromString(compData, comp)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if r.Data.CreateTime == 0 {
-		onFirstInitData(r)
+
 	}
 
 	return r, nil
@@ -92,7 +117,7 @@ func (r *Role) Loop(ctx context.Context) {
 		for {
 			select {
 			case evt := <-r.Events:
-				onEvent(evt, r)
+				r.onEvent(evt)
 			case now := <-t.C:
 				r.SecLoop(now)
 			case <-r.ctx.Done():
@@ -102,6 +127,12 @@ func (r *Role) Loop(ctx context.Context) {
 			}
 		}
 	})
+}
+
+func (r *Role) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	encoder.AddUint64("r.id", r.ID)
+	encoder.AddUint64("r.session", r.SesID)
+	return nil
 }
 
 func (r *Role) Online() {
@@ -116,11 +147,11 @@ func (r *Role) Online() {
 	// 	Value: setup.Setup.ID,
 	// })
 	//
-	// for i := range r.Comps {
-	// 	if iDeal, ok := r.Comps[i].(types.ICompOnline); ok {
-	// 		iDeal.Online(r)
-	// 	}
-	// }
+	for i := range r.Comps {
+		if comp, ok := r.Comps[i].(ICompOnline); ok {
+			comp.Online(r)
+		}
+	}
 	//
 	// msgSend := &pb.S2CLogin{}
 	// msgSend.Player = makeMsgForCli(r)
@@ -131,15 +162,16 @@ func (r *Role) Online() {
 	// msgSend.ServerBeginTime = time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local).Unix()
 	//
 	// r.Send(msgSend)
-	zap.L().Info("[login] online", zap.Uint64("id", r.ID), zap.String("name", r.Data.Name), zap.Uint32("cnt", r.Data.Exp))
+	zap.L().Info("[login] online", zap.Inline(r))
 }
 
 // Offline 角色下线的处理
 func (r *Role) Offline() {
 	r.Data.OfflineTime = time.Now().Unix()
+
 	for i := range r.Comps {
-		if iDeal, ok := r.Comps[i].(ICompOffline); ok {
-			iDeal.Offline(r)
+		if comp, ok := r.Comps[i].(ICompOffline); ok {
+			comp.Offline(r)
 		}
 	}
 
@@ -153,12 +185,13 @@ func (r *Role) Offline() {
 
 	// 通知其它服务器
 	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtOffline, &pb.MsgKVGuidValue{Guid: r.Data.Guid, Value: setup.Setup.ID})
-	zap.L().Info("[login] offline", zap.Uint64("id", r.ID), zap.String("name", r.Data.Name), zap.Uint32("cnt", r.Data.Country))
+	zap.L().Info("[login] offline", zap.Inline(r))
 }
 
-func (r *Role) Marshal() (*DataInDB, error) {
-	rd := &DataInDB{
-		ID: r.ID,
+func (r *Role) Marshal() (*DataToSave, error) {
+	rd := &DataToSave{
+		ID:   r.ID,
+		Data: make(map[string]string),
 	}
 
 	str, err := jsoniter.MarshalToString(r.Data)
@@ -166,86 +199,101 @@ func (r *Role) Marshal() (*DataInDB, error) {
 		log.Errorf("marshal role data err:%v", err)
 		return nil, err
 	}
-	rd.Data = str
+	rd.Set(pb.TypeComp_TCBase, str)
+
+	for i, v := range r.Comps {
+		str, err = jsoniter.MarshalToString(v)
+		if err != nil {
+			zap.L().Error("marshal role comp data err", zap.Error(err), zap.Inline(r))
+			continue
+		}
+		if len(str) == 0 {
+			continue
+		}
+
+		rd.Set(i, str)
+	}
+
 	return rd, nil
 }
 
 func (r *Role) SecLoop(now time.Time) {
-	//	zap.L().Debug("[role] sec loop")
-	// if r.Data == nil {
-	// 	log.Errorf("role.Data == nil")
-	// 	return
-	// }
-	//
-	// r.NowSec = time.Now().Unix()
-	//
-	// reset := false
-	// dayChange := false
-	// monthChange := false
-	//
-	// if r.NowSec > r.Data.ResetTime {
-	// 	reset = true
-	// 	monthChange = r.NowSec >= r.Data.DataResetMonth
-	// }
-	//
-	// if r.NowSec > r.Data.DayChange {
-	// 	dayChange = true
-	// }
-	//
-	// if now.Sub(r.LastMinute) > time.Minute {
-	// 	r.LastMinute = now
-	// 	MinuteLoop(now, r)
-	// }
-	//
-	// for i := range r.Comps {
-	// 	if iSec, ok := r.Comps[i].(types.ICompSecLoop); ok {
-	// 		iSec.SecLoop(now, r)
-	// 	}
-	//
-	// 	if dayChange {
-	// 		if iSec, ok := r.Comps[i].(types.ICompDayChange); ok {
-	// 			iSec.OnDayChange(r)
-	// 		}
-	// 	}
-	//
-	// 	if reset { // 每日数据重置
-	// 		// log.Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
-	// 		if iSec, ok := r.Comps[i].(types.ICompDataReset); ok {
-	// 			iSec.OnDataReset(r)
-	// 		}
-	//
-	// 		if monthChange {
-	// 			if iSec, ok := r.Comps[i].(types.ICompMonthChange); ok {
-	// 				iSec.OnMonthChange(r)
-	// 			}
-	// 		}
-	// 	}
-	// }
-	//
-	// if reset {
-	// 	begin := util.CurDayBegin()
-	// 	if now.Hour() >= int(cfgs.Server().GlobalSetup.ResetHour) {
-	// 		r.Data.ResetTime = begin.Add(time.Duration(cfgs.Server().GlobalSetup.ResetHour+24) * time.Hour).Unix() // 下一次重置时间
-	// 	} else {
-	// 		r.Data.ResetTime = begin.Add(time.Duration(cfgs.Server().GlobalSetup.ResetHour) * time.Hour).Unix() // 下一次重置时间
-	// 	}
-	// 	if monthChange {
-	// 		curMonthBegin := time.Date(now.Year(), now.Month(), 1, int(cfgs.Server().GlobalSetup.ResetHour), 0, 0, 0, now.Location())
-	// 		r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
-	// 		log.Debugf("%d data next month reset time=%v", r.Guid, time.Unix(r.Data.DataResetMonth, 0))
-	// 	}
-	// 	// log.Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
-	// }
-	// if dayChange {
-	// 	begin := util.CurDayBegin()
-	// 	r.Data.DayChange = begin.Add(time.Duration(24) * time.Hour).Unix()
-	// 	// log.Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
-	// 	r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
-	// }
-	// if reset {
-	// 	r.Send(pb.MsgIDS2C_S2CDataReset, nil) // 告知客户端数据重置
-	// }
-	//
+	zap.L().Debug("[role] sec loop")
+	if r.Data == nil {
+		zap.L().Error("role.Data == nil")
+		return
+	}
+
+	r.NowSec = time.Now().Unix()
+
+	reset := false
+	dayChange := false
+	monthChange := false
+
+	if r.NowSec > r.Data.ResetTime {
+		reset = true
+		monthChange = r.NowSec >= r.Data.DataResetMonth
+	}
+
+	if r.NowSec > r.Data.DayChange {
+		dayChange = true
+	}
+
+	if now.Sub(r.LastMinute) > time.Minute {
+		r.LastMinute = now
+		r.MinuteLoop(now)
+	}
+
+	for i := range r.Comps {
+		if comp, ok := r.Comps[i].(ICompSecLoop); ok {
+			comp.SecLoop(now, r)
+		}
+
+		if dayChange {
+			if comp, ok := r.Comps[i].(ICompDayChange); ok {
+				comp.OnDayChange(r)
+			}
+		}
+
+		if reset { // 每日数据重置
+			// log.Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+			if comp, ok := r.Comps[i].(ICompDataReset); ok {
+				comp.OnDataReset(r)
+			}
+
+			if monthChange {
+				if comp, ok := r.Comps[i].(ICompMonthChange); ok {
+					comp.OnMonthChange(r)
+				}
+			}
+		}
+	}
+
+	if reset {
+		const ResetHour = 8
+		begin := util.CurDayBegin()
+		if now.Hour() >= ResetHour {
+			r.Data.ResetTime = begin.Add(time.Duration(ResetHour+24) * time.Hour).Unix() // 下一次重置时间
+		} else {
+			r.Data.ResetTime = begin.Add(time.Duration(ResetHour) * time.Hour).Unix() // 下一次重置时间
+		}
+		if monthChange {
+			curMonthBegin := time.Date(now.Year(), now.Month(), 1, ResetHour, 0, 0, 0, now.Location())
+			r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
+			log.Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
+		}
+		// log.Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+	}
+	if dayChange {
+		begin := util.CurDayBegin()
+		r.Data.DayChange = begin.Add(time.Duration(24) * time.Hour).Unix()
+		// log.Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
+		// r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
+	}
+	if reset {
+		// r.Send(pb.MsgIDS2C_S2CDataReset, nil) // 告知客户端数据重置
+	}
+
 	// if r.FlagSave || now.Sub(r.LastSave).Seconds() > float64(cfgs.Server().Config.CacheRoleTime) {
 	// 	save(r.Data)
 	// 	r.FlagSave = false
@@ -253,7 +301,7 @@ func (r *Role) SecLoop(now time.Time) {
 	// }
 }
 
-func MinuteLoop(now time.Time, r *Role) {
+func (r *Role) MinuteLoop(now time.Time) {
 	for i := range r.Comps {
 		if iSec, ok := r.Comps[i].(ICompMinuteLoop); ok {
 			iSec.MinuteLoop(now, r)
@@ -261,24 +309,18 @@ func MinuteLoop(now time.Time, r *Role) {
 	}
 }
 
-func onEvent(evt Event, r *Role) {
+func (r *Role) onEvent(evt Event) {
 	if evt.MsgID == 0 {
 		evt.Func(r)
 	} else {
-		onProto(evt.MsgID, evt.Data, r)
+		r.onProto(evt.MsgID, evt.Data)
 	}
 }
 
-func onProto(msgID uint32, data []byte, r *Role) {
-	// zap.L().Debug("[role] onProto", zap.Uint32("id", msgID))
-}
-
-func onFirstInitData(r *Role) {
-	for i := range r.Comps {
-		if iDeal, ok := r.Comps[i].(ICompFirstInit); ok {
-			iDeal.OnFirstInit(r)
-		}
-	}
+func (r *Role) onProto(msgID uint32, data []byte) {
+	zap.L().Debug("[role] onProto", zap.Uint32("id", msgID), zap.ByteString("data", data))
+	comp := r.GetComp(pb.TypeComp_TCExample).(ICompOnline)
+	comp.Online(r)
 }
 
 // GetComp	获取组件
