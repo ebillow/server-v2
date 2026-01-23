@@ -99,7 +99,7 @@ func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *
 	v.Cache = data.Data
 	v.LoginSeq = login.Seq
 	v.setState(stateOnline)
-	role.GetRoleMgr().Add(r.ID, r.SesID, r)
+	role.RoleMgr().Add(r.ID, r.SesID, r)
 
 	r.Loop(ctx)
 }
@@ -111,7 +111,7 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 	v.setState(stateKicking)
 
 	util.GoSafe(func() { // 这里带数据的话，offline里就不能修改数据了
-		role.GetRoleMgr().PostCloseAndWait(p.Login.RoleID) // 可以wait多次
+		role.RoleMgr().PostCloseAndWait(p.Login.RoleID) // 可以wait多次
 		p.Op = OpRepeatedLogin
 		m.ops <- p
 		zap.L().Debug("[login] onLoginRepeated", zap.Uint64("id", p.Login.RoleID))

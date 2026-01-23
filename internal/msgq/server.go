@@ -1,5 +1,0 @@
-package msgq
-
-func Serve() {
-
-}

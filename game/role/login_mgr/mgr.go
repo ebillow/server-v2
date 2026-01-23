@@ -101,7 +101,7 @@ func (m *LoginMgr) Start() {
 func (m *LoginMgr) Close() {
 	m.cancel()
 
-	//	role.GetRoleMgr().WaitAllRoles() //todo
+	//	role.RoleMgr().WaitAllRoles() //todo
 
 	m.waitProducer.Wait()
 	m.waitConsumer.Wait()

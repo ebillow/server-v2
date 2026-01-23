@@ -16,3 +16,14 @@ message MsgItem{
 	string ID = 1;
 	sint64 Cnt = 2;
 }
+
+
+message RankItemShow {
+	uint64                  Id      = 1;
+	string                  Name    = 3; // 名称
+	sint64                  Score   = 4;
+	string                  Club    = 5;
+	string                  Country = 6; // 国旗
+	uint32                  Flag    = 8;
+	uint32                  Vip     = 9;
+}

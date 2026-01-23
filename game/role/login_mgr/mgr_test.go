@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -50,8 +51,8 @@ func TestMain(m *testing.M) {
 	}
 
 	role.CreateComps = logic.CreateComps
-	role.SetLoginMgr(&Mgr)
-	role.SetRoleMgr(role_mgr.Mgr)
+	role.InjectLoginMgr(&Mgr)
+	role.InjectRoleMgr(role_mgr.Mgr)
 	Mgr.Start()
 	m.Run()
 }
@@ -144,7 +145,7 @@ func TestLoginAndOffline(t *testing.T) {
 	c.Add(111)
 
 	time.Sleep(time.Second * 2)
-	role.GetRoleMgr().PostCloseAndWait(111)
+	role.RoleMgr().PostCloseAndWait(111)
 	Mgr.Close()
 	c.CheckResult()
 }
@@ -162,7 +163,7 @@ func TestDataDelete(t *testing.T) {
 	c.Add(111)
 
 	time.Sleep(time.Second * 1)
-	role.GetRoleMgr().PostCloseAndWait(111)
+	role.RoleMgr().PostCloseAndWait(111)
 	time.Sleep(time.Second * 10)
 	c.CheckResult()
 
@@ -224,7 +225,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				role.GetRoleMgr().PostCloseAndWait(id)
+				role.RoleMgr().PostCloseAndWait(id)
 				id++
 				if id == IDMax {
 					return
@@ -232,7 +233,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 			}
 		}
 	}()
-	role.GetRoleMgr().CloseAndWait()
+	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
 	c.CheckResult()
 }
@@ -253,7 +254,7 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 
 	MockMsg()
 
-	role.GetRoleMgr().CloseAndWait()
+	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
 	c.CheckResult()
 }
@@ -265,10 +266,10 @@ func MockMsg() {
 		select {
 		case <-t.C:
 			for id := uint64(1); id <= IDMax; id++ {
-				role.GetRoleMgr().PostEvent(id, role.Event{
-					MsgID: 1,
-					Data:  []byte("hello"),
-				})
+				msg := nats.NewMsg("test")
+				msg.Data = []byte("hello world")
+				role.RoleMgr().PostEvent(id, role.Event{
+					Msg: msg})
 			}
 		case <-out:
 			return
@@ -288,10 +289,10 @@ func TestOnlineOffline(t *testing.T) {
 			Seq:         1,
 		})
 		c.Add(1)
-		role.GetRoleMgr().PostCloseAndWait(1)
+		role.RoleMgr().PostCloseAndWait(1)
 	}
 	time.Sleep(time.Second * 3)
-	role.GetRoleMgr().CloseAndWait()
+	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
 	c.CheckResult()
 }
@@ -322,7 +323,7 @@ func TestLoginOtherDev(t *testing.T) {
 		time.Sleep(time.Millisecond * time.Duration(util.RandInt(10)))
 	}
 
-	role.GetRoleMgr().CloseAndWait()
+	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
 	c.CheckResult()
 }

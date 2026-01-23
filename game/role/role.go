@@ -3,6 +3,7 @@ package role
 import (
 	"context"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
@@ -31,9 +32,9 @@ func (d *DataToSave) Set(comID pb.TypeComp, data string) {
 const EventChanSize = 128
 
 type Event struct {
-	MsgID uint32 // MsgID=0时，就是Func
-	Data  []byte
-	Func  func(r *Role)
+	Msg    *nats.Msg
+	CliMsg bool
+	Func   func(r *Role)
 }
 
 // Role	角色数据
@@ -175,13 +176,13 @@ func (r *Role) Offline() {
 		}
 	}
 
-	GetRoleMgr().Delete(r.ID, r.SesID)
+	RoleMgr().Delete(r.ID, r.SesID)
 
 	data, err := r.Marshal()
 	if err != nil {
 		return
 	}
-	GetLoginMgr().Offline(data) // offline时在mgr里保存,批量存
+	LoginMgr().Offline(data) // offline时在mgr里保存,批量存
 
 	// 通知其它服务器
 	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtOffline, &pb.MsgKVGuidValue{Guid: r.Data.Guid, Value: setup.Setup.ID})
@@ -310,17 +311,22 @@ func (r *Role) MinuteLoop(now time.Time) {
 }
 
 func (r *Role) onEvent(evt Event) {
-	if evt.MsgID == 0 {
+	if evt.Msg == nil {
 		evt.Func(r)
 	} else {
-		r.onProto(evt.MsgID, evt.Data)
+		r.onProto(evt.Msg, evt.CliMsg)
 	}
 }
 
-func (r *Role) onProto(msgID uint32, data []byte) {
-	zap.L().Debug("[role] onProto", zap.Uint32("id", msgID), zap.ByteString("data", data))
-	comp := r.GetComp(pb.TypeComp_TCExample).(ICompOnline)
-	comp.Online(r)
+func (r *Role) onProto(msg *nats.Msg, isCli bool) {
+	err := MsgRouter(isCli).Handle(msg, r)
+	if err != nil {
+		if isCli {
+			// kick
+		} else {
+
+		}
+	}
 }
 
 // GetComp	获取组件
