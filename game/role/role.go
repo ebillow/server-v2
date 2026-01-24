@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
+	"server/internal/gnet"
 	"server/internal/log"
 	"server/internal/model"
 	"server/internal/util"
@@ -319,11 +320,15 @@ func (r *Role) onEvent(evt Event) {
 }
 
 func (r *Role) onProto(msg *nats.Msg, isCli bool) {
-	err := MsgRouter(isCli).Handle(msg, r)
-	if err != nil {
-		if isCli {
-			// kick
-		} else {
+	var err error
+	if isCli {
+		err = CRouter().Handle(msg, r)
+		if err != nil {
+
+		}
+	} else {
+		err = SRouter().Handle(msg, r)
+		if err != nil {
 
 		}
 	}
@@ -335,13 +340,8 @@ func (r *Role) GetComp(t pb.TypeComp) IComp {
 }
 
 // Send	发送数据
-func (r *Role) Send(msgData proto.Message) {
-
-}
-
-// SendBytes	发送Bytes数据
-func (r *Role) SendBytes(msgID uint32, msgData []byte) {
-
+func (r *Role) Send(msg proto.Message) {
+	gnet.SendToRole(r.SesID, msg)
 }
 
 func (r *Role) Save() {

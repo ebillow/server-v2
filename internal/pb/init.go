@@ -13,35 +13,35 @@ type messageMeta struct {
 }
 
 type TypeMeta struct {
-	idByType map[uint16]*messageMeta
-	typeByID map[reflect.Type]uint16
+	idByType map[uint32]*messageMeta
+	typeByID map[reflect.Type]uint32
 }
 
 func (t *TypeMeta) init() {
-	t.idByType = make(map[uint16]*messageMeta)
-	t.typeByID = make(map[reflect.Type]uint16)
+	t.idByType = make(map[uint32]*messageMeta)
+	t.typeByID = make(map[reflect.Type]uint32)
 }
 
-func (t *TypeMeta) Register(id uint16, meta *messageMeta) {
+func (t *TypeMeta) Register(id uint32, meta *messageMeta) {
 	t.idByType[id] = meta
 	t.typeByID[meta.MessageType] = id
 }
 
-func (t *TypeMeta) New(msgID uint16) proto.Message {
+func (t *TypeMeta) New(msgID uint32) proto.Message {
 	if v, ok := t.idByType[msgID]; ok {
 		return v.NewMessage()
 	}
 	return nil
 }
 
-func (t *TypeMeta) NewFunc(msgID uint16) func() proto.Message {
+func (t *TypeMeta) NewFunc(msgID uint32) func() proto.Message {
 	if v, ok := t.idByType[msgID]; ok {
 		return v.NewMessage
 	}
 	return nil
 }
 
-func (t *TypeMeta) MsgID(msg interface{}) (uint16, error) {
+func (t *TypeMeta) MsgID(msg interface{}) (uint32, error) {
 	itype := reflect.TypeOf(msg).Elem()
 	if v, ok := t.typeByID[itype]; ok {
 		return v, nil
@@ -68,37 +68,37 @@ func init() {
 }
 
 func registerC2SMsg(id msgid.MsgIDC2S, meta *messageMeta) {
-	c2s.Register(uint16(id), meta)
+	c2s.Register(uint32(id), meta)
 }
 
 func registerS2CMsg(id msgid.MsgIDS2C, meta *messageMeta) {
-	s2c.Register(uint16(id), meta)
+	s2c.Register(uint32(id), meta)
 }
 
 func registerS2SMsg(id msgid.MsgIDS2S, meta *messageMeta) {
-	s2s.Register(uint16(id), meta)
+	s2s.Register(uint32(id), meta)
 }
 
 func NewFuncC2S(msgID msgid.MsgIDC2S) func() proto.Message {
-	return c2s.NewFunc(uint16(msgID))
+	return c2s.NewFunc(uint32(msgID))
 }
 
 func NewFuncS2C(msgID msgid.MsgIDS2C) func() proto.Message {
-	return s2c.NewFunc(uint16(msgID))
+	return s2c.NewFunc(uint32(msgID))
 }
 
 func NewFuncS2S(msgID msgid.MsgIDS2S) func() proto.Message {
-	return s2s.NewFunc(uint16(msgID))
+	return s2s.NewFunc(uint32(msgID))
 }
 
-func GetMsgIDC2S(msg proto.Message) (uint16, error) {
+func GetMsgIDC2S(msg proto.Message) (uint32, error) {
 	return c2s.MsgID(msg)
 }
 
-func GetMsgIDS2C(msg proto.Message) (uint16, error) {
+func GetMsgIDS2C(msg proto.Message) (uint32, error) {
 	return s2c.MsgID(msg)
 }
 
-func GetMsgIDS2S(msg proto.Message) (uint16, error) {
+func GetMsgIDS2S(msg proto.Message) (uint32, error) {
 	return s2s.MsgID(msg)
 }

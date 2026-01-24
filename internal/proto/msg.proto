@@ -9,8 +9,6 @@ option go_package = "./pb";
 //import "msg_common.proto";
 package pb;
 
-
-//--------------妖尾项目保留的----------
 //-----------------道具---------------------------//
 message MsgItem{
 	string ID = 1;

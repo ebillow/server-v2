@@ -18,7 +18,7 @@ func (bs *DataBus) Serve(callback func(msg *nats.Msg)) error {
 
 func (bs *DataBus) ServeCli(callback func(msg *nats.Msg)) error {
 	subs := make(map[string]string)
-	subs[getCliSubject(bs.serName, util.ParseInt32(bs.serID))] = ""
+	subs[getRoleSubject(bs.serName, util.ParseInt32(bs.serID))] = ""
 
 	err := bs.subscribe(subs, callback)
 	if err != nil {

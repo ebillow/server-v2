@@ -8,6 +8,14 @@ option go_package = "./pb";
 
 package pb;
 
+enum Server{
+	Role = 0;
+	Gateway = 1;
+	Account = 2;
+	Game = 3;
+	Center = 5;
+}
+
 //一些公共结构
 message MsgInt
 {

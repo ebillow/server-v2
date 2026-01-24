@@ -21,7 +21,7 @@ func newServerRouter(size uint32) *ServerRouter {
 // Register 注册服务器发来的消息处理函数
 func (rt *ServerRouter) Register(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *role.Role)) {
 	if !netStart.Load() {
-		zap.L().Error("Register msg handle failed, you mast Register before Serve or Connect",
+		zap.L().Error("register msg handle failed, you mast Register before Serve or Connect",
 			zap.Any("msgID", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]),
 			zap.Stack("stack"))
@@ -29,7 +29,7 @@ func (rt *ServerRouter) Register(msgID msgid.MsgIDS2S, df func(msg proto.Message
 	}
 	err := rt.register(uint32(msgID), pb.NewFuncS2S(msgID), df)
 	if err != nil {
-		zap.L().Error("Register error",
+		zap.L().Error("register error",
 			zap.Error(err),
 			zap.Any("msg id", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]))

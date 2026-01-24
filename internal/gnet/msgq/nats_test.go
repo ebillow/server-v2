@@ -2,10 +2,12 @@ package msgq
 
 import (
 	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"log"
 	"server/internal/pb"
 	"server/internal/util"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -132,5 +134,35 @@ func BenchmarkHead(b *testing.B) {
 		msg.Header.Get("ser_id")
 		msg.Header.Get("msg_id")
 		msg.Header.Get("role_id")
+	}
+}
+
+func TestRequest(t *testing.T) {
+	nc := connect()
+	c := make(chan *nats.Msg, 128)
+	go func() {
+		for {
+			select {
+			case m := <-c:
+				t.Log(m.Header, string(m.Data))
+				err := m.Respond([]byte("recv"))
+				require.NoError(t, err)
+			}
+		}
+	}()
+	// Subscribe
+	if _, err := nc.Subscribe("updates", func(m *nats.Msg) {
+		c <- m
+	}); err != nil {
+		log.Fatal(err)
+	}
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			t.Log("req")
+			msg, err := nc.Request("updates", []byte("send "+strconv.Itoa(i)), time.Second*3)
+			require.NoError(t, err)
+			t.Log("ack", string(msg.Data))
+		}()
 	}
 }

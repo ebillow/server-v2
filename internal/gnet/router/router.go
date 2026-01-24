@@ -8,12 +8,12 @@ import (
 const MsgMaxCount = 65535
 
 var (
-	CliMsgRouter = newClientRouter(65536)
-	SerMsgRouter = newServerRouter(65536)
+	CliMsgRouter = newClientRouter(MsgMaxCount)
+	SerMsgRouter = newServerRouter(MsgMaxCount)
 	netStart     atomic.Bool
 )
 
 var (
-	errAPINotFind      = errors.New("api not find")
-	errMsgIDBigThanMax = errors.New("msg id bigger than max")
+	errAPINotFind         = errors.New("api not exist")
+	errMsgIDBiggerThanMax = errors.New("msg id bigger than max")
 )

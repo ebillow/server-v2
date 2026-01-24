@@ -77,6 +77,6 @@ func getAllSubject(serName string) string {
 	return fmt.Sprintf("msg.%s.all", serName)
 }
 
-func getCliSubject(serName string, serID int32) string {
-	return fmt.Sprintf("msg.role_%s.idx.%d", serName, serID)
+func getRoleSubject(serName string, serID int32) string {
+	return fmt.Sprintf("msg.%s_role.idx.%d", serName, serID)
 }

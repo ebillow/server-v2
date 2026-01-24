@@ -26,7 +26,7 @@ func newRoleMsgRouter(size uint32) *roleMsgRouter {
 // Register 注册消息
 func (rt *roleMsgRouter) register(msgID uint32, cf func() proto.Message, df func(msg proto.Message, r *role.Role)) error {
 	if int(msgID) >= len(rt.handlers) {
-		return errMsgIDBigThanMax
+		return errMsgIDBiggerThanMax
 	}
 	rt.handlers[msgID] = &msgHandler{
 		createFunc: cf,
