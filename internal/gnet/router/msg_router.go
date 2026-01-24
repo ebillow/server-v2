@@ -1,12 +1,8 @@
 package snet
 
 import (
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"server/game/role"
-	"server/internal/pb/msgid"
-	"server/internal/util"
 )
 
 type msgHandler struct {
@@ -20,33 +16,35 @@ type roleMsgRouter struct {
 }
 
 // newRoleMsgRouter createRoute
-func newRoleMsgRouter(size int) *roleMsgRouter {
+func newRoleMsgRouter(size uint32) *roleMsgRouter {
 	r := &roleMsgRouter{
 		make([]*msgHandler, size),
 	}
 	return r
 }
 
-// register 注册消息
-func (rt *roleMsgRouter) register(msgID uint16, cf func() proto.Message, df func(msg proto.Message, r *role.Role)) {
+// Register 注册消息
+func (rt *roleMsgRouter) register(msgID uint32, cf func() proto.Message, df func(msg proto.Message, r *role.Role)) error {
+	if int(msgID) >= len(rt.handlers) {
+		return errMsgIDBigThanMax
+	}
 	rt.handlers[msgID] = &msgHandler{
 		createFunc: cf,
 		handleFunc: df,
 	}
+
+	return nil
 }
 
 // Handle 处理消息
-func (rt *roleMsgRouter) Handle(msg *nats.Msg, r *role.Role) error {
-	msgID := util.ParseUint32(msg.Header.Get("msg_id"))
+func (rt *roleMsgRouter) handle(msgID uint32, msgData []byte, r *role.Role) error {
 	node, err := rt.getHandler(msgID)
 	if err != nil {
-		zap.L().Warn("can not find msg  roleMsgRouter", zap.Uint32("msg_id", msgID), zap.Error(err), zap.Inline(r))
 		return err
 	}
 
-	msgPb, err := rt.parseMsg(node, msg.Data)
+	msgPb, err := rt.parseMsg(node, msgData)
 	if err != nil {
-		zap.L().Warn("parse msg error", zap.Uint32("msg_id", msgID), zap.String("msg name", msgid.MsgIDC2S_name[int32(msgID)]), zap.Error(err), zap.Inline(r))
 		return err
 	}
 
