@@ -18,14 +18,6 @@ func Do(redisCli redis.UniversalClient, key string, fn func(ctx context.Context,
 		return fn(ctx, tx)
 	}
 
-	//快要上线，全部改逻辑风险大，先这样处理
-	lock := NewLock("lock_" + key)
-	err := lock.Lock()
-	if err != nil {
-		return err
-	}
-	defer lock.Unlock()
-
 	for i := 0; i < maxRetries; i++ {
 		err := redisCli.Watch(ctx, txfTarget, key)
 		if err == nil {
@@ -54,14 +46,6 @@ func DoWithSavePipe(redisCli redis.UniversalClient, key string, fn func(ctx cont
 		_, err = pipe.Exec(ctx)
 		return err
 	}
-
-	//快要上线，全部改逻辑风险大，先这样处理
-	lock := NewLock("lock_" + key)
-	err := lock.Lock()
-	if err != nil {
-		return err
-	}
-	defer lock.Unlock()
 
 	for i := 0; i < maxRetries; i++ {
 		err := redisCli.Watch(ctx, txfTarget, key)
