@@ -55,7 +55,7 @@ echo "protoc-gen-go-grpc: $(protoc-gen-go-grpc --version)"
 trap 'echo -e "${RED}error: Script failed: see failed command above${NC}"' ERR
 
 # 生成的目录
-OUTDIR=$(realpath "../../internal")
+OUTDIR=$(realpath "../../pkg")
 echo ${OUTDIR}
 
 function gen_proto() {

@@ -8,11 +8,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/zap"
 	"server/game/role"
-	"server/internal/db"
-	"server/internal/log"
-	"server/internal/model"
-	"server/internal/pb"
-	"server/internal/util"
+	"server/pkg/db"
+	"server/pkg/logger"
+	"server/pkg/model"
+	"server/pkg/pb"
+	"server/pkg/util"
 	"sync"
 	"time"
 )
@@ -154,7 +154,7 @@ func newRoleInDB(roleID uint64) (*role.DataToSave, error) {
 
 	str, err := jsoniter.MarshalToString(&rData)
 	if err != nil {
-		log.Errorf("[login] marshal role data err:%v", err)
+		logger.Errorf("[login] marshal role data err:%v", err)
 		return nil, err
 	}
 	rd.Set(pb.TypeComp_TCBase, str)

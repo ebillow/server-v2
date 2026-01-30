@@ -1,0 +1,8 @@
+{
+  "ServerAddr":"127.0.0.1:4001",
+  "WorldBegin": 1,
+  "WorldEnd": 1,
+  "Cnt":1,
+  "BeginID":1,
+  "LoginOnly":false
+}

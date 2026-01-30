@@ -5,9 +5,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
-	"server/internal/db"
-	"server/internal/log"
-	"server/internal/model"
+	"server/pkg/db"
+	"server/pkg/logger"
+	"server/pkg/model"
 	"sync"
 	"time"
 )
@@ -105,7 +105,7 @@ func (s *saver) saveBatch(batch map[uint64]*opSaveData) {
 	}
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.Errorf("[login] real save role err:%v", err)
+		logger.Errorf("[login] real save role err:%v", err)
 		return
 	}
 
@@ -122,12 +122,12 @@ func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) {
 			{"data", toDB[i].Data},
 		}}})
 		models = append(models, mod)
-		log.Debugf("[login] bulk write save role %d to db", toDB[i].ID)
+		logger.Debugf("[login] bulk write save role %d to acc_db", toDB[i].ID)
 	}
 
 	_, err := db.MongoDB.Collection("roles").BulkWrite(ctx, models)
 	if err != nil {
-		log.Errorf("[login] bulk write save role err:%v", err)
+		logger.Errorf("[login] bulk write save role err:%v", err)
 		return
 	}
 

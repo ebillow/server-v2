@@ -7,13 +7,14 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
-	"server/internal/gnet"
-	"server/internal/log"
-	"server/internal/model"
-	"server/internal/util"
+	"server/pkg/gnet"
+	"server/pkg/logger"
+	"server/pkg/model"
+	"server/pkg/thread"
+	"server/pkg/util"
 	"sync"
 
-	"server/internal/pb"
+	"server/pkg/pb"
 	"time"
 )
 
@@ -62,7 +63,7 @@ type Role struct {
 var CreateComps func(r *Role)
 
 // NewRole	新建一个角色
-func NewRole(data *DataToSave, login *pb.C2SLogin) (*Role, error) {
+func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	dataBase := &pb.RoleData{}
 
 	err := jsoniter.UnmarshalFromString(data.Get(pb.TypeComp_TCBase), dataBase)
@@ -75,7 +76,7 @@ func NewRole(data *DataToSave, login *pb.C2SLogin) (*Role, error) {
 		Data:    dataBase,
 		SesID:   login.SesID,
 		Comps:   make(map[pb.TypeComp]IComp),
-		CliInfo: login.CliInfo,
+		CliInfo: login.Req.CliInfo,
 	}
 
 	r.Events = make(chan Event, EventChanSize)
@@ -108,7 +109,7 @@ func (r *Role) CloseAndWait() {
 
 func (r *Role) Loop(ctx context.Context) {
 	r.Wait.Add(1)
-	util.GoSafe(func() {
+	thread.GoSafe(func() {
 		t := time.NewTicker(time.Second)
 		defer func() {
 			r.Offline()
@@ -163,7 +164,9 @@ func (r *Role) Online() {
 	// msgSend.ServerNowTime = util.GetNowTimeM()
 	// msgSend.ServerBeginTime = time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local).Unix()
 	//
-	// r.Send(msgSend)
+	r.Send(&pb.S2CLogin{
+		Player: r.Data,
+	})
 	zap.L().Info("[login] online", zap.Inline(r))
 }
 
@@ -198,7 +201,7 @@ func (r *Role) Marshal() (*DataToSave, error) {
 
 	str, err := jsoniter.MarshalToString(r.Data)
 	if err != nil {
-		log.Errorf("marshal role data err:%v", err)
+		logger.Errorf("marshal role data err:%v", err)
 		return nil, err
 	}
 	rd.Set(pb.TypeComp_TCBase, str)
@@ -220,7 +223,6 @@ func (r *Role) Marshal() (*DataToSave, error) {
 }
 
 func (r *Role) SecLoop(now time.Time) {
-	zap.L().Debug("[role] sec loop")
 	if r.Data == nil {
 		zap.L().Error("role.Data == nil")
 		return
@@ -258,7 +260,7 @@ func (r *Role) SecLoop(now time.Time) {
 		}
 
 		if reset { // 每日数据重置
-			// log.Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+			// logger.Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 			if comp, ok := r.Comps[i].(ICompDataReset); ok {
 				comp.OnDataReset(r)
 			}
@@ -282,14 +284,14 @@ func (r *Role) SecLoop(now time.Time) {
 		if monthChange {
 			curMonthBegin := time.Date(now.Year(), now.Month(), 1, ResetHour, 0, 0, 0, now.Location())
 			r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
-			log.Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
+			logger.Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
 		}
-		// log.Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+		// logger.Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 	}
 	if dayChange {
 		begin := util.CurDayBegin()
 		r.Data.DayChange = begin.Add(time.Duration(24) * time.Hour).Unix()
-		// log.Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
+		// logger.Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
 		// r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
 	}
 	if reset {
@@ -320,17 +322,10 @@ func (r *Role) onEvent(evt Event) {
 }
 
 func (r *Role) onProto(msg *nats.Msg, isCli bool) {
-	var err error
 	if isCli {
-		err = CRouter().Handle(msg, r)
-		if err != nil {
-
-		}
+		cRouter().HandleWithRole(msg, r)
 	} else {
-		err = SRouter().Handle(msg, r)
-		if err != nil {
-
-		}
+		sRouter().HandleWithRole(msg, r)
 	}
 }
 
@@ -341,7 +336,7 @@ func (r *Role) GetComp(t pb.TypeComp) IComp {
 
 // Send	发送数据
 func (r *Role) Send(msg proto.Message) {
-	gnet.SendToRole(r.SesID, msg)
+	gnet.SendToRole(msg, r.SesID, r.ID)
 }
 
 func (r *Role) Save() {

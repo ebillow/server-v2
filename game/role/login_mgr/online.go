@@ -4,9 +4,9 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"server/game/role"
-	"server/internal/log"
-	"server/internal/pb"
-	"server/internal/util"
+	"server/pkg/logger"
+	"server/pkg/pb"
+	"server/pkg/thread"
 	"time"
 )
 
@@ -43,20 +43,22 @@ func (m *LoginMgr) drainOps() {
 }
 
 func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
-	switch p.Op {
-	case OpOnline:
-		m.opOnline(ctx, p)
-	case OpUnmarshal:
-		m.unmarshal(ctx, p.Data, p.Login)
-	case OpRepeatedLogin:
-		m.opLoginRepeated(ctx, p)
-	case OpOffline:
-		m.roleOffline(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
-	case OpSaveRole:
-		m.saveOne(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
-	case OpSaveSuccess:
-		m.saveSuccess(p.IDs)
-	}
+	thread.RunSafe(func() {
+		switch p.Op {
+		case OpOnline:
+			m.opOnline(ctx, p)
+		case OpUnmarshal:
+			m.unmarshal(ctx, p.Data, p.Login)
+		case OpRepeatedLogin:
+			m.opLoginRepeated(ctx, p)
+		case OpOffline:
+			m.roleOffline(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
+		case OpSaveRole:
+			m.saveOne(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
+		case OpSaveSuccess:
+			m.saveSuccess(p.IDs)
+		}
+	})
 }
 
 func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
@@ -88,10 +90,10 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 	}
 }
 
-func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *pb.C2SLogin) {
+func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *pb.S2SReqLogin) {
 	r, err := role.NewRole(data, login)
 	if err != nil {
-		log.Errorf("new role err:%v", err)
+		logger.Errorf("new role err:%v", err)
 		return
 	}
 
@@ -110,7 +112,7 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 	// 避免阻塞login协程，不在login协程wait
 	v.setState(stateKicking)
 
-	util.GoSafe(func() { // 这里带数据的话，offline里就不能修改数据了
+	thread.GoSafe(func() { // 这里带数据的话，offline里就不能修改数据了
 		role.RoleMgr().PostCloseAndWait(p.Login.RoleID) // 可以wait多次
 		p.Op = OpRepeatedLogin
 		m.ops <- p

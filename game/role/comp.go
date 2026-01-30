@@ -1,7 +1,7 @@
 package role
 
 import (
-	"server/internal/pb"
+	"server/pkg/pb"
 	"time"
 )
 

@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"go/format"
 	"os"
-	"server/internal/pb/msgid"
+	"server/pkg/pb/msgid"
 	"sort"
 	"text/template"
 )
@@ -45,7 +45,7 @@ package pb
 
 import (
 	"google.golang.org/protobuf/proto"
-	"server/internal/pb/msgid"
+	"server/pkg/pb/msgid"
 	"reflect"
 )
 

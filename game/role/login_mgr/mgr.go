@@ -4,8 +4,8 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"server/game/role"
-	"server/internal/pb"
-	"server/internal/util"
+	"server/pkg/pb"
+	"server/pkg/thread"
 	"sync"
 	"time"
 )
@@ -54,7 +54,7 @@ func (l *loginData) setState(state loginState) {
 type Operator struct {
 	Op uint32
 
-	Login *pb.C2SLogin     // 上线的参数
+	Login *pb.S2SReqLogin  // 上线的参数
 	Data  *role.DataToSave // 下线，保存的参数
 	IDs   []uint64
 }
@@ -82,17 +82,17 @@ func (m *LoginMgr) Start() {
 
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
-	util.GoSafe(func() {
+	thread.GoSafe(func() {
 		m.waitProducer.Add(1)
 		m.run(m.ctx)
 	})
 	for i := 0; i < LoadingGoCnt; i++ {
 		m.waitProducer.Add(1)
-		util.GoSafe(func() {
+		thread.GoSafe(func() {
 			m.load.run(m.ctx, &m.waitProducer)
 		})
 	}
-	util.GoSafe(func() { // 只能开一个，否则可能后到的先保存
+	thread.GoSafe(func() { // 只能开一个，否则可能后到的先保存
 		m.waitConsumer.Add(1)
 		m.save.run(&m.waitConsumer)
 	})
@@ -108,7 +108,7 @@ func (m *LoginMgr) Close() {
 }
 
 // Online	请求角色的数据
-func (m *LoginMgr) Online(msg *pb.C2SLogin) {
+func (m *LoginMgr) Online(msg *pb.S2SReqLogin) {
 	m.ops <- &Operator{Op: OpOnline, Login: msg}
 }
 

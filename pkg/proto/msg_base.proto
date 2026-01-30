@@ -1,0 +1,229 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+option go_package = "./pb";
+import "msg_common.proto";
+import "msg_player.proto";
+
+package pb;
+
+message C2SGateHandle{}
+message C2SAccountHandle{}
+message C2SGameHandle{}
+
+message S2CNone{}
+message S2SNone{}
+message S2CGateHandle{}
+
+message C2SInit{
+	string S2CPublic = 1;
+	string C2SPublic = 2;
+}
+
+message S2CInit{
+	string S2CPublic = 1;
+	string C2SPublic = 2;
+	bool   Crypto = 3;
+}
+
+message C2SHeartBeat{
+	sint64 CliTime = 1;
+	string CliVersion = 3;
+}
+
+message S2CHeartBeat{
+	sint64 CliTime = 1;
+	sint64 SerTime = 2;
+}
+
+//登录请求
+message C2SLogin{
+	//sdk登录需要的数据
+	ESdkNumber SdkNo = 1;
+	string Account = 2;
+	string Token = 3;
+	uint32 Channel = 4;			//子渠道
+	string Dev = 5;					//设备ID
+	uint32 Area = 7;				//选服
+	string Version = 8;			//客户端版本号
+	bool Reconnect = 9;			//重连
+	//附加的一些日志数据
+	ClientInfo CliInfo = 10;//客户端信息
+}
+
+message S2CLogin{
+	LoginCode Code = 1;
+	uint32 GameID = 2;
+	sint64 OpenTime = 3;
+
+	int64 ServerNowTime = 4;//服务器当前时间
+	int64 ServerBeginTime = 5;
+	string Dev = 6;
+	string RetDesc = 7; //当Ret=LCFreeze，LCClose时，返回描述
+	uint32 Token = 8;
+	string CliVersion = 9;
+
+	C2SLogin Data = 10;
+	RoleData Player = 11;
+}
+
+message S2SReqLogin{
+	C2SLogin Req = 1;
+
+	//客户端不用的
+	uint64 SesID = 2;
+	uint64 RoleID = 3;
+	uint64 ReConnToken = 4;
+	uint32 Seq = 5;
+	repeated string ConnectedAcc = 7;	//已绑定的账号
+}
+
+message AccountData {
+	uint64 AccID = 1;
+	string Account = 2;
+}
+
+message S2SGameState{
+	enum GmState{
+		GmRunning = 0;
+		GmSaveData = 1;
+		GmClose = 2;
+		GmTimeOut = 3;
+	}
+	sint32 RoleCnt = 1;
+	string EndPoint = 2;
+	GmState State = 3;
+	sint64 Time = 4;
+	sint32 GameID = 5;
+}
+
+message S2CKickRole{
+	
+}
+
+message C2SBindAcc{
+	enum BindAccCode{
+		BindSuccess = 0;	//成功
+		GuestIsBind = 1;	//游客账号已经被绑定
+		AccIsBind = 2;		//账号已经有角色了
+		GuestNotFind = 3;	//游客数据出错了
+	}
+	ESdkNumber 	SdkToBind = 1;
+	string 			AccToBind = 2; 	//要绑定的账号（google等）
+	BindAccCode Ret = 3;	//返回结果
+	repeated string ConnectedAcc = 4;	//已绑定的账号
+	string Name = 6;
+	repeated PrizeItem Prize = 7;
+	//服务器使用
+	uint64 GuestAccID = 8;
+	uint64 RoleGuid = 10;
+	ClientInfo CliInfo = 11;//日志
+}
+
+message S2SReqRoleOnline{
+	uint64 RoleID = 1;
+	uint32 GameID = 2;
+}
+
+message S2SResRoleOnline{
+	uint64 RoleID = 1;
+}
+
+message S2SReqConfig{
+
+}
+
+message S2SResConfig{
+	bytes Data = 1;
+}
+
+message S2SKickAcc{
+	uint64 Acc = 1;
+}
+
+message S2SKickRole{
+}
+
+message C2SClientReady{
+
+}
+
+message S2CDayChange{
+
+}
+
+message S2CDataReset{
+
+}
+
+message S2SRelayToRole{
+	uint32 MsgID = 1;
+	bytes  Data = 2;
+}
+
+//-----------------离线事件---------------------------//
+message S2SOfflineEvt{
+	uint64 Role = 1;
+	uint32 Type = 2;
+	bytes Data = 3;
+	string ProtoName = 4;
+}
+
+message C2SWithoutRole{}
+
+//---------------------------
+message MsgForwardToRole{
+	uint32 MsgID = 1;
+	uint64 RoleGuid = 2;
+	bytes	Data = 3;
+}
+
+message S2SRoleOffline{
+	string Acc = 1;
+	uint64 RoleID = 2;
+	int32 Seq = 3;
+}
+
+message MsgServerCloseInfo {
+	bool Close = 1;
+	map<uint32, string> Tips = 2;
+	int64 OpenTime = 3;
+}
+
+message MsgServerClose{
+	uint32 Sn = 1;
+	map<uint32, MsgServerCloseInfo> Data = 2;				//维护提示
+}
+
+//日志需求(客户端在相关协议中携带，比如登陆、充值订单、)
+message ClientInfo {
+	string DevID = 1;//设备ID
+	string AdvType = 2;//广告类型
+	string PhoneModel = 3;//客户端机型
+	string SysVersion = 4;//客户端机型版本号
+	string Machine = 5;//客户端系统完整信息json串
+	string Ip = 6;		//客户端Ip
+}
+
+message RoleInDb{
+	uint64 ID = 1;
+	string Data = 3;
+}
+
+enum LoginCode {
+	LCSuccess = 0;
+	LCSdkCheckFaild = 1;	//sdk检测登录失败
+	LCNoGame = 2;			//game未启动
+	LCCanNotReConn = 3;		//不能重连了
+	LCCD = 4;				//冷却中
+	LCFreeze = 5;			//封停
+	LCClose = 6;			//服务器关闭
+	LCSDKCtl = 7;			//所属的渠道被限制登录
+	LCVersionErr = 8;		//版本号错误
+	LCServerFull = 9;		//服务器人数达到上限
+	LCServerBusy = 10;		//服务器繁忙
+	LCCanNotRegister = 11;	//不能注册了新玩家不让进
+	LCBindDev = 12;			//绑定设备的账号，登录使用的设备和绑定设备不一致
+	LCServerErr = 13;		//服务器异常
+	LCOtherDevLogin = 14;	//其它设备登录，顶号
+}

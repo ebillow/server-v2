@@ -3,7 +3,8 @@ package role
 import (
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
-	"server/internal/pb/msgid"
+	"server/pkg/pb"
+	"server/pkg/pb/msgid"
 )
 
 type IRoleMgr interface {
@@ -16,17 +17,19 @@ type IRoleMgr interface {
 }
 
 type ILoginMgr interface {
+	Online(msg *pb.S2SReqLogin)
 	Offline(data *DataToSave)
 }
 
 type ICRouter interface {
-	Register(msgID msgid.MsgIDC2S, df func(msg proto.Message, r *Role))
-	Handle(msg *nats.Msg, r *Role) error
+	RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, r *Role))
+	HandleWithRole(msg *nats.Msg, r *Role)
 }
 
 type ISRouter interface {
-	Register(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *Role))
-	Handle(msg *nats.Msg, r *Role) error
+	Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, qm *nats.Msg))
+	RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *Role, qm *nats.Msg))
+	HandleWithRole(msg *nats.Msg, r *Role)
 }
 
 // ---------------------------------------------------------
@@ -55,15 +58,15 @@ func InjectRoleMgr(mgr IRoleMgr) {
 	roleMgr = mgr
 }
 
-// CRouter 客户端消息路由---MsgRouter ---------------------------------------------------------
-func CRouter() ICRouter {
+// cRouter 客户端消息路由---MsgRouter ---------------------------------------------------------
+func cRouter() ICRouter {
 	return cliMsgRouter
 }
 
 func InjectCRouter(rt ICRouter) {
 	cliMsgRouter = rt
 }
-func SRouter() ISRouter {
+func sRouter() ISRouter {
 	return serMsgRouter
 }
 
