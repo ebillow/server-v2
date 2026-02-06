@@ -15,5 +15,6 @@ enum MsgIDS2C
 	 S2CKickRole	= 103;
 	 S2CDayChange	= 104;
 	 S2CDataReset	= 105;
+	 S2CEcho	= 106;
 	
 };

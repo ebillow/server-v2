@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Put(addr string, version string, v string) {
+func Put(addr string, iid string, version string, v string) {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{addr},
 		DialTimeout: 5 * time.Second,
@@ -21,7 +21,7 @@ func Put(addr string, version string, v string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	_, err = cli.Put(ctx, configPath(version), v)
+	_, err = cli.Put(ctx, configPath(iid, version), v)
 	if err != nil {
 		zap.L().Error("put config err", zap.Error(err))
 		return

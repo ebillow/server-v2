@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"server/pkg/pb"
 )
 
@@ -8,6 +9,6 @@ import (
 type SdkLocal struct {
 }
 
-func (t *SdkLocal) Login(req *pb.C2SLogin) error {
+func (t *SdkLocal) Login(ctx context.Context, req *pb.C2SLogin) error {
 	return nil
 }

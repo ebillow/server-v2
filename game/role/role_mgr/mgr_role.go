@@ -39,6 +39,12 @@ func (m *RoleMgr) Add(roleID uint64, sesID uint64, r *role.Role) {
 	m.mtx.Unlock()
 }
 
+func (m *RoleMgr) Count() int {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+	return len(m.roles)
+}
+
 func (m *RoleMgr) get(roleID uint64) (meta, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
@@ -70,13 +76,21 @@ func (m *RoleMgr) Delete(roleID uint64, sesID uint64) {
 	}
 }
 
-func (m *RoleMgr) PostCloseAndWait(roleID uint64) {
+func (m *RoleMgr) KickRoleAndWait(roleID uint64) {
 	r, ok := m.get(roleID)
 	if !ok {
 		return
 	}
 	r.cancel()
 	r.wait.Wait()
+}
+
+func (m *RoleMgr) Kick(sesID uint64) {
+	r, ok := m.getBySes(sesID)
+	if !ok {
+		return
+	}
+	r.cancel()
 }
 
 func (m *RoleMgr) CloseAndWait() {
@@ -87,7 +101,7 @@ func (m *RoleMgr) CloseAndWait() {
 	}
 	m.mtx.RUnlock()
 	for _, id := range ids {
-		m.PostCloseAndWait(id)
+		m.KickRoleAndWait(id)
 	}
 }
 

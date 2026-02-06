@@ -13,7 +13,10 @@ import (
 )
 
 func init() {
-	session.CRouter().RoleMsg(msgid.MsgIDC2S_C2SInit, onNetInit) // 初始化
+	session.C().Msg(msgid.MsgIDC2S_C2SInit, onNetInit) // 初始化
+
+	session.S().Msg(msgid.MsgIDS2S_S2SResLogin, onLoginSuccess)
+	session.S().Msg(msgid.MsgIDS2S_S2SS2GtDisconnect, onDisconnect)
 }
 
 func onNetInit(msgBase proto.Message, ses *session.Session) {
@@ -61,4 +64,16 @@ func onNetInit(msgBase proto.Message, ses *session.Session) {
 		})
 		// logger.Infof("%s send init msg", ses.String())
 	}
+}
+
+func onLoginSuccess(msgBase proto.Message, ses *session.Session) {
+	msg := msgBase.(*pb.S2SResLogin)
+	ses.GameID = msg.GameID
+
+	ses.Send(msg.Res)
+}
+
+func onDisconnect(msgBase proto.Message, ses *session.Session) {
+	msg := msgBase.(*pb.S2SS2GtDisconnect)
+	ses.Close(msg.Why)
 }

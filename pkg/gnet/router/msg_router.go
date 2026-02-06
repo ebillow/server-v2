@@ -1,62 +1,67 @@
 package router
 
 import (
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/trace"
+	"server/pkg/logger"
 )
 
-type msgHandler struct {
+type MsgHandler struct {
 	createFunc func() proto.Message
-	handleFunc func(proto.Message, Context)
+	HandleFunc func(proto.Message, gctx.Context)
 }
 
 // MsgRouter 消息处理器
 type MsgRouter struct {
-	handlers []*msgHandler
+	handlers map[uint32]*MsgHandler
 }
 
 // NewMsgRouter createRoute
-func NewMsgRouter(size uint32) *MsgRouter {
+func NewMsgRouter() *MsgRouter {
 	r := &MsgRouter{
-		make([]*msgHandler, size),
+		make(map[uint32]*MsgHandler),
 	}
 	return r
 }
 
 // Register 注册消息
-func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(msg proto.Message, c Context)) error {
-	if int(msgID) >= len(rt.handlers) {
-		return errMsgIDBiggerThanMax
-	}
-	rt.handlers[msgID] = &msgHandler{
+func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(msg proto.Message, c gctx.Context)) error {
+	rt.handlers[msgID] = &MsgHandler{
 		createFunc: cf,
-		handleFunc: df,
+		HandleFunc: df,
 	}
 
 	return nil
 }
 
-// Handle 处理消息
-func (rt *MsgRouter) HandleMsg(msgID uint32, msgData []byte, c Context) (proto.Message, error) {
-	node, err := rt.getHandler(msgID)
+// HandleMsg 处理消息
+func (rt *MsgRouter) HandleMsg(c gctx.Context) error {
+	node, err := rt.GetHandler(c.Msg.MsgID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	msgPb, err := rt.parseMsg(node, msgData)
+	msgPB, err := rt.ParseMsg(node, c.Msg.Data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	node.handleFunc(msgPb, c)
-	return msgPb, nil
+	if trace.Rule.ShouldLog(c.Msg.MsgID, c.Msg.RoleID, c.Msg.SesID) {
+		info := "<<< msg.recv:"
+		zap.L().Info(info,
+			zap.Inline(c),
+			zap.Any("data", msgPB),
+			logger.Blue.Field(),
+		)
+	}
+
+	node.HandleFunc(msgPB, c)
+	return nil
 }
 
-func (rt *MsgRouter) getHandler(id uint32) (n *msgHandler, err error) {
-	if int(id) >= len(rt.handlers) {
-		err = errAPINotFind
-		return
-	}
-
+func (rt *MsgRouter) GetHandler(id uint32) (n *MsgHandler, err error) {
 	n = rt.handlers[id]
 	if nil == n || nil == n.createFunc {
 		err = errAPINotFind
@@ -65,7 +70,7 @@ func (rt *MsgRouter) getHandler(id uint32) (n *msgHandler, err error) {
 	return
 }
 
-func (rt *MsgRouter) parseMsg(n *msgHandler, data []byte) (msg proto.Message, err error) {
+func (rt *MsgRouter) ParseMsg(n *MsgHandler, data []byte) (msg proto.Message, err error) {
 	msg = n.createFunc()
 	if msg == nil { // 允许只有消息id没内容
 		return

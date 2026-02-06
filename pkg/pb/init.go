@@ -47,7 +47,7 @@ func (t *TypeMeta) MsgID(msg interface{}) (uint32, error) {
 		return v, nil
 	}
 
-	return 0, fmt.Errorf("not found msg type %s", reflect.TypeOf(msg))
+	return 0, fmt.Errorf("msg id for %s no exist", reflect.TypeOf(msg))
 }
 
 var (

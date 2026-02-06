@@ -34,7 +34,7 @@ func (l *loader) post(op *Operator) {
 func (l *loader) run(ctx context.Context, wait *sync.WaitGroup) {
 	const (
 		batchSize     = 100
-		flushInterval = 200 * time.Millisecond
+		flushInterval = 50 * time.Millisecond
 	)
 
 	batch := make([]*Operator, 0, batchSize)

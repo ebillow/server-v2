@@ -4,6 +4,7 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"server/game/role"
+	"server/game/role/role_mgr"
 	"server/pkg/pb"
 	"server/pkg/thread"
 	"sync"
@@ -101,7 +102,7 @@ func (m *LoginMgr) Start() {
 func (m *LoginMgr) Close() {
 	m.cancel()
 
-	//	role.RoleMgr().WaitAllRoles() //todo
+	role.RoleMgr().CloseAndWait()
 
 	m.waitProducer.Wait()
 	m.waitConsumer.Wait()
@@ -130,7 +131,9 @@ func postOp(op *Operator) {
 }
 
 func (m *LoginMgr) monitor() {
-	zap.L().Info("[login] online monitor", zap.Int("cache count", len(m.data)))
+	zap.L().Info("[login] monitor",
+		zap.Int("cache", len(m.data)),
+		zap.Int("online", role_mgr.Mgr.Count()))
 }
 
 func (m *LoginMgr) roleOffline(p *opSaveData) {

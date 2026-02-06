@@ -49,18 +49,12 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	}
 
 	s.SendBytes(uint32(msgID), b)
-	if IsTraceProto() {
-		if msgID != msgid.MsgIDS2C_S2CHeartBeat {
-			logger.Infof("%s send [%d]%s data:%v",
-				s.String(), msgID, msgid.MsgIDS2C_name[int32(msgID)], msg)
-		}
-	}
 	return true
 }
 
 // send
 func (s *Session) sendLoop() {
-	cache := make([]byte, sendPacketLimit+8)
+	cache := make([]byte, sendCacheLen+8)
 
 	for {
 		select {
@@ -73,7 +67,7 @@ func (s *Session) sendLoop() {
 }
 
 func (s *Session) sendWithCache(p *MsgSend, cache []byte) {
-	if len(p.Data) > sendPacketLimit {
+	if len(p.Data) > sendCacheLen {
 		cacheTemp := make([]byte, len(p.Data)+8)
 		s.rawSend(p, cacheTemp)
 	} else {

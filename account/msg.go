@@ -3,8 +3,9 @@ package main
 import (
 	"github.com/nats-io/nats.go"
 	"server/pkg/gnet/router"
+	"server/pkg/pb"
 )
 
-func OnServerMsg(msg *nats.Msg) {
-	router.C().Handle(msg)
+func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
+	router.C().Handle(natsMsg, raw)
 }

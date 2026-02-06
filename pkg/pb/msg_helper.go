@@ -53,6 +53,11 @@ func registerAllC2SMsg() {
 		NewMessage:  func() proto.Message { return &C2SWithoutRole{} },
 	})
 
+	registerC2SMsg(msgid.MsgIDC2S_C2SEcho, &messageMeta{
+		MessageType: reflect.TypeOf(C2SEcho{}),
+		NewMessage:  func() proto.Message { return &C2SEcho{} },
+	})
+
 }
 
 func registerAllS2CMsg() {
@@ -94,6 +99,11 @@ func registerAllS2CMsg() {
 	registerS2CMsg(msgid.MsgIDS2C_S2CDataReset, &messageMeta{
 		MessageType: reflect.TypeOf(S2CDataReset{}),
 		NewMessage:  func() proto.Message { return &S2CDataReset{} },
+	})
+
+	registerS2CMsg(msgid.MsgIDS2C_S2CEcho, &messageMeta{
+		MessageType: reflect.TypeOf(S2CEcho{}),
+		NewMessage:  func() proto.Message { return &S2CEcho{} },
 	})
 
 }
@@ -157,6 +167,21 @@ func registerAllS2SMsg() {
 	registerS2SMsg(msgid.MsgIDS2S_S2SRoleOffline, &messageMeta{
 		MessageType: reflect.TypeOf(S2SRoleOffline{}),
 		NewMessage:  func() proto.Message { return &S2SRoleOffline{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SResLogin, &messageMeta{
+		MessageType: reflect.TypeOf(S2SResLogin{}),
+		NewMessage:  func() proto.Message { return &S2SResLogin{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SGt2SDisconnect, &messageMeta{
+		MessageType: reflect.TypeOf(S2SGt2SDisconnect{}),
+		NewMessage:  func() proto.Message { return &S2SGt2SDisconnect{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SS2GtDisconnect, &messageMeta{
+		MessageType: reflect.TypeOf(S2SS2GtDisconnect{}),
+		NewMessage:  func() proto.Message { return &S2SS2GtDisconnect{} },
 	})
 
 }

@@ -78,6 +78,34 @@ message S2SReqLogin{
 	repeated string ConnectedAcc = 7;	//已绑定的账号
 }
 
+message S2SResLogin{
+	S2CLogin Res = 1;
+
+	//客户端不用的
+	int32 GameID = 2;
+}
+
+enum DisconnectReason{
+	Normal = 0;
+	Heartbeat = 1;
+	ShutDown = 2;
+	Limit = 3;
+	DecodeErr = 4;
+	PkgCntErr = 5;
+	InitErr = 6;
+	Kick = 7;
+}
+
+message S2SGt2SDisconnect{
+	uint64 SesID = 1;
+	DisconnectReason Why = 2;
+}
+
+message S2SS2GtDisconnect{
+	uint64 SesID = 1;
+	DisconnectReason Why = 2;
+}
+
 message AccountData {
 	uint64 AccID = 1;
 	string Account = 2;

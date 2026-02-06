@@ -32,7 +32,7 @@ var (
 )
 
 func init() {
-	msgIDs["C2S"] = &MsgIDInfo{EnumId: msgid.MsgIDC2S_value}
+	// msgIDs["C2S"] = &MsgIDInfo{EnumId: msgid.MsgIDC2S_value}
 	msgIDs["S2C"] = &MsgIDInfo{EnumId: msgid.MsgIDS2C_value}
 	msgIDs["S2S"] = &MsgIDInfo{EnumId: msgid.MsgIDS2S_value}
 	for _, info := range msgIDs {

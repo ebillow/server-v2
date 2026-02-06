@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/logger"
 	"server/pkg/model"
@@ -34,7 +35,9 @@ func (d *DataToSave) Set(comID pb.TypeComp, data string) {
 const EventChanSize = 128
 
 type Event struct {
-	Msg    *nats.Msg
+	Raw    *nats.Msg
+	NatMsg *pb.NatsMsg
+
 	CliMsg bool
 	Func   func(r *Role)
 }
@@ -164,9 +167,12 @@ func (r *Role) Online() {
 	// msgSend.ServerNowTime = util.GetNowTimeM()
 	// msgSend.ServerBeginTime = time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local).Unix()
 	//
-	r.Send(&pb.S2CLogin{
-		Player: r.Data,
-	})
+	gnet.SendToGate(&pb.S2SResLogin{
+		Res: &pb.S2CLogin{
+			Player: r.Data,
+		},
+		GameID: int32(flag.SvcIndex),
+	}, r.SesID)
 	zap.L().Info("[login] online", zap.Inline(r))
 }
 
@@ -189,8 +195,16 @@ func (r *Role) Offline() {
 	LoginMgr().Offline(data) // offline时在mgr里保存,批量存
 
 	// 通知其它服务器
+	r.Disconnect(pb.DisconnectReason_Kick)
 	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtOffline, &pb.MsgKVGuidValue{Guid: r.Data.Guid, Value: setup.Setup.ID})
 	zap.L().Info("[login] offline", zap.Inline(r))
+}
+
+func (r *Role) Disconnect(why pb.DisconnectReason) {
+	gnet.SendToGate(&pb.S2SS2GtDisconnect{
+		SesID: r.SesID,
+		Why:   why,
+	}, r.SesID)
 }
 
 func (r *Role) Marshal() (*DataToSave, error) {
@@ -314,18 +328,18 @@ func (r *Role) MinuteLoop(now time.Time) {
 }
 
 func (r *Role) onEvent(evt Event) {
-	if evt.Msg == nil {
+	if evt.NatMsg == nil {
 		evt.Func(r)
 	} else {
-		r.onProto(evt.Msg, evt.CliMsg)
+		r.onProto(evt.NatMsg, evt.Raw, evt.CliMsg)
 	}
 }
 
-func (r *Role) onProto(msg *nats.Msg, isCli bool) {
+func (r *Role) onProto(natsMsg *pb.NatsMsg, raw *nats.Msg, isCli bool) {
 	if isCli {
-		cRouter().HandleWithRole(msg, r)
+		cRouter().HandleWithRole(natsMsg, raw, r)
 	} else {
-		sRouter().HandleWithRole(msg, r)
+		sRouter().HandleWithRole(natsMsg, raw, r)
 	}
 }
 

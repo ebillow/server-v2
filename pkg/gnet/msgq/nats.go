@@ -6,7 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"server/pkg/gnet/trace"
-	"strconv"
+	"server/pkg/pb"
 	"time"
 )
 
@@ -14,19 +14,19 @@ var Q DataBus
 
 type DataBus struct {
 	conn    *nats.Conn
-	serName string
-	serID   string
+	serType pb.Server
+	serID   int32
 	Tracer  *trace.TraceRule
 }
 
-func (bs *DataBus) Init(connStr string, serName string, serID int32, options ...nats.Option) error {
+func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options ...nats.Option) error {
 	conn, err := setupNatsConn(connStr, options...)
 	if err != nil {
 		return err
 	}
 	bs.conn = conn
-	bs.serName = serName
-	bs.serID = strconv.Itoa(int(serID))
+	bs.serType = serType
+	bs.serID = serID
 	return nil
 }
 
@@ -77,36 +77,4 @@ func getGroupSubject(serName string) string {
 
 func getAllSubject(serName string) string {
 	return fmt.Sprintf("msg.%s.all", serName)
-}
-
-const (
-	FServerName = "srv_name"
-	FServerID   = "srv_id"
-	FMsgID      = "msg_id"
-	FRoleID     = "role_id"
-	FSessionID  = "ses_id"
-)
-
-func SessionID(msg *nats.Msg) uint64 {
-	i, _ := strconv.Atoi(msg.Header.Get(FSessionID))
-	return uint64(i)
-}
-
-func RoleID(msg *nats.Msg) uint64 {
-	i, _ := strconv.Atoi(msg.Header.Get(FRoleID))
-	return uint64(i)
-}
-
-func MsgID(msg *nats.Msg) uint32 {
-	i, _ := strconv.Atoi(msg.Header.Get(FMsgID))
-	return uint32(i)
-}
-
-func ServerName(msg *nats.Msg) string {
-	return msg.Header.Get(FServerName)
-}
-
-func ServerID(msg *nats.Msg) int32 {
-	i, _ := strconv.Atoi(msg.Header.Get(FServerID))
-	return int32(i)
 }

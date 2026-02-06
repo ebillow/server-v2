@@ -212,7 +212,7 @@ func (s *Session) DebugForwardToGame(msgId uint16, message proto.Message) {
 func (s *Session) forwardToGame(msgId uint16, msgData []byte) {
 	// msg := &pb.SrvMsg{
 	//	ID:  uint32(msgId),
-	//	Msg: msgData,
+	//	Raw: msgData,
 	// }
 	// if s.StreamGm == nil {
 	//	logger.Errorf("%s stream to game no open %d", s.String(), msgId)
@@ -231,7 +231,7 @@ func (s *Session) forwardToGame(msgId uint16, msgData []byte) {
 }
 
 func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
-	// msg := &pb.SrvMsg{ID: uint32(msgID), Msg: msgData}
+	// msg := &pb.SrvMsg{ID: uint32(msgID), Raw: msgData}
 	// if s.StreamFt == nil {
 	//	logger.Errorf("stream to ft no open %d", msgID)
 	//	s.Close()

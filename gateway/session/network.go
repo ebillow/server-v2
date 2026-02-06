@@ -71,7 +71,7 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 	c.SetReadLimit(int64(netCfg.RecvPkgLenLimit))
 	var s = &Session{}
 	s.conn = c
-	s.Ip = net.ParseIP(host)
+	s.Ip = net.ParseIP(host).String()
 	logger.Tracef("new connection from:%v port:%v", host, port)
 
 	s.start()

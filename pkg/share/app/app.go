@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"path/filepath"
+	"server/pkg/cfg"
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/ghttp"
@@ -25,7 +26,7 @@ type App struct {
 	Init    func(ctx context.Context) error
 	Action  func(ctx context.Context, wait *sync.WaitGroup) error
 	UnInit  func(ctx context.Context)
-	OnMsg   func(*nats.Msg)
+	OnMsg   func(*pb.NatsMsg, *nats.Msg)
 	SrvType pb.Server
 }
 
@@ -50,14 +51,18 @@ func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
 
 func (a *App) init(ctx context.Context) error {
 	idgen.Init(flag.SvcIndex)
-	a.initLog()
+	cfg.Load(flag.EtcdAddr, flag.Name)
+	conf := cfg.Get()
+
+	a.initLog(conf)
 	version.LogVersion()
-	if err := a.initDB(); err != nil {
+
+	if err := a.initDB(conf); err != nil {
 		panic(err)
 	}
 	lock.InitPool(db.Redis)
 
-	if err := msgq.Q.Init("nats://localhost:4222", a.SrvName(), int32(flag.SvcIndex), nats.UserInfo("123456", "123456")); err != nil {
+	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
 		return err
 	}
 
@@ -72,27 +77,23 @@ func (a *App) SrvName() string {
 	return flag.SrvName(flag.SrvType)
 }
 
-func (a *App) initLog() {
+func (a *App) initLog(conf *cfg.Config) {
 	filePath := filepath.Join("./bin/logs", fmt.Sprintf("%s_%d.logger", a.SrvName(), flag.SvcIndex))
-	logger.NewZapLog(filePath, logger.Config{
-		Level:        -1,
-		Console:      true,
-		ConsoleColor: true,
-	})
+	logger.NewZapLog(filePath, conf.LogInfo)
 }
 
-func (a *App) initDB() error {
+func (a *App) initDB(conf *cfg.Config) error {
 	if err := db.InitRedis(db.RedisCfg{
-		Addr:     []string{"127.0.0.1:6380", "127.0.0.1:6381", "127.0.0.1:6382"},
-		Password: "",
-		DB:       0,
+		Addr:     conf.Redis.Address,
+		Password: conf.Redis.Password,
+		DB:       conf.Redis.DB,
 	}, 0); err != nil {
 		return err
 	}
 
 	if err := db.InitMongo(db.MongoCfg{
-		URI:    "mongodb://localhost:27017",
-		DbName: "game",
+		URI:    conf.Mongo.URL,
+		DbName: "admin",
 	}, 16, 32); err != nil {
 		return err
 	}

@@ -1,7 +1,6 @@
 package component
 
 import (
-	_ "server/game/component/base"
 	"server/game/component/example"
 	"server/game/role"
 	"server/pkg/pb"

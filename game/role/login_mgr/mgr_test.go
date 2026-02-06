@@ -145,7 +145,7 @@ func TestLoginAndOffline(t *testing.T) {
 	c.Add(111)
 
 	time.Sleep(time.Second * 2)
-	role.RoleMgr().PostCloseAndWait(111)
+	role.RoleMgr().KickRoleAndWait(111)
 	Mgr.Close()
 	c.CheckResult()
 }
@@ -163,7 +163,7 @@ func TestDataDelete(t *testing.T) {
 	c.Add(111)
 
 	time.Sleep(time.Second * 1)
-	role.RoleMgr().PostCloseAndWait(111)
+	role.RoleMgr().KickRoleAndWait(111)
 	time.Sleep(time.Second * 10)
 	c.CheckResult()
 
@@ -225,7 +225,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				role.RoleMgr().PostCloseAndWait(id)
+				role.RoleMgr().KickRoleAndWait(id)
 				id++
 				if id == IDMax {
 					return
@@ -289,7 +289,7 @@ func TestOnlineOffline(t *testing.T) {
 			Seq:         1,
 		})
 		c.Add(1)
-		role.RoleMgr().PostCloseAndWait(1)
+		role.RoleMgr().KickRoleAndWait(1)
 	}
 	time.Sleep(time.Second * 3)
 	role.RoleMgr().CloseAndWait()

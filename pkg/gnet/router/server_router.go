@@ -5,9 +5,8 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"server/game/role"
-	"server/pkg/gnet/msgq"
-	"server/pkg/gnet/trace"
-	"server/pkg/logger"
+	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 )
@@ -16,21 +15,21 @@ type ServerRouter struct {
 	*MsgRouter
 }
 
-func newServerRouter(size uint32) *ServerRouter {
-	return &ServerRouter{MsgRouter: NewMsgRouter(size)}
+func newServerRouter() *ServerRouter {
+	return &ServerRouter{MsgRouter: NewMsgRouter()}
 }
 
 // RoleMsg 注册服务器间消息，并且是发给指定角色的消息处理函数
-func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *role.Role, qm *nats.Msg)) {
+func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *role.Role, c gctx.Context)) {
 	if netStart.Load() {
-		zap.L().Error("Register msg Handle failed, you mast RoleMsg before Serve or Connect",
+		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]),
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c Context) {
-		df(msg, c.U.(*role.Role), c.Msg)
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
+		df(msg, c.U.(*role.Role), c)
 	})
 	if err != nil {
 		zap.L().Error("Register error",
@@ -40,43 +39,30 @@ func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message,
 	}
 }
 
-func (rt *ServerRouter) HandleWithRole(msg *nats.Msg, r *role.Role) {
-	msgID := msgq.MsgID(msg)
-	msgPB, err := rt.HandleMsg(msgID, msg.Data, Context{Msg: msg, U: r})
+func (rt *ServerRouter) HandleWithRole(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) {
+	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: r, MsgName: msgid.MsgIDS2S_name})
 	if err != nil {
-		zap.L().Warn("hand msg failed",
-			zap.Uint32("msg id", msgID),
-			zap.Any("head", msg.Header),
-			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]))
+		zap.L().Warn("HandleWithRole failed",
+			zap.Uint32("msgID", natMsg.MsgID),
+			zap.String("from", flag.SrvName(natMsg.SerType)),
+			zap.Int32("idx", natMsg.SerID),
+			zap.Uint64("roleID", natMsg.RoleID),
+			zap.String("raw name", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
 		return
-	}
-
-	if trace.Rule.ShouldLog(msgID, r.ID, r.SesID) {
-		info := "<<< msg.recv: " + msgid.MsgIDS2S_name[int32(msgID)]
-		// bytes, _ := json.Marshal(pkt.IMsg)
-		zap.L().Info(info,
-			zap.Uint32("msgID", msgID),
-			zap.String("from", msgq.ServerName(msg)),
-			zap.Int32("idx", msgq.ServerID(msg)),
-			zap.Uint64("sessID", r.SesID),
-			zap.Uint64("roleID", r.ID),
-			zap.Any("data", msgPB),
-			logger.Blue.Field(),
-		)
 	}
 }
 
 // Msg 注册服务器间消息，不是角色消息处理函数
-func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, qm *nats.Msg)) {
+func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c gctx.Context)) {
 	if netStart.Load() {
-		zap.L().Error("Register msg Handle failed, you mast RoleMsg before Serve or Connect",
+		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]),
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c Context) {
-		df(msg, c.Msg)
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
+		df(msg, c)
 	})
 	if err != nil {
 		zap.L().Error("Register error",
@@ -86,32 +72,14 @@ func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, qm 
 	}
 }
 
-func (rt *ServerRouter) Handle(msg *nats.Msg) {
-	msgID := msgq.MsgID(msg)
-	msgPB, err := rt.HandleMsg(msgID, msg.Data, Context{Msg: msg})
+func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg) {
+	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, MsgName: msgid.MsgIDS2S_name})
 	if err != nil {
-		zap.L().Warn("hand msg failed",
-			zap.Uint32("msg id", msgID),
-			zap.Any("head", msg.Header),
-			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]))
+		zap.L().Warn("Handle failed",
+			zap.Uint32("msgID", natMsg.MsgID),
+			zap.String("from", flag.SrvName(natMsg.SerType)),
+			zap.Int32("idx", natMsg.SerID),
+			zap.String("raw name", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
 		return
 	}
-
-	roleID := msgq.RoleID(msg)
-	sesID := msgq.SessionID(msg)
-	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
-		info := "<<< msg.recv: " + msgid.MsgIDS2S_name[int32(msgID)]
-		// bytes, _ := json.Marshal(pkt.IMsg)
-		zap.L().Info(info,
-			zap.Uint32("msgID", msgID),
-			zap.String("from", msgq.ServerName(msg)),
-			zap.Int32("idx", msgq.ServerID(msg)),
-			zap.Uint64("sessID", sesID),
-			zap.Uint64("roleID", roleID),
-			zap.Any("data", msgPB),
-			logger.Blue.Field(),
-		)
-	}
-
-	return
 }

@@ -20,41 +20,51 @@ var (
 type Account struct {
 	Account string `redis:"account"`
 	AccID   uint64 `redis:"acc_id"`
-	Freeze  bool   `json:"freeze"`
+	Freeze  bool   `redis:"freeze"`
 	GameID  int32  `redis:"game_id"`
 	Time    int64  `redis:"time"`
 	Seq     uint32 `redis:"seq"`
 	Passwd  uint64 `redis:"passwd"`
 }
 
-func newAccount(req *pb.S2SReqLogin) (*Account, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
+func newAccount(ctx context.Context, req *pb.S2SReqLogin) (*Account, error) {
 	id := db.Redis.HIncrBy(ctx, model.RedisKeyIDs, "acc_id", 1).Val()
 	acc := &Account{
 		Account: req.Req.Account,
 		AccID:   uint64(id),
 	}
 
+	_, err := db.MongoDB.Collection(acc_db.AccountTable).InsertOne(ctx, acc)
+	if err != nil {
+		zap.L().Error("mongo insert acc failed", zap.Error(err))
+		return nil, err
+	}
+
 	pipe := db.Redis.Pipeline()
-	key := model.KeyAccount(realAcc(req.Req.SdkNo, req.Req.Account))
+	key := model.KeyAccount(req.Req.Account)
+	pipe.HSet(ctx, key, "account", acc.Account, "acc_id", acc.AccID)
+	pipe.Expire(ctx, key, time.Hour*24*7)
+
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		zap.L().Error("redis hset acc_id failed", zap.Error(err))
+		return nil, err
+	}
+
+	return acc, nil
+}
+
+func (acc *Account) Update(ctx context.Context, req *pb.S2SReqLogin) {
+	pipe := db.Redis.Pipeline()
+	key := model.KeyAccount(req.Req.Account)
 	pipe.HSet(ctx, key, "account", acc.Account, "acc_id", acc.AccID)
 	pipe.Expire(ctx, key, time.Hour*24*7)
 
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		zap.L().Error("redis hset acc_id failed", zap.Error(err))
-		return nil, err
+		return
 	}
-
-	_, err = db.MongoDB.Collection(acc_db.AccountTable).InsertOne(ctx, acc)
-	if err != nil {
-		zap.L().Error("mongo insert acc failed", zap.Error(err))
-		return nil, err
-	}
-
-	return acc, nil
 }
 
 func (acc *Account) SaveLoginData(ctx context.Context) error {

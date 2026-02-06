@@ -15,6 +15,21 @@ message MsgItem{
 	sint64 Cnt = 2;
 }
 
+message C2SEcho{
+	uint64 ID = 1;
+	string Name = 2;
+	uint32 Level = 3;
+	uint32 Exp = 4;
+	string Data = 5;
+}
+
+message S2CEcho{
+	uint64 ID = 1;
+	string Name = 2;
+	uint32 Level = 3;
+	uint32 Exp = 4;
+	string Data = 5;
+}
 
 message RankItemShow {
 	uint64                  Id      = 1;

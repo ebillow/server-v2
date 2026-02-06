@@ -9,13 +9,13 @@ import (
 	"server/pkg/share/app"
 	"server/pkg/version"
 	"server/robot/clinet"
-	"server/robot/logic"
+	"server/robot/logic/robot"
 	"sync"
 )
 
 func main() {
 	var a = app.App{
-		SrvType: pb.Server_Game,
+		SrvType: pb.Server_Robot,
 		Init:    Init,
 		Action:  Action,
 		UnInit:  UnInit,
@@ -37,7 +37,7 @@ func main() {
 }
 
 func Init(ctx context.Context) error {
-	logic.Setup = &logic.ServerCfg{
+	robot.Setup = &robot.ServerCfg{
 		ServerAddr: "127.0.0.1:3001",
 		Cnt:        1,
 		BeginID:    1,
@@ -48,7 +48,7 @@ func Init(ctx context.Context) error {
 	// 	return err
 	// }
 
-	logic.RegisteMsgHandle()
+	robot.RegisteMsgHandle()
 	return nil
 }
 
@@ -60,7 +60,7 @@ func UnInit(ctx context.Context) {
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	logger.Info("start run")
-	logic.InitRobots(logic.Setup.Cnt, logic.Setup.BeginID)
+	robot.InitRobots(robot.Setup.Cnt, robot.Setup.BeginID)
 
 	return nil
 }

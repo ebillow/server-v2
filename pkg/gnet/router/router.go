@@ -2,15 +2,12 @@ package router
 
 import (
 	"errors"
-	"github.com/nats-io/nats.go"
 	"sync/atomic"
 )
 
-const MsgMaxCount = 655350
-
 var (
-	cliMsgRouter = newClientRouter(MsgMaxCount)
-	serMsgRouter = newServerRouter(MsgMaxCount)
+	cliMsgRouter = newClientRouter()
+	serMsgRouter = newServerRouter()
 	netStart     atomic.Bool
 )
 
@@ -18,12 +15,6 @@ var (
 	errAPINotFind         = errors.New("api not exist")
 	errMsgIDBiggerThanMax = errors.New("msg id bigger than max")
 )
-
-type Unity interface{}
-type Context struct {
-	U   Unity
-	Msg *nats.Msg
-}
 
 func S() *ServerRouter {
 	return serMsgRouter

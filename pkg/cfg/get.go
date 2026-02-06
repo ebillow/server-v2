@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"context"
+	"fmt"
 	"go.uber.org/zap"
 	"server/pkg/thread"
 	"time"
@@ -11,9 +12,34 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func Load(addr string, version string) {
-	// etcdEndpoint := "http://127.0.0.1:2379"
-	path := configPath(version)
+func getVersion(name string, addr string) string {
+	// 创建一个独立的 etcd 客户端用于 Watch
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{addr},
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		zap.S().Warnf("连接 Etcd 失败: %v", err)
+		return ""
+	}
+	defer cli.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	resp, err := cli.Get(ctx, fmt.Sprintf("/%s/version", name))
+	if err != nil {
+		zap.L().Warn("get version err", zap.Error(err))
+		return ""
+	}
+	if len(resp.Kvs) == 0 {
+		return "0.0"
+	}
+	return string(resp.Kvs[0].Value)
+}
+
+func Load(addr string, name string) {
+	version := getVersion(name, addr)
+	path := configPath(name, version)
 	// 1. 初始化 Viper 基础配置
 	err := viper.AddRemoteProvider("etcd3", addr, path)
 	if err != nil {

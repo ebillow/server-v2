@@ -3,21 +3,21 @@ package main
 import (
 	"github.com/nats-io/nats.go"
 	"server/gateway/session"
-	"server/pkg/gnet/msgq"
-	"server/pkg/gnet/router"
+	"server/pkg/gnet/gctx"
+	"server/pkg/pb"
 )
 
-func OnServerMsg(msg *nats.Msg) {
-	sesID := msgq.SessionID(msg)
-	if sesID != 0 {
-		ses := session.GetCliSession(sesID)
+func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
+	if natsMsg.SesID != 0 {
+		ses := session.GetCliSession(natsMsg.SesID)
 		if ses == nil {
 			return
 		}
-		msgID := msgq.MsgID(msg)
-		ses.SendBytes(msgID, msg.Data)
+		ses.Post(gctx.Context{
+			U:   ses,
+			Raw: raw,
+			Msg: natsMsg,
+		})
 		return
 	}
-
-	router.S().Handle(msg)
 }

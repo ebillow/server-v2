@@ -1,4 +1,4 @@
-package logic
+package robot
 
 import (
 	"sync"
@@ -22,7 +22,7 @@ func InitRobots(cnt int, bg int) {
 		id := bg + i
 		go NewUnitRobot(id, Setup.WorldBegin)
 		if id%500 == 0 {
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Second)
 		}
 	}
 }

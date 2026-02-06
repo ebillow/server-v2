@@ -16,5 +16,6 @@ enum MsgIDC2S
 	 C2SClientReady	= 200001;
 	 C2SHeartBeat	= 200004;
 	 C2SWithoutRole	= 200006;
+	 C2SEcho	= 200007;
 	
 };

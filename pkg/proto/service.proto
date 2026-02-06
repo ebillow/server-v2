@@ -1,6 +1,19 @@
 syntax = "proto3";
+option optimize_for = LITE_RUNTIME;
 option go_package = "./pb";
+import "msg_common.proto";
 package pb;
+
+message NatsMsg{
+  uint32 MsgID = 1;
+  bytes Data = 2;
+
+  sint32 SerID = 3;
+  Server SerType = 4;
+  uint64 RoleID = 5;
+  uint64 SesID = 6;
+  bool Forward = 7;
+}
 
 message SrvMsg{
     uint32  ID = 2;

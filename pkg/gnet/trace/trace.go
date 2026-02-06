@@ -1,6 +1,8 @@
 package trace
 
-import "server/pkg/util"
+import (
+	"server/pkg/cfg"
+)
 
 //
 // type ITrace interface {
@@ -38,7 +40,8 @@ func (t *TraceRule) SetBlackList(blackList map[uint32]struct{}) {
 }
 
 func (t *TraceRule) ShouldLog(msgID uint32, roleID uint64, sessionID uint64) bool {
-	if util.Debug { // 除了blackList全追踪
+	conf := cfg.Get()
+	if conf.Flag.TraceMsg { // 除了blackList全追踪
 		_, ok := t.blackList[msgID]
 		return !ok
 	} else {

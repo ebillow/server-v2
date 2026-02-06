@@ -4,9 +4,11 @@ import (
 	"crypto/cipher"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"net"
+	"go.uber.org/zap/zapcore"
 	"server/pkg/crypt/gaes"
 	"server/pkg/flag"
+	"server/pkg/gnet"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
 	"server/pkg/idgen"
@@ -19,11 +21,7 @@ import (
 )
 
 const (
-	sendPacketLimit = 1024
-)
-
-const (
-	packetHeadLen = 4
+	sendCacheLen = 1024
 )
 
 const (
@@ -38,44 +36,51 @@ type MsgSend struct {
 
 // Session 客户端和gate的网络会话
 type Session struct {
-	Id   uint64
-	conn *websocket.Conn
+	Id     uint64
+	GameID int32
+	conn   *websocket.Conn
 
-	in  chan []byte
-	out chan *MsgSend
+	in     chan []byte
+	out    chan *MsgSend
+	events chan gctx.Context
 
 	pkgCnt     uint32
 	pkgCnt1Min int
-	Ip         net.IP
+	Ip         string
 
-	ctrl chan struct{}
-	flag util.Flag
+	ctrl          chan struct{}
+	flag          util.Flag
+	disConnReason pb.DisconnectReason
 
 	deCyp cipher.BlockMode
 	enCpy cipher.BlockMode
 }
 
 func (s *Session) String() string {
-	return util.Uint64ToString(s.ID()) + "_" + s.Ip.String()
+	return util.Uint64ToString(s.ID()) + "_" + s.Ip
 }
 func (s *Session) ID() uint64 {
 	return s.Id
 }
 
 func (s *Session) OnConnect() {
-	logger.Tracef("%s connect", s.String())
+	zap.L().Info("connect", zap.String("session", s.String()))
 }
 
 func (s *Session) OnClosed() {
-	// logger.Tracef("%s disconnect", s.String())
-
+	zap.L().Info("disconnect", zap.String("session", s.String()))
 	if s.flag.Has(SesInit) {
-		RemoveCliSession(s.Id)
+		RemoveCliSession(s.Id) // todo
+		gnet.SendToGame(s.GameID, &pb.S2SGt2SDisconnect{
+			SesID: s.Id,
+			Why:   s.disConnReason,
+		}, 0, 0)
 	}
 }
 
 // close 关闭,非线程安全,只能在消息里调用
-func (s *Session) Close() {
+func (s *Session) Close(why pb.DisconnectReason) {
+	s.disConnReason = why
 	s.flag.Add(SesClose)
 }
 
@@ -102,11 +107,26 @@ func (s *Session) Init(cs2Key, s2cKey []byte) error {
 	return err
 }
 
+func (s *Session) Post(msg gctx.Context) {
+	select {
+	case s.events <- msg:
+	default:
+		zap.L().Error("[post] events channel full")
+	}
+}
+
+func (s *Session) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	encoder.AddString("s.ip", s.Ip)
+	encoder.AddUint64("s.id", s.Id)
+	return nil
+}
+
 // start recv loop
 func (s *Session) start() {
 	s.in = make(chan []byte) // no active_role
 	s.ctrl = make(chan struct{})
 	s.out = make(chan *MsgSend, netCfg.OutChanSize)
+	s.events = make(chan gctx.Context, netCfg.OutChanSize)
 
 	go s.sendLoop()
 	go s.readLoop(netCfg)
@@ -153,11 +173,13 @@ func (s *Session) mainLoop(cfg *Config) {
 			s.pkgCnt++
 			s.pkgCnt1Min++
 
-			s.onRecvCliMsg(cliMsg)
+			s.onRecvClientMsg(cliMsg)
+		case c := <-s.events:
+			s.onRecvServerMsg(c)
 		case <-tick.C:
 			s.check1Min(cfg)
 		case <-shutDown:
-			s.Close()
+			s.Close(pb.DisconnectReason_ShutDown)
 		}
 
 		if s.flag.Has(SesClose) {
@@ -169,43 +191,39 @@ func (s *Session) mainLoop(cfg *Config) {
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
 		logger.Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
-		s.Close()
+		s.Close(pb.DisconnectReason_Limit)
 	}
 	s.pkgCnt1Min = 0
 }
 
 func (s *Session) getSerID(ser pb.Server) int32 {
-	return 0
+	return s.GameID
 }
 
-func (s *Session) onRecvCliMsg(src []byte) {
+func (s *Session) onRecvClientMsg(src []byte) {
 	msgID, seq, data, err := Decode(src, s.deCyp)
 	if err != nil {
 		logger.Warnf("%s read packet err:%v", s.String(), err)
-		s.Close()
+		s.Close(pb.DisconnectReason_DecodeErr)
 		return
 	}
 
 	if msgID != uint32(msgid.MsgIDC2S_C2SInit) && !s.flag.Has(SesInit) {
 		logger.Errorf("%s not init", s.String())
-		s.Close()
+		s.Close(pb.DisconnectReason_InitErr)
 		return
 	}
 	if seq != 0 && seq != s.pkgCnt {
 		logger.Errorf("%s sequeue num err: %d should be %d", s.String(), seq, s.pkgCnt)
 		logger.Debug("data=%v", data)
-		s.Close()
+		s.Close(pb.DisconnectReason_PkgCntErr)
 		return
 	}
 
 	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
 	if serType == pb.Server_Gateway {
-		err = cliMsgHandler.Handle(msgID, data, s)
-		if err != nil {
-			logger.Warnf("%s recv invalid msg from cli [%d]", s.String(), msgID)
-			s.Close()
-		}
+		C().Handle(msgID, data, s)
 	} else {
 		serName := flag.SrvName(serType)
 		msgq.Q.Send(serName, serID, msgID, data, 0, s.Id)
@@ -219,5 +237,13 @@ func (s *Session) onRecvCliMsg(src []byte) {
 				logger.Magenta.Field(),
 			)
 		}
+	}
+}
+
+func (s *Session) onRecvServerMsg(c gctx.Context) {
+	if c.Msg.Forward {
+		s.SendBytes(c.Msg.MsgID, c.Msg.Data)
+	} else {
+		S().Handle(c.Msg, c.Raw, s)
 	}
 }

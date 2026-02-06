@@ -13,18 +13,19 @@ import (
 
 // 服务启动时的flags
 var (
-	ConfigFile string // 配置文件路径
-	SvcIndex   int    // 服务索引
-	RpcPort    int    // rpc 端口
-	HttpPort   int    // http 端口
-	TcpPort    int
-	SrvType    pb.Server
+	EtcdAddr string
+	Name     string
+	SvcIndex int // 服务索引
+	RpcPort  int // rpc 端口
+	HttpPort int // http 端口
+	TcpPort  int
+	SrvType  pb.Server
 )
 
 // Init 解析flags
 func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
-	fs.StringVar(&ConfigFile, "config", "", "配置文件路径")
-	fs.StringVar(&ConfigFile, "cfg", "", "alias for --config")
+	fs.StringVar(&EtcdAddr, "etcd-addr", "127.0.0.1:2379", "etcd address")
+	fs.StringVar(&Name, "name", "local", "商户号")
 	fs.IntVar(&SvcIndex, "index", 0, "服务索引")
 	fs.IntVar(&RpcPort, "rpc-port", 0, "rpc 监听端口")
 	fs.IntVar(&HttpPort, "http-port", 0, "http 监听端口")

@@ -113,7 +113,7 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 	v.setState(stateKicking)
 
 	thread.GoSafe(func() { // 这里带数据的话，offline里就不能修改数据了
-		role.RoleMgr().PostCloseAndWait(p.Login.RoleID) // 可以wait多次
+		role.RoleMgr().KickRoleAndWait(p.Login.RoleID) // 可以wait多次
 		p.Op = OpRepeatedLogin
 		m.ops <- p
 		zap.L().Debug("[login] onLoginRepeated", zap.Uint64("id", p.Login.RoleID))

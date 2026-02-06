@@ -77,7 +77,7 @@ func randNewOne(ss map[string]string) int32 {
 }
 
 func randGameID(world uint32) int32 {
-	ss := db.Redis.HGetAll(context.Background(), model.RedisKeyServerState).Val()
+	ss := db.Redis.HGetAll(context.Background(), model.RedisKeyServerState).Val() // 机器多了要优化
 	gameID := randNewOne(ss)
 	if gameID == 0 {
 		gameID = findMinGame(ss)

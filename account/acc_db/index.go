@@ -13,7 +13,7 @@ const AccountTable = "accounts"
 func CreateAccIndex() {
 	idx := make(map[string]mongo.IndexModel)
 	idx["acc_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"acc", 1}},
+		Keys:    bson.D{{"account", 1}},
 		Options: options.Index().SetUnique(true),
 	}
 

@@ -19,5 +19,8 @@ enum MsgIDS2S
 	 S2SRelayToRole	= 14;
 	 S2SOfflineEvt	= 15;
 	 S2SRoleOffline	= 16;
+	 S2SResLogin	= 18;
+	 S2SGt2SDisconnect	= 19;
+	 S2SS2GtDisconnect	= 20;
 	
 };

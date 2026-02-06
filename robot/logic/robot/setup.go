@@ -1,4 +1,4 @@
-package logic
+package robot
 
 import (
 	"encoding/json"

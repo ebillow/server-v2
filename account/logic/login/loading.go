@@ -30,7 +30,7 @@ func (l *loader) post(op *pb.S2SReqLogin) {
 func (l *loader) run(ctx context.Context) {
 	const (
 		batchSize     = 100
-		flushInterval = 100 * time.Millisecond
+		flushInterval = 50 * time.Millisecond
 	)
 
 	batch := make([]*pb.S2SReqLogin, 0, batchSize)
@@ -68,7 +68,7 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 
 	pipe := db.Redis.Pipeline()
 	for _, op := range batch {
-		pipe.HGetAll(ctx, model.KeyAccount(realAcc(op.Req.SdkNo, op.Req.Account)))
+		pipe.HGetAll(ctx, model.KeyAccount(op.Req.Account))
 	}
 	cmd, err := pipe.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
@@ -102,7 +102,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 		accs = append(accs, op.Req.Account)
 	}
 
-	filter := bson.M{"acc": bson.M{"$in": accs}}
+	filter := bson.M{"account": bson.M{"$in": accs}}
 	cursor, err := db.MongoDB.Collection(acc_db.AccountTable).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -118,15 +118,16 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 		return
 	}
 	result := make(map[string]*Account, len(accDatas))
-	for _, r := range accDatas {
-		result[r.Account] = r
+	for _, acc := range accDatas {
+		result[acc.Account] = acc
 	}
 
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
+			r.Update(ctx, op)
 			afterCheck(r, op)
 		} else {
-			acc, err := newAccount(op)
+			acc, err := newAccount(ctx, op)
 			if err != nil {
 				// todo 发失败消息给前端？？
 				return

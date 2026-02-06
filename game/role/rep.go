@@ -3,6 +3,7 @@ package role
 import (
 	"github.com/nats-io/nats.go"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 )
@@ -10,7 +11,7 @@ import (
 type IRoleMgr interface {
 	Add(roleID uint64, sesID uint64, r *Role)
 	Delete(roleID uint64, sesID uint64)
-	PostCloseAndWait(roleID uint64)
+	KickRoleAndWait(roleID uint64)
 	CloseAndWait()
 	PostEvent(roleID uint64, evt Event)
 	PostEventBySesID(sesID uint64, evt Event)
@@ -22,14 +23,14 @@ type ILoginMgr interface {
 }
 
 type ICRouter interface {
-	RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, r *Role))
-	HandleWithRole(msg *nats.Msg, r *Role)
+	RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, r *Role, c gctx.Context))
+	HandleWithRole(natMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
 }
 
 type ISRouter interface {
-	Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, qm *nats.Msg))
-	RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *Role, qm *nats.Msg))
-	HandleWithRole(msg *nats.Msg, r *Role)
+	Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c gctx.Context))
+	RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *Role, c gctx.Context))
+	HandleWithRole(natsMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
 }
 
 // ---------------------------------------------------------

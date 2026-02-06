@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	"context"
 	"errors"
 	"server/pkg/logger"
 	"server/pkg/pb"
@@ -17,7 +18,7 @@ var (
 )
 
 type ISdkLogin interface {
-	Login(req *pb.C2SLogin) error
+	Login(ctx context.Context, req *pb.C2SLogin) error
 }
 
 // 创建sdk的实例 根据sdk number

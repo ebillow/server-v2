@@ -92,12 +92,12 @@ function gen_grpc() {
 # 生成注册消息
 function gen_register() {
   go generate ./generate_msgid.go
-  mv ./msg_id_c2s.proto "${OUTDIR}/proto/"
+  #mv ./msg_id_c2s.proto "${OUTDIR}/proto/"
   mv ./msg_id_s2c.proto "${OUTDIR}/proto/"
   mv ./msg_id_s2s.proto "${OUTDIR}/proto/"
   echo "🎉 msg id generated!"
 
-    go generate ./generate_proto.go
+  go generate ./generate_proto.go
   mv ./msg_helper.go "${OUTDIR}/pb/"
   echo "🎉 msg helper generated!"
 }

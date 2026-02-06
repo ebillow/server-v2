@@ -3,27 +3,27 @@ package main
 import (
 	"github.com/nats-io/nats.go"
 	"server/game/role"
-	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/router"
+	"server/pkg/pb"
 )
 
-func OnServerMsg(msg *nats.Msg) {
-	roleID := msgq.RoleID(msg)
-	if roleID != 0 {
-		role.RoleMgr().PostEvent(roleID, role.Event{
-			Msg: msg,
+func OnServerMsg(natMsg *pb.NatsMsg, raw *nats.Msg) {
+	if natMsg.RoleID != 0 {
+		role.RoleMgr().PostEvent(natMsg.RoleID, role.Event{
+			Raw:    raw,
+			NatMsg: natMsg,
 		})
 		return
 	}
 
-	sesID := msgq.SessionID(msg)
-	if sesID != 0 {
-		role.RoleMgr().PostEventBySesID(sesID, role.Event{
-			Msg:    msg,
+	if natMsg.SesID != 0 {
+		role.RoleMgr().PostEventBySesID(natMsg.SesID, role.Event{
+			Raw:    raw,
+			NatMsg: natMsg,
 			CliMsg: true,
 		})
 		return
 	}
 
-	router.S().Handle(msg)
+	router.S().Handle(natMsg, raw)
 }

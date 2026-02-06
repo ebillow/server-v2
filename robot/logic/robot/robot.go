@@ -1,4 +1,4 @@
-package logic
+package robot
 
 import (
 	"fmt"
@@ -91,6 +91,10 @@ func (r *Robot) SecLoop() {
 	case InGame:
 		TaskRun(r)
 	}
+}
+
+func (r *Robot) AddTask(period int64, cb func(*Robot)) {
+	r.taskMgr.Add(period, cb)
 }
 
 func checkReconn(r *Robot) {

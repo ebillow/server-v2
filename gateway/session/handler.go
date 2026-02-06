@@ -1,8 +1,11 @@
 package session
 
 import (
+	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/gnet/trace"
 	"server/pkg/logger"
@@ -10,23 +13,29 @@ import (
 	"server/pkg/pb/msgid"
 )
 
-var cliMsgHandler = newRouter(MaxMsgCount)
+var (
+	cliRouter = newCRouter()
+	serRouter = newSRouter()
+)
 
-func CRouter() *Router {
-	return cliMsgHandler
+func C() *CRouter {
+	return cliRouter
+}
+func S() *SRouter {
+	return serRouter
 }
 
-type Router struct {
+type CRouter struct {
 	*router.MsgRouter
 }
 
-func newRouter(size uint32) *Router {
-	return &Router{MsgRouter: router.NewMsgRouter(size)}
+func newCRouter() *CRouter {
+	return &CRouter{MsgRouter: router.NewMsgRouter()}
 }
 
-// RoleMsg 注册客户端发来的消息处理函数
-func (rt *Router) RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, s *Session)) {
-	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(msg proto.Message, c router.Context) {
+// Msg 注册客户端发来的消息处理函数
+func (rt *CRouter) Msg(msgID msgid.MsgIDC2S, df func(msg proto.Message, s *Session)) {
+	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(msg proto.Message, c gctx.Context) {
 		df(msg, c.U.(*Session))
 	})
 	if err != nil {
@@ -37,41 +46,70 @@ func (rt *Router) RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, s *Se
 	}
 }
 
-func (rt *Router) Handle(msgID uint32, msgData []byte, s *Session) error {
-	msgPB, err := rt.HandleMsg(msgID, msgData, router.Context{U: s})
+func (rt *CRouter) Handle(msgID uint32, msgData []byte, s *Session) {
+	node, err := rt.GetHandler(msgID)
 	if err != nil {
-		zap.L().Warn("hand msg failed",
-			zap.Uint32("msg id", msgID),
+		zap.L().Error("api not exist",
+			zap.Error(err),
+			zap.Any("msg id", msgID),
 			zap.String("msg name", msgid.MsgIDC2S_name[int32(msgID)]))
-		return err
+		return
+	}
+
+	msgPB, err := rt.ParseMsg(node, msgData)
+	if err != nil {
+		zap.L().Error("parse msg error",
+			zap.Error(err),
+			zap.Any("msg id", msgID),
+			zap.String("msg name", msgid.MsgIDC2S_name[int32(msgID)]))
+		return
 	}
 
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
-		info := "<<< handle: " + msgid.MsgIDC2S_name[int32(msgID)]
-		// bytes, _ := json.Marshal(pkt.IMsg)
+		info := "<<< msg.recv:" + msgid.MsgIDC2S_name[int32(msgID)]
 		zap.L().Info(info,
 			zap.Uint32("msgID", msgID),
-
-			zap.Uint64("sessID", s.Id),
+			zap.Inline(s),
 			zap.Any("data", msgPB),
 			logger.Blue.Field(),
 		)
 	}
-	return nil
+
+	node.HandleFunc(msgPB, gctx.Context{U: s})
 }
 
-//
-// func (s *Session) onRecvGameMsg(msgs *nats.Msg) {
-// 	for _, msg := range msgs.Msgs {
-// 		if msg.ID > uint32(msgid.MsgIDS2C_S2CGateHandle) {
-// 			s.SendBytes(msg.ID, msg.Msg)
-// 			if IsTraceProto() && msg.ID != uint32(msgid.MsgIDS2C_S2CHeartBeat) {
-// 				logger.Infof("%s forward to cli [%d]%s", s.String(), msg.ID, msgid.MsgIDS2C_name[int32(msg.ID)])
-// 			}
-// 		} else {
-// 			if err := serMsgHandler.Handle(msg.ID, msg.Msg, s); err != nil {
-// 				logger.Warnf("%s recv invalid msg from game [%d]", s.String(), msg.ID)
-// 			}
-// 		}
-// 	}
-// }
+type SRouter struct {
+	*router.MsgRouter
+}
+
+func newSRouter() *SRouter {
+	return &SRouter{MsgRouter: router.NewMsgRouter()}
+}
+
+// Msg 注册客户端发来的消息处理函数
+func (rt *SRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, s *Session)) {
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
+		df(msg, c.U.(*Session))
+	})
+	if err != nil {
+		zap.L().Error("Register error",
+			zap.Error(err),
+			zap.Any("msg id", msgID),
+			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]))
+	}
+}
+
+func (rt *SRouter) Handle(msg *pb.NatsMsg, raw *nats.Msg, s *Session) {
+	err := rt.HandleMsg(gctx.Context{Msg: msg, Raw: raw, U: s, MsgName: msgid.MsgIDS2S_name})
+	if err != nil {
+		zap.L().Warn("hand msg failed",
+			zap.Uint32("msgID", msg.MsgID),
+			zap.String("from", flag.SrvName(msg.SerType)),
+			zap.Int32("idx", msg.SerID),
+			zap.Uint64("sessID", msg.SesID),
+			zap.Uint64("roleID", msg.RoleID),
+			zap.String("msg name", msgid.MsgIDS2S_name[int32(msg.MsgID)]))
+
+		return
+	}
+}

@@ -3,11 +3,20 @@ package msgq
 import (
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
-	"strconv"
+	"server/pkg/flag"
+	"server/pkg/pb"
 )
 
-func (bs *DataBus) Serve(callback func(msg *nats.Msg)) error {
-	err := bs.subscribe(bs.getSubjects(bs.serName, bs.serID), callback)
+func (bs *DataBus) Serve(callback func(wrapper *pb.NatsMsg, msg *nats.Msg)) error {
+	err := bs.subscribe(bs.getSubjects(flag.SrvName(bs.serType), bs.serID), func(msg *nats.Msg) {
+		wp, err := decode(msg.Data)
+		if err != nil {
+			zap.L().Warn("decode error", zap.Error(err))
+			return
+		}
+
+		callback(wp, msg)
+	})
 	if err != nil {
 		return err
 	}
@@ -42,13 +51,12 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 	return nil
 }
 
-func (bs *DataBus) getSubjects(serName string, serID string) map[string]string {
+func (bs *DataBus) getSubjects(serName string, serID int32) map[string]string {
 	subs := make(map[string]string)
 	// all
 	subs[getAllSubject(serName)] = ""
 	// index
-	idx, _ := strconv.Atoi(serID)
-	subs[getIndexSubject(serName, int32(idx))] = ""
+	subs[getIndexSubject(serName, serID)] = ""
 	// group
 	subs[getGroupSubject(serName)] = "msg.group"
 

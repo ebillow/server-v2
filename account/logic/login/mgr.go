@@ -3,7 +3,6 @@ package login
 import (
 	"context"
 	"errors"
-	"fmt"
 	"go.uber.org/zap"
 	"server/account/logic/sdk"
 	"server/pkg/gnet"
@@ -14,6 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 )
+
+// todo 连续来2次请求，会重复newAccount
+// gameState 不能在loading和mgr线程分开写
 
 const (
 	LoginCD = 3
@@ -58,7 +60,7 @@ func Start(ctx context.Context) {
 		for {
 			select {
 			case e := <-evt:
-				onEvent(e)
+				onEvent(ctx, e)
 			case now := <-t.C:
 				atomic.StoreInt64(&LastRunTime, now.Unix())
 			// case <-tFillBucket.C:
@@ -85,7 +87,7 @@ func Login(data *pb.S2SReqLogin) {
 	})
 }
 
-func onEvent(e EvtParam) {
+func onEvent(ctx context.Context, e EvtParam) {
 	defer func() {
 		if err := recover(); err != nil {
 			thread.PrintStack("Login event:", err)
@@ -94,7 +96,7 @@ func onEvent(e EvtParam) {
 
 	switch e.Op {
 	case OpLogin:
-		login(e.Login)
+		login(ctx, e.Login)
 	case OpServerState:
 		onServerState(e.SerState)
 	case OpRoleClear:
@@ -117,11 +119,11 @@ func onEvent(e EvtParam) {
 //	tokenBucket += int32(50)
 // }
 
-func login(req *pb.S2SReqLogin) {
+func login(ctx context.Context, req *pb.S2SReqLogin) {
 	if err := canSdkCheck(req); err != nil {
 		// todo 发消息
 	} else {
-		sdkCheck(req)
+		sdkCheck(ctx, req)
 	}
 }
 
@@ -150,7 +152,7 @@ func canSdkCheck(req *pb.S2SReqLogin) error {
 	return nil
 }
 
-func sdkCheck(req *pb.S2SReqLogin) {
+func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 	var s = sdk.CreateSdk(req.Req.SdkNo)
 	if s == nil {
 		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkNo, req.Req.String())
@@ -163,7 +165,7 @@ func sdkCheck(req *pb.S2SReqLogin) {
 			}
 		}()
 
-		err := s.Login(req.Req)
+		err := s.Login(ctx, req.Req)
 		if err != nil {
 			return
 		}
@@ -197,6 +199,7 @@ func afterCheck(accData *Account, req *pb.S2SReqLogin) {
 	gnet.SendToGame(gameID, req, 0, 0)
 }
 
-func realAcc(sdk pb.ESdkNumber, acc string) string {
-	return fmt.Sprintf("%d:%s", sdk, acc)
-}
+//
+// func realAcc(sdk pb.ESdkNumber, acc string) string {
+// 	return fmt.Sprintf("%d:%s", sdk, acc)
+// }

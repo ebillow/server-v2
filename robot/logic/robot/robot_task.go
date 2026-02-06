@@ -1,4 +1,4 @@
-package logic
+package robot
 
 import (
 	"server/pkg/pb"
@@ -11,7 +11,7 @@ func InitTask(r *Robot) {
 	r.taskMgr = NewTimeEvter()
 	r.taskMgr.Add(20, heartbeat) //
 
-	// initCity(r)
+	InitEcho(r)
 }
 
 func TaskRun(r *Robot) {

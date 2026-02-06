@@ -6,6 +6,7 @@ import (
 	"server/game/component"
 	"server/game/role"
 	"server/game/role/login_mgr"
+	_ "server/game/role/msg"
 	"server/game/role/role_mgr"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
