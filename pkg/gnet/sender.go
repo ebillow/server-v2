@@ -59,6 +59,7 @@ func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64,
 	err = msgq.Q.Send(serName, serID, msgID, data, roleID, sesID)
 	if err != nil {
 		zap.L().Warn("send msg error", zap.Error(err), zap.String("serName", serName), zap.Int32("serID", serID))
+		return
 	}
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
