@@ -5,6 +5,7 @@ import (
 	"go.uber.org/zap"
 	"server/game/role"
 	"server/game/role/role_mgr"
+	"server/pkg/gnet"
 	"server/pkg/pb"
 	"server/pkg/thread"
 	"sync"
@@ -41,6 +42,7 @@ const (
 )
 
 type loginData struct {
+	Acc       string
 	State     loginState
 	StateTime int64
 	Cache     map[string]string
@@ -168,11 +170,11 @@ func (m *LoginMgr) checkClear() {
 			m.saveOne(&opSaveData{ID: k, Data: v.Cache, Op: OpOffline}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
-			// todo
-			// game_net.SendToRandAccount(&pb.S2SRoleOffline{
-			// 	Acc: share.GetAccIDFromRoleID(v.Data.Guid),
-			// 	Sn:  v.LoginSn,
-			// })
+			gnet.SendToAccount(&pb.S2SRoleClear{
+				// Acc:    k,
+				RoleID: k,
+				Seq:    v.LoginSeq,
+			})
 			zap.L().Debug("[login] delete cache", zap.Uint64("id", k))
 			delete(m.data, k)
 		}

@@ -2,9 +2,12 @@ package login
 
 import (
 	"context"
-	"errors"
+	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/zap"
+	"math/rand"
+	"server/account/acc_db"
 	"server/account/logic/sdk"
+	"server/pkg/db"
 	"server/pkg/gnet"
 	"server/pkg/logger"
 	"server/pkg/model"
@@ -14,8 +17,7 @@ import (
 	"time"
 )
 
-// todo 连续来2次请求，会重复newAccount
-// gameState 不能在loading和mgr线程分开写
+// todo 服务断线
 
 const (
 	LoginCD = 3
@@ -25,15 +27,15 @@ type Op int
 
 const (
 	OpLogin Op = iota
-	OpServerState
+	OpAfterSDKCheck
 	OpRoleClear
 )
 
 type EvtParam struct {
-	Op       Op
-	Login    *pb.S2SReqLogin
-	RoleInfo *pb.S2SRoleOffline
-	SerState *pb.MsgServerClose
+	Op    Op
+	Login *pb.S2SReqLogin
+	Acc   *Account
+	Clear *pb.S2SRoleClear
 }
 
 var (
@@ -41,6 +43,7 @@ var (
 	loading *loader
 	// tokenBucket int32
 	LastRunTime int64
+	loginTime   = make(map[string]int64)
 )
 
 func Start(ctx context.Context) {
@@ -50,7 +53,7 @@ func Start(ctx context.Context) {
 		loading.run(ctx)
 	})
 	thread.GoSafe(func() {
-		t := time.NewTicker(time.Second * 10)
+		t := time.NewTicker(time.Minute)
 		// tFillBucket := time.NewTicker(time.Millisecond * 100)
 		defer func() {
 			logger.Debug("stop Login mgr run")
@@ -63,6 +66,7 @@ func Start(ctx context.Context) {
 				onEvent(ctx, e)
 			case now := <-t.C:
 				atomic.StoreInt64(&LastRunTime, now.Unix())
+				checkTimeout(now.Unix())
 			// case <-tFillBucket.C:
 			//	refillTokenBucket()
 			case <-ctx.Done():
@@ -97,12 +101,11 @@ func onEvent(ctx context.Context, e EvtParam) {
 	switch e.Op {
 	case OpLogin:
 		login(ctx, e.Login)
-	case OpServerState:
-		onServerState(e.SerState)
+	case OpAfterSDKCheck:
+		AfterSDKCheck(e.Acc, e.Login)
 	case OpRoleClear:
-		onRoleLogout(e.RoleInfo.Acc, e.RoleInfo.Seq)
+		onRoleLogout(model.GetAccID(e.Clear.RoleID), e.Clear.Seq)
 	default:
-
 	}
 }
 
@@ -119,19 +122,36 @@ func onEvent(ctx context.Context, e EvtParam) {
 //	tokenBucket += int32(50)
 // }
 
+func checkTimeout(now int64) {
+	const MaxCount = 1000
+	cnt := 0
+	for k, v := range loginTime {
+		cnt++
+		if cnt >= MaxCount {
+			return
+		}
+		if now-v > LoginCD*2 {
+			delete(loginTime, k)
+		}
+	}
+}
+
 func login(ctx context.Context, req *pb.S2SReqLogin) {
-	if err := canSdkCheck(req); err != nil {
-		// todo 发消息
+	if code := canSdkCheck(req); code != pb.LoginCode_LCSuccess {
+		gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 	} else {
 		sdkCheck(ctx, req)
 	}
 }
 
-func canSdkCheck(req *pb.S2SReqLogin) error {
+func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 	if req.Req.Account == "" {
-		return errors.New("account is base")
+		return pb.LoginCode_LCAccountEmpty
 	}
-
+	now := time.Now().Unix()
+	if now-loginTime[req.Req.Account] < LoginCD {
+		return pb.LoginCode_LCCD
+	}
 	// if !tryConsumeTokenBucket() {
 	//	network.SendToGate(req.GtID, pb.MsgIDS2S_Acc2GtLoginAck, &pb.MsgLoginAck{Ret: pb.LoginCode_LCServerBusy, Data: req})
 	//	return
@@ -149,7 +169,8 @@ func canSdkCheck(req *pb.S2SReqLogin) error {
 	// if isClose && !isWhiteListAcc {
 	// 	return
 	// }
-	return nil
+	loginTime[req.Req.Account] = now
+	return pb.LoginCode_LCSuccess
 }
 
 func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
@@ -174,7 +195,7 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 	}()
 }
 
-func afterCheck(accData *Account, req *pb.S2SReqLogin) {
+func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	// if data.Freeze { // 封号了
 	// 	if data.FreezeEndTime == 0 || (data.FreezeEndTime > 0 && data.FreezeEndTime >= util.GetNowTimeS()) {
 	// 		network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCFreeze, Login: loginReq, RetDesc: util.ToString(data.FreezeEndTime)})
@@ -185,21 +206,81 @@ func afterCheck(accData *Account, req *pb.S2SReqLogin) {
 	// 	network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCBindDev, Login: loginReq})
 	// 	return
 	// }
-
-	req.RoleID = model.GetRoleID(accData.AccID)
-
-	ret, code := getGameCanEnter(accData, req)
-	gameID := int32(0)
-	if code != pb.LoginCode_LCSuccess {
-
+	if req.Req.Reconnect && acc.Passwd != 0 && req.ReConnToken != acc.Passwd {
+		return pb.LoginCode_LCCanNotReConn
 	}
-	req.ReConnToken = ret.Passwd
-	req.Seq = ret.Seq
-	gameID = ret.GameID
-	gnet.SendToGame(gameID, req, 0, 0)
+	now := time.Now().Unix()
+	gameID, code := choseGame(acc.GameID, 0)
+	if code != pb.LoginCode_LCSuccess {
+		return code
+	}
+
+	acc.Time = now
+	if acc.Passwd == 0 {
+		acc.Passwd = rand.Uint64()
+	}
+
+	acc.Seq++
+	acc.GameID = gameID
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	err := acc.SaveLoginData(ctx)
+	if err != nil {
+		logger.Warnf("save acc Login data err:%v", err)
+		return pb.LoginCode_LCServerErr
+	}
+
+	req.RoleID = model.GetRoleID(acc.AccID)
+	req.ReConnToken = acc.Passwd
+	req.Seq = acc.Seq
+
+	return pb.LoginCode_LCSuccess
 }
 
-//
-// func realAcc(sdk pb.ESdkNumber, acc string) string {
-// 	return fmt.Sprintf("%d:%s", sdk, acc)
-// }
+func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
+	if acc == nil { // 加载失败
+		gnet.SendToRole(&pb.S2CLogin{Code: pb.LoginCode_LCServerErr}, req.SesID, 0)
+		return
+	}
+	DebugCheck(acc, req)
+
+	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
+		gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
+	} else {
+		gnet.SendToGame(acc.GameID, req, 0, 0)
+		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
+	}
+}
+
+var debugAcc = map[string]uint64{}
+
+func DebugCheck(acc *Account, req *pb.S2SReqLogin) {
+	accID, ok := debugAcc[req.Req.Account]
+	if !ok {
+		accID = debugGetAccID(req.Req.Account, req.Req.SdkNo)
+	}
+	if accID != acc.AccID {
+		panic("accID not match")
+	}
+}
+
+func debugGetAccID(account string, sdk pb.ESdkNumber) uint64 {
+	filter := bson.M{"device": account}
+	switch sdk {
+	case pb.ESdkNumber_Google:
+		filter = bson.M{"googleid": account}
+	case pb.ESdkNumber_Apple:
+		filter = bson.M{"appleid": account}
+	case pb.ESdkNumber_Facebook:
+		filter = bson.M{"fbid": account}
+	default:
+
+	}
+	acc := Account{}
+	err := db.MongoDB.Collection(acc_db.AccountTable).FindOne(context.Background(), filter).Decode(&acc)
+	if err != nil {
+		panic(err)
+	}
+	return acc.AccID
+}

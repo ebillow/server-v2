@@ -63,30 +63,54 @@ func (l *loader) run(ctx context.Context) {
 }
 
 func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	pipe := db.Redis.Pipeline()
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	// defer cancel()
+	ctx := context.Background()
+	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
-		pipe.HGetAll(ctx, model.KeyAccount(op.Req.Account))
+		pipeBind.Get(ctx, model.KeyAccBind(op.Req.Account))
 	}
-	cmd, err := pipe.Exec(ctx)
+	cmdBind, err := pipeBind.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		zap.L().Error("[login] redis load batch failed", zap.Error(err))
 		return
 	}
 
-	batchFromDB := make([]*pb.S2SReqLogin, 0, len(cmd))
-	for i, c := range cmd {
-		data := c.(*redis.MapStringStringCmd)
-		if /*c.Err() == nil*/ len(data.Val()) > 0 { // 加载成功
-			acc := &Account{}
-			err = data.Scan(acc)
+	pipeAcc := db.Redis.Pipeline()
+	batchFromDB := make([]*pb.S2SReqLogin, 0, len(cmdBind))
+	cmdAcc := make(map[int]*redis.SliceCmd)
+	for i, c := range cmdBind {
+		if c.Err() == nil {
+			accID, err := c.(*redis.StringCmd).Uint64()
 			if err == nil {
-				op := batch[i]
-				afterCheck(acc, op)
+				cmdAcc[i] = pipeAcc.HMGet(ctx, model.KeyAccount(accID), AccFields()...)
+			} else {
+				batchFromDB = append(batchFromDB, batch[i])
 			}
-		} else /*if errors.Is(c.Err(), redis.Nil)*/ { // redis里没有
+		} else {
+			batchFromDB = append(batchFromDB, batch[i])
+		}
+	}
+
+	_, err = pipeAcc.Exec(ctx)
+	if err != nil && !errors.Is(err, redis.Nil) {
+		zap.L().Error("[login] redis load batch pipeAcc failed", zap.Error(err))
+		return
+	}
+	for i, c := range cmdAcc {
+		if c.Err() == nil {
+			acc := &Account{}
+			err = c.Scan(acc)
+			if err == nil && acc.AccID > 0 {
+				PostEvt(EvtParam{
+					Op:    OpAfterSDKCheck,
+					Login: batch[i],
+					Acc:   acc,
+				})
+			} else {
+				batchFromDB = append(batchFromDB, batch[i])
+			}
+		} else {
 			batchFromDB = append(batchFromDB, batch[i])
 		}
 	}
@@ -96,13 +120,37 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 	}
 }
 
-func (l *loader) loadFromDBBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
-	accs := make([]string, 0, len(batch))
-	for _, op := range batch {
-		accs = append(accs, op.Req.Account)
+func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
+	type Tmp struct {
+		accs  []string
+		batch []*pb.S2SReqLogin
 	}
+	batch := make(map[pb.ESdkNumber]*Tmp)
+	for _, op := range all {
+		one, ok := batch[op.Req.SdkNo]
+		if !ok {
+			one = &Tmp{}
+			batch[op.Req.SdkNo] = one
+		}
+		one.accs = append(one.accs, op.Req.Account)
+		one.batch = append(one.batch, op)
+	}
+	for k, bt := range batch {
+		filter := bson.M{"device": bson.M{"$in": bt.accs}}
+		switch k {
+		case pb.ESdkNumber_Apple:
+			filter = bson.M{"appleid": bson.M{"$in": bt.accs}}
+		case pb.ESdkNumber_Google:
+			filter = bson.M{"googleid": bson.M{"$in": bt.accs}}
+		case pb.ESdkNumber_Facebook:
+			filter = bson.M{"fbid": bson.M{"$in": bt.accs}}
+		default:
+		}
+		l.loadAccountFromDB(ctx, filter, bt.batch, k)
+	}
+}
 
-	filter := bson.M{"account": bson.M{"$in": accs}}
+func (l *loader) loadAccountFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.ESdkNumber) {
 	cursor, err := db.MongoDB.Collection(acc_db.AccountTable).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -119,20 +167,36 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 	}
 	result := make(map[string]*Account, len(accDatas))
 	for _, acc := range accDatas {
-		result[acc.Account] = acc
+		switch typ {
+		case pb.ESdkNumber_Apple:
+			result[acc.AppleID] = acc
+		case pb.ESdkNumber_Google:
+			result[acc.GoogleID] = acc
+		case pb.ESdkNumber_Facebook:
+			result[acc.FbID] = acc
+		default:
+			result[acc.Device] = acc
+		}
 	}
 
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
-			r.Update(ctx, op)
-			afterCheck(r, op)
+			r.Update(ctx, op.Req.Account)
+			PostEvt(EvtParam{
+				Op:    OpAfterSDKCheck,
+				Login: op,
+				Acc:   r,
+			})
 		} else {
 			acc, err := newAccount(ctx, op)
 			if err != nil {
-				// todo 发失败消息给前端？？
-				return
+				zap.L().Error("[login] new account failed", zap.Error(err))
 			}
-			afterCheck(acc, op)
+			PostEvt(EvtParam{
+				Op:    OpAfterSDKCheck,
+				Login: op,
+				Acc:   acc,
+			})
 		}
 	}
 }

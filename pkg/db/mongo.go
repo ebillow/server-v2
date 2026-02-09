@@ -25,7 +25,7 @@ func InitMongo(cfg MongoCfg, minPoolSize, maxPoolSize uint64) (err error) {
 	if err != nil {
 		return err
 	}
-	MongoUse("game")
+	MongoUse(cfg.DbName)
 
 	return err
 }

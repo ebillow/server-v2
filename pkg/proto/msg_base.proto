@@ -106,23 +106,10 @@ message S2SS2GtDisconnect{
 	DisconnectReason Why = 2;
 }
 
-message AccountData {
-	uint64 AccID = 1;
-	string Account = 2;
-}
-
-message S2SGameState{
-	enum GmState{
-		GmRunning = 0;
-		GmSaveData = 1;
-		GmClose = 2;
-		GmTimeOut = 3;
-	}
-	sint32 RoleCnt = 1;
-	string EndPoint = 2;
-	GmState State = 3;
-	sint64 Time = 4;
-	sint32 GameID = 5;
+message S2SRoleClear{
+	string Acc = 1;
+	uint64 RoleID = 2;
+	uint32 Seq = 3;
 }
 
 message S2CKickRole{
@@ -199,29 +186,6 @@ message S2SOfflineEvt{
 
 message C2SWithoutRole{}
 
-//---------------------------
-message MsgForwardToRole{
-	uint32 MsgID = 1;
-	uint64 RoleGuid = 2;
-	bytes	Data = 3;
-}
-
-message S2SRoleOffline{
-	string Acc = 1;
-	uint64 RoleID = 2;
-	int32 Seq = 3;
-}
-
-message MsgServerCloseInfo {
-	bool Close = 1;
-	map<uint32, string> Tips = 2;
-	int64 OpenTime = 3;
-}
-
-message MsgServerClose{
-	uint32 Sn = 1;
-	map<uint32, MsgServerCloseInfo> Data = 2;				//维护提示
-}
 
 //日志需求(客户端在相关协议中携带，比如登陆、充值订单、)
 message ClientInfo {
@@ -254,4 +218,5 @@ enum LoginCode {
 	LCBindDev = 12;			//绑定设备的账号，登录使用的设备和绑定设备不一致
 	LCServerErr = 13;		//服务器异常
 	LCOtherDevLogin = 14;	//其它设备登录，顶号
+	LCAccountEmpty = 15;  //请求中的账号非法
 }

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"server/pkg/cfg"
 	"server/pkg/db"
+	"server/pkg/discovery"
 	"server/pkg/flag"
 	"server/pkg/ghttp"
 	"server/pkg/gnet/msgq"
@@ -51,22 +52,28 @@ func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
 
 func (a *App) init(ctx context.Context) error {
 	idgen.Init(flag.SvcIndex)
-	cfg.Load(flag.EtcdAddr, flag.Name)
+	cfg.Load(flag.EtcdAddr[0], flag.Name)
 	conf := cfg.Get()
 
 	a.initLog(conf)
 	version.LogVersion()
 
-	if err := a.initDB(conf); err != nil {
-		panic(err)
+	err := a.initDB(conf)
+	if err != nil {
+		return err
 	}
 	lock.InitPool(db.Redis)
+	err = discovery.Init(flag.EtcdAddr)
+	if err != nil {
+		return err
+	}
+	discovery.Watch()
 
-	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
+	if err = msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
 		return err
 	}
 
-	if err := a.Init(ctx); err != nil {
+	if err = a.Init(ctx); err != nil {
 		return err
 	}
 
@@ -112,6 +119,10 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 		}
 	}
 	flag.SetReady()
+	if err := discovery.Register(a.SrvType, int32(flag.SvcIndex)); err != nil {
+		return err
+	}
+
 	fmt.Print(util.SuccessShow)
 	zap.L().Info("启动成功", zap.String("version", version.GitCommit))
 
@@ -121,6 +132,7 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 }
 
 func (a *App) unInit(ctx context.Context) error {
+	discovery.Close()
 	a.UnInit(ctx)
 	// zap.L().Info("closing...")
 	_ = db.CloseMongo()

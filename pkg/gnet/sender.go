@@ -83,6 +83,6 @@ func SendToGame(serID int32, msg proto.Message, sesID uint64, roleID uint64) {
 	SendToSrv(pb.Server_Game, serID, msg, roleID, sesID)
 }
 
-func SendToAccount(serID int32, msg proto.Message, sesID uint64) {
-	SendToSrv(pb.Server_Account, serID, msg, 0, sesID)
+func SendToAccount(msg proto.Message) {
+	SendToSrv(pb.Server_Account, 0, msg, 0, 0)
 }

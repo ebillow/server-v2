@@ -119,11 +119,6 @@ func registerAllS2SMsg() {
 		NewMessage:  func() proto.Message { return &S2SReqLogin{} },
 	})
 
-	registerS2SMsg(msgid.MsgIDS2S_S2SGameState, &messageMeta{
-		MessageType: reflect.TypeOf(S2SGameState{}),
-		NewMessage:  func() proto.Message { return &S2SGameState{} },
-	})
-
 	registerS2SMsg(msgid.MsgIDS2S_S2SReqRoleOnline, &messageMeta{
 		MessageType: reflect.TypeOf(S2SReqRoleOnline{}),
 		NewMessage:  func() proto.Message { return &S2SReqRoleOnline{} },
@@ -164,11 +159,6 @@ func registerAllS2SMsg() {
 		NewMessage:  func() proto.Message { return &S2SOfflineEvt{} },
 	})
 
-	registerS2SMsg(msgid.MsgIDS2S_S2SRoleOffline, &messageMeta{
-		MessageType: reflect.TypeOf(S2SRoleOffline{}),
-		NewMessage:  func() proto.Message { return &S2SRoleOffline{} },
-	})
-
 	registerS2SMsg(msgid.MsgIDS2S_S2SResLogin, &messageMeta{
 		MessageType: reflect.TypeOf(S2SResLogin{}),
 		NewMessage:  func() proto.Message { return &S2SResLogin{} },
@@ -182,6 +172,11 @@ func registerAllS2SMsg() {
 	registerS2SMsg(msgid.MsgIDS2S_S2SS2GtDisconnect, &messageMeta{
 		MessageType: reflect.TypeOf(S2SS2GtDisconnect{}),
 		NewMessage:  func() proto.Message { return &S2SS2GtDisconnect{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SRoleClear, &messageMeta{
+		MessageType: reflect.TypeOf(S2SRoleClear{}),
+		NewMessage:  func() proto.Message { return &S2SRoleClear{} },
 	})
 
 }

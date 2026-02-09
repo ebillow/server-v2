@@ -12,15 +12,30 @@ const AccountTable = "accounts"
 
 func CreateAccIndex() {
 	idx := make(map[string]mongo.IndexModel)
-	idx["acc_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"account", 1}},
+	idx["accid_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"accid", 1}},
 		Options: options.Index().SetUnique(true),
 	}
 
-	idx["accid_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"accid", 1}},
+	idx["device_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"device", 1}},
+		Options: options.Index().SetUnique(true),
+	}
+
+	idx["apple_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"appleid", 1}},
 		Options: options.Index().SetUnique(false),
 	}
+
+	idx["google_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"googleid", 1}},
+		Options: options.Index().SetUnique(false),
+	}
+	idx["fb_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"fbid", 1}},
+		Options: options.Index().SetUnique(false),
+	}
+
 	err := db.CreateIndexIfNotExist(db.MongoDB, AccountTable, idx)
 	if err != nil {
 		zap.L().Error("create account index failed", zap.Error(err))

@@ -3,38 +3,29 @@ package discovery
 import (
 	"context"
 	clientv3 "go.etcd.io/etcd/client/v3"
-	"log"
-	"time"
+	"go.uber.org/zap"
 )
 
-type ServiceRegister struct {
+type SDRegister struct {
 	cli     *clientv3.Client
 	leaseID clientv3.LeaseID
 	key     string
-	val     string
+	value   string
 	ttl     int64
 }
 
-func NewRegister(endpoints []string, serviceKey string, serviceVal string, ttl int64) (*ServiceRegister, error) {
-	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   endpoints,
-		DialTimeout: 5 * time.Second,
-	})
-	if err != nil {
-		return nil, err
+func newRegister(cli *clientv3.Client, serviceKey string, serviceVal string, ttl int64) *SDRegister {
+	sr := &SDRegister{
+		cli:   cli,
+		key:   serviceKey,
+		value: serviceVal,
+		ttl:   ttl,
 	}
-
-	sr := &ServiceRegister{
-		cli: cli,
-		key: serviceKey,
-		val: serviceVal,
-		ttl: ttl,
-	}
-	return sr, nil
+	return sr
 }
 
 // Register 注册服务
-func (s *ServiceRegister) Register() error {
+func (s *SDRegister) register() error {
 	ctx := context.TODO()
 
 	// 1. 创建租约
@@ -45,7 +36,7 @@ func (s *ServiceRegister) Register() error {
 	s.leaseID = resp.ID
 
 	// 2. 写入 KV 并绑定租约
-	_, err = s.cli.Put(ctx, s.key, s.val, clientv3.WithLease(s.leaseID))
+	_, err = s.cli.Put(ctx, s.key, s.value, clientv3.WithLease(s.leaseID))
 	if err != nil {
 		return err
 	}
@@ -62,7 +53,7 @@ func (s *ServiceRegister) Register() error {
 			select {
 			case _, ok := <-keepAliveCh:
 				if !ok {
-					log.Println("Lease keepalive channel closed, revoking...")
+					zap.L().Error("Lease keepalive channel closed, revoking...")
 					// 生产环境策略：通常这里需要触发重试逻辑或重启服务
 					// s.revoke()
 					return
@@ -76,7 +67,10 @@ func (s *ServiceRegister) Register() error {
 }
 
 // Close 优雅退出
-func (s *ServiceRegister) Close() {
+func (s *SDRegister) close() {
 	// 撤销租约，立即从 etcd 删除节点
-	s.cli.Revoke(context.Background(), s.leaseID)
+	_, err := s.cli.Revoke(context.Background(), s.leaseID)
+	if err != nil {
+		zap.L().Error("Failed to revoke lease", zap.Error(err))
+	}
 }

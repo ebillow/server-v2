@@ -1,70 +1,68 @@
 package discovery
 
 import (
-	"fmt"
+	"github.com/stretchr/testify/require"
+	"server/pkg/logger"
+	"server/pkg/pb"
 	"testing"
 	"time"
 )
 
+func TestMain(m *testing.M) {
+	logger.NewZapLog("../../bin/log/test.log", logger.Config{
+		Level:   -1,
+		Console: true,
+	})
+	err := Init([]string{"127.0.0.1:2379"})
+	if err != nil {
+		panic(err)
+	}
+	m.Run()
+}
+
 func TestNewRegistrar(t *testing.T) {
-	registrar()
+	err := Register(pb.Server_Game, 1)
+	require.NoError(t, err)
 	select {
-	case <-time.After(time.Minute):
+	case <-time.After(time.Second):
 		return
 	}
 }
 
-func registrar() *ServiceRegister {
-	endpoints := []string{"127.0.0.1:2379"}
-	serviceKey := "/services/myapp/"
-	serviceVal := "127.0.0.1:8080"
-	// 1. 服务注册
-	rg, err := NewRegister(endpoints, serviceKey, serviceVal, 5)
-	if err != nil {
-		panic(err)
-	}
-	if err = rg.Register(); err != nil {
-		panic(err)
-	}
-	fmt.Println("服务已注册：", serviceKey)
-	return rg
-}
-
-func watch() *ServiceDiscovery {
-	endpoints := []string{"127.0.0.1:2379"}
-	watcher, err := NewServiceDiscovery(endpoints, "/services/")
-	if err != nil {
-		panic(err)
-	}
-	return watcher
-}
 func TestNewWatcher(t *testing.T) {
-	watch()
+	Watch()
 
 	for i := 0; i < 10; i++ {
-		r := registrar()
 		time.Sleep(time.Second * 1)
-		err := r.Register()
-		if err != nil {
-			t.Fatal(err)
-		}
+		err := Register(pb.Server_Game, 1)
+		require.NoError(t, err)
 	}
 }
 
 func TestNewWatcherAfterRegistrar(t *testing.T) {
 	go func() {
 		for i := 0; i < 10; i++ {
-			r := registrar()
-			time.Sleep(time.Second * 1)
-			err := r.Register()
-			if err != nil {
-				t.Fatal(err)
-			}
+			err := Register(pb.Server_Game, 1)
+			require.NoError(t, err)
 		}
 	}()
 	time.Sleep(time.Second * 1)
-	watch()
+	Watch()
 	select {
 	case <-time.After(time.Second * 10):
 	}
+}
+
+func TestService(t *testing.T) {
+	Watch()
+
+	for i := 0; i < 10; i++ {
+		err := Register(pb.Server_Game, 1)
+		if err != nil {
+			panic(err)
+		}
+		time.Sleep(time.Second * 1)
+	}
+	Close()
+	time.Sleep(time.Second * 5)
 }

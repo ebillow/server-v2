@@ -18,32 +18,55 @@ var (
 )
 
 type Account struct {
+	AccID    uint64 `redis:"acc_id"`
+	Freeze   bool   `redis:"freeze"`
+	GameID   int32  `redis:"game_id"`
+	Time     int64  `redis:"time"`
+	Seq      uint32 `redis:"seq"`
+	Passwd   uint64 `redis:"passwd"`
+	Device   string
+	AppleID  string
+	GoogleID string
+	FbID     string
+}
+
+type AccBind struct {
 	Account string `redis:"account"`
 	AccID   uint64 `redis:"acc_id"`
-	Freeze  bool   `redis:"freeze"`
-	GameID  int32  `redis:"game_id"`
-	Time    int64  `redis:"time"`
-	Seq     uint32 `redis:"seq"`
-	Passwd  uint64 `redis:"passwd"`
 }
 
 func newAccount(ctx context.Context, req *pb.S2SReqLogin) (*Account, error) {
 	id := db.Redis.HIncrBy(ctx, model.RedisKeyIDs, "acc_id", 1).Val()
 	acc := &Account{
-		Account: req.Req.Account,
-		AccID:   uint64(id),
+		AccID:  uint64(id),
+		Device: req.Req.Dev,
+	}
+	switch req.Req.SdkNo {
+	case pb.ESdkNumber_Apple:
+		acc.AppleID = req.Req.Account
+	case pb.ESdkNumber_Google:
+		acc.GoogleID = req.Req.Account
+	case pb.ESdkNumber_Facebook:
+		acc.FbID = req.Req.Account
+	default:
+		acc.Device = req.Req.Account
 	}
 
+	// 先写db
 	_, err := db.MongoDB.Collection(acc_db.AccountTable).InsertOne(ctx, acc)
 	if err != nil {
 		zap.L().Error("mongo insert acc failed", zap.Error(err))
 		return nil, err
 	}
 
+	// 写redis
+	expiration := time.Hour * 24 * 7
 	pipe := db.Redis.Pipeline()
-	key := model.KeyAccount(req.Req.Account)
-	pipe.HSet(ctx, key, "account", acc.Account, "acc_id", acc.AccID)
-	pipe.Expire(ctx, key, time.Hour*24*7)
+	keyAcc := model.KeyAccount(acc.AccID)
+	pipe.HSet(ctx, keyAcc, "acc_id", acc.AccID)
+	pipe.Expire(ctx, keyAcc, expiration)
+	keyBind := model.KeyAccBind(req.Req.Account)
+	pipe.Set(ctx, keyBind, acc.AccID, expiration)
 
 	_, err = pipe.Exec(ctx)
 	if err != nil {
@@ -54,11 +77,18 @@ func newAccount(ctx context.Context, req *pb.S2SReqLogin) (*Account, error) {
 	return acc, nil
 }
 
-func (acc *Account) Update(ctx context.Context, req *pb.S2SReqLogin) {
+func AccFields() []string {
+	return []string{"acc_id", "freeze", "game_id", "time", "seq", "passwd"}
+}
+
+func (acc *Account) Update(ctx context.Context, account string) {
+	expiration := time.Hour * 24 * 7
 	pipe := db.Redis.Pipeline()
-	key := model.KeyAccount(req.Req.Account)
-	pipe.HSet(ctx, key, "account", acc.Account, "acc_id", acc.AccID)
-	pipe.Expire(ctx, key, time.Hour*24*7)
+	keyAcc := model.KeyAccount(acc.AccID)
+	pipe.HSet(ctx, keyAcc, "acc_id", acc.AccID, "freeze", acc.Freeze)
+	pipe.Expire(ctx, keyAcc, expiration)
+	keyBind := model.KeyAccBind(account)
+	pipe.Set(ctx, keyBind, acc.AccID, expiration)
 
 	_, err := pipe.Exec(ctx)
 	if err != nil {
@@ -68,15 +98,15 @@ func (acc *Account) Update(ctx context.Context, req *pb.S2SReqLogin) {
 }
 
 func (acc *Account) SaveLoginData(ctx context.Context) error {
-	return db.Redis.HSet(ctx, model.KeyAccount(acc.Account), "game_id", acc.GameID, "time", acc.Time, "seq", acc.Seq, "passwd", acc.Passwd).Err()
+	return db.Redis.HSet(ctx, model.KeyAccount(acc.AccID), "game_id", acc.GameID, "time", acc.Time, "seq", acc.Seq, "passwd", acc.Passwd).Err()
 }
 
-func (acc *Account) LoadSeq(ctx context.Context) int32 {
-	v, err := db.Redis.HGet(ctx, model.KeyAccount(acc.Account), "seq").Int()
+func (acc *Account) LoadSeq(ctx context.Context) uint32 {
+	v, err := db.Redis.HGet(ctx, model.KeyAccount(acc.AccID), "seq").Int()
 	if err != nil {
 		return 0
 	}
-	return int32(v)
+	return uint32(v)
 }
 
 //	func ConnectAcc(msg *pb2.MsgBindAcc, s *snet.Session) {

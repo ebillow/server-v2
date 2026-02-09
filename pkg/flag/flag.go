@@ -13,7 +13,7 @@ import (
 
 // 服务启动时的flags
 var (
-	EtcdAddr string
+	EtcdAddr []string
 	Name     string
 	SvcIndex int // 服务索引
 	RpcPort  int // rpc 端口
@@ -24,7 +24,7 @@ var (
 
 // Init 解析flags
 func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
-	fs.StringVar(&EtcdAddr, "etcd-addr", "127.0.0.1:2379", "etcd address")
+	fs.StringSliceVar(&EtcdAddr, "etcd-addr", []string{"127.0.0.1:2379"}, "etcd address")
 	fs.StringVar(&Name, "name", "local", "商户号")
 	fs.IntVar(&SvcIndex, "index", 0, "服务索引")
 	fs.IntVar(&RpcPort, "rpc-port", 0, "rpc 监听端口")
