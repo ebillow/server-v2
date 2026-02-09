@@ -2,7 +2,9 @@ package login
 
 import (
 	"context"
+	"errors"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 	"math/rand"
 	"server/account/acc_db"
@@ -13,6 +15,7 @@ import (
 	"server/pkg/model"
 	"server/pkg/pb"
 	"server/pkg/thread"
+	"server/pkg/util"
 	"sync/atomic"
 	"time"
 )
@@ -44,14 +47,25 @@ var (
 	// tokenBucket int32
 	LastRunTime int64
 	loginTime   = make(map[string]int64)
+	curAccID    atomic.Uint64
 )
 
 func Start(ctx context.Context) {
+	accID, err := GetCurAccID(ctx)
+	if err != nil {
+		zap.L().Error("get max account id", zap.Error(err))
+		return
+	}
+	curAccID.Store(accID)
+	zap.L().Info("account id:", zap.Uint64("max account", accID))
+
 	loading = newLoader()
 
-	thread.GoSafe(func() {
-		loading.run(ctx)
-	})
+	for i := 0; i < 3; i++ {
+		thread.GoSafe(func() {
+			loading.run(ctx)
+		})
+	}
 	thread.GoSafe(func() {
 		t := time.NewTicker(time.Minute)
 		// tFillBucket := time.NewTicker(time.Millisecond * 100)
@@ -179,6 +193,13 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkNo, req.Req.String())
 	}
 
+	if util.Debug {
+		debugAcc[req.Req.Account] = &debugCheck{
+			AccID: debugGetAccID(req.Req.Account, req.Req.SdkNo),
+			Ok:    false,
+		}
+	}
+
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
@@ -243,7 +264,10 @@ func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 		gnet.SendToRole(&pb.S2CLogin{Code: pb.LoginCode_LCServerErr}, req.SesID, 0)
 		return
 	}
-	DebugCheck(acc, req)
+
+	if util.Debug {
+		DebugCheck(acc, req)
+	}
 
 	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
 		gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
@@ -253,16 +277,25 @@ func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 	}
 }
 
-var debugAcc = map[string]uint64{}
+type debugCheck struct {
+	AccID uint64
+	Ok    bool
+}
+
+var debugAcc = make(map[string]*debugCheck)
 
 func DebugCheck(acc *Account, req *pb.S2SReqLogin) {
-	accID, ok := debugAcc[req.Req.Account]
+	chk, ok := debugAcc[req.Req.Account]
 	if !ok {
-		accID = debugGetAccID(req.Req.Account, req.Req.SdkNo)
+		zap.L().Error("not exist", zap.Any("req", req))
 	}
-	if accID != acc.AccID {
-		panic("accID not match")
+	if chk.AccID == 0 {
+		chk.AccID = debugGetAccID(req.Req.Account, req.Req.SdkNo)
 	}
+	if chk.AccID != acc.AccID {
+		zap.L().Error("not match", zap.Any("req", req), zap.Any("acc", acc), zap.Any("real", chk))
+	}
+	chk.Ok = true
 }
 
 func debugGetAccID(account string, sdk pb.ESdkNumber) uint64 {
@@ -279,8 +312,9 @@ func debugGetAccID(account string, sdk pb.ESdkNumber) uint64 {
 	}
 	acc := Account{}
 	err := db.MongoDB.Collection(acc_db.AccountTable).FindOne(context.Background(), filter).Decode(&acc)
-	if err != nil {
-		panic(err)
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		zap.L().Error("find account err", zap.Error(err))
+		return 0
 	}
 	return acc.AccID
 }

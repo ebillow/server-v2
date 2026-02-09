@@ -5,7 +5,8 @@ import "strconv"
 const RedisKeyRole = "role:"
 const RedisKeyAccount = "acc:"
 const RedisKeyAccBind = "acc_bind:"
-const RedisKeyIDs = "server:ids"
+
+// const RedisKeyIDs = "server:ids"
 
 func KeyRole(roleID uint64) string {
 	return RedisKeyRole + strconv.FormatUint(roleID, 10)

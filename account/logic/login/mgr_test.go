@@ -2,6 +2,7 @@ package login
 
 import (
 	"context"
+	"fmt"
 	"server/account/acc_db"
 	"server/pkg/db"
 	"server/pkg/discovery"
@@ -9,6 +10,7 @@ import (
 	"server/pkg/pb"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestMain(m *testing.M) {
@@ -47,8 +49,17 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func checkSuccess() {
+	fmt.Println("start check success")
+	for k, v := range debugAcc {
+		if !v.Ok {
+			fmt.Println("login fail", k, v.AccID)
+		}
+	}
+}
+
 func TestLogin(t *testing.T) {
-	for i := 0; i < 4; i++ {
+	for i := 8000; i < 10000; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
 				SdkNo:     pb.ESdkNumber_Guest,
@@ -68,5 +79,6 @@ func TestLogin(t *testing.T) {
 			ConnectedAcc: nil,
 		})
 	}
-	select {}
+	time.Sleep(time.Second * 10)
+	checkSuccess()
 }

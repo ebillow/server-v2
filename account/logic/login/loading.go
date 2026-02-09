@@ -29,7 +29,7 @@ func (l *loader) post(op *pb.S2SReqLogin) {
 
 func (l *loader) run(ctx context.Context) {
 	const (
-		batchSize     = 100
+		batchSize     = 500
 		flushInterval = 50 * time.Millisecond
 	)
 
@@ -179,6 +179,7 @@ func (l *loader) loadAccountFromDB(ctx context.Context, filter bson.M, batch []*
 		}
 	}
 
+	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
 			r.Update(ctx, op.Req.Account)
@@ -188,15 +189,60 @@ func (l *loader) loadAccountFromDB(ctx context.Context, filter bson.M, batch []*
 				Acc:   r,
 			})
 		} else {
-			acc, err := newAccount(ctx, op)
-			if err != nil {
-				zap.L().Error("[login] new account failed", zap.Error(err))
-			}
-			PostEvt(EvtParam{
-				Op:    OpAfterSDKCheck,
-				Login: op,
-				Acc:   acc,
-			})
+			newAccBatch = append(newAccBatch, op)
 		}
+	}
+	l.newAccountBatch(ctx, newAccBatch)
+}
+
+func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
+	accBat := make([]*Account, 0, len(batch))
+	pipe := db.Redis.Pipeline()
+	const expiration = time.Hour * 24 * 7
+
+	for _, req := range batch {
+		id := curAccID.Add(1)
+
+		acc := &Account{
+			AccID:  id,
+			Device: req.Req.Dev,
+		}
+		switch req.Req.SdkNo {
+		case pb.ESdkNumber_Apple:
+			acc.AppleID = req.Req.Account
+		case pb.ESdkNumber_Google:
+			acc.GoogleID = req.Req.Account
+		case pb.ESdkNumber_Facebook:
+			acc.FbID = req.Req.Account
+		default:
+			acc.Device = req.Req.Account
+		}
+		accBat = append(accBat, acc)
+
+		keyAcc := model.KeyAccount(acc.AccID)
+		pipe.HSet(ctx, keyAcc, "acc_id", acc.AccID)
+		pipe.Expire(ctx, keyAcc, expiration)
+		keyBind := model.KeyAccBind(req.Req.Account)
+		pipe.Set(ctx, keyBind, acc.AccID, expiration)
+	}
+
+	_, err := db.MongoDB.Collection(acc_db.AccountTable).InsertMany(ctx, accBat)
+	if err != nil {
+		zap.L().Error("[login] insert account failed", zap.Error(err))
+		return
+	}
+
+	// 写redis
+	_, err = pipe.Exec(ctx)
+	if err != nil {
+		zap.L().Warn("redis hset acc_id failed", zap.Error(err))
+		// mongo已经成功，下次会从mongo加载
+	}
+	for i := range accBat {
+		PostEvt(EvtParam{
+			Op:    OpAfterSDKCheck,
+			Login: batch[i],
+			Acc:   accBat[i],
+		})
 	}
 }
