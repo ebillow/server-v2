@@ -21,6 +21,7 @@ import (
 )
 
 // todo 服务断线
+// 重进
 
 const (
 	LoginCD = 3
@@ -42,9 +43,9 @@ type EvtParam struct {
 }
 
 var (
-	evt     = make(chan EvtParam, 4096)
-	loading *loader
-	// tokenBucket int32
+	evt         = make(chan EvtParam, 4096)
+	loading     *loader
+	tokenBucket = TokenBucketMax
 	LastRunTime int64
 	loginTime   = make(map[string]int64)
 	curAccID    atomic.Uint64
@@ -68,7 +69,7 @@ func Start(ctx context.Context) {
 	}
 	thread.GoSafe(func() {
 		t := time.NewTicker(time.Minute)
-		// tFillBucket := time.NewTicker(time.Millisecond * 100)
+		tFillBucket := time.NewTicker(time.Millisecond * 200)
 		defer func() {
 			logger.Debug("stop Login mgr run")
 			t.Stop()
@@ -81,8 +82,8 @@ func Start(ctx context.Context) {
 			case now := <-t.C:
 				atomic.StoreInt64(&LastRunTime, now.Unix())
 				checkTimeout(now.Unix())
-			// case <-tFillBucket.C:
-			//	refillTokenBucket()
+			case <-tFillBucket.C:
+				refillTokenBucket()
 			case <-ctx.Done():
 				return
 			}
@@ -123,18 +124,23 @@ func onEvent(ctx context.Context, e EvtParam) {
 	}
 }
 
-// func tryConsumeTokenBucket() bool {
-//	if tokenBucket < 1 {
-//		return false
-//	} else {
-//		tokenBucket--
-//		return true
-//	}
-// }
-//
-// func refillTokenBucket() {
-//	tokenBucket += int32(50)
-// }
+func tryConsumeTokenBucket() bool {
+	if tokenBucket < 1 {
+		return false
+	} else {
+		tokenBucket--
+		return true
+	}
+}
+
+const TokenBucketMax = int32(5000)
+
+func refillTokenBucket() {
+	tokenBucket += TokenBucketMax / 5
+	if tokenBucket > TokenBucketMax {
+		tokenBucket = TokenBucketMax
+	}
+}
 
 func checkTimeout(now int64) {
 	const MaxCount = 1000
@@ -162,27 +168,20 @@ func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 	if req.Req.Account == "" {
 		return pb.LoginCode_LCAccountEmpty
 	}
+
+	if !tryConsumeTokenBucket() {
+		return pb.LoginCode_LCServerBusy
+	}
+
+	req.Req.Account = RealAcc(req.Req.SdkNo, req.Req.Account)
+
 	now := time.Now().Unix()
 	if now-loginTime[req.Req.Account] < LoginCD {
 		return pb.LoginCode_LCCD
 	}
-	// if !tryConsumeTokenBucket() {
-	//	network.SendToGate(req.GtID, pb.MsgIDS2S_Acc2GtLoginAck, &pb.MsgLoginAck{Ret: pb.LoginCode_LCServerBusy, Data: req})
-	//	return
-	// }
 
-	// rawAcc := share.GetRawAcc(req.SdkNo, req.Channel, req.Uid)
-	//
-	// if skipAllLoginChk || isInLocalChkList(rawAcc) {
-	// 	checkAccState(req)
-	// 	return
-	// }
-	//
-	// isWhiteListAcc := isInWhiteList(rawAcc, req.Dev)
-	// closeInfo, isClose := serverCloseInfo(req.Area)
-	// if isClose && !isWhiteListAcc {
-	// 	return
-	// }
+	// 白名单
+
 	loginTime[req.Req.Account] = now
 	return pb.LoginCode_LCSuccess
 }

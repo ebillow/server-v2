@@ -3,6 +3,7 @@ package login
 import (
 	"context"
 	"errors"
+	"fmt"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -32,47 +33,8 @@ type AccBind struct {
 	AccID   uint64 `redis:"acc_id"`
 }
 
-func newAccount(ctx context.Context, req *pb.S2SReqLogin) (*Account, error) {
-	id := curAccID.Add(1)
-
-	acc := &Account{
-		AccID:  id,
-		Device: req.Req.Dev,
-	}
-	switch req.Req.SdkNo {
-	case pb.ESdkNumber_Apple:
-		acc.AppleID = req.Req.Account
-	case pb.ESdkNumber_Google:
-		acc.GoogleID = req.Req.Account
-	case pb.ESdkNumber_Facebook:
-		acc.FbID = req.Req.Account
-	default:
-		acc.Device = req.Req.Account
-	}
-
-	// 先写db
-	_, err := db.MongoDB.Collection(acc_db.AccountTable).InsertOne(ctx, acc)
-	if err != nil {
-		zap.L().Error("mongo insert acc failed", zap.Error(err))
-		return nil, err
-	}
-
-	// 写redis
-	expiration := time.Hour * 24 * 7
-	pipe := db.Redis.Pipeline()
-	keyAcc := model.KeyAccount(acc.AccID)
-	pipe.HSet(ctx, keyAcc, "acc_id", acc.AccID)
-	pipe.Expire(ctx, keyAcc, expiration)
-	keyBind := model.KeyAccBind(req.Req.Account)
-	pipe.Set(ctx, keyBind, acc.AccID, expiration)
-
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		zap.L().Warn("redis hset acc_id failed", zap.Error(err))
-		return acc, nil // mongo已经成功，下次会从mongo加载
-	}
-
-	return acc, nil
+func RealAcc(typ pb.ESdkNumber, acc string) string {
+	return fmt.Sprintf("%d@%s", typ, acc)
 }
 
 func AccFields() []string {

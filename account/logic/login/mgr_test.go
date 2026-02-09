@@ -59,7 +59,7 @@ func checkSuccess() {
 }
 
 func TestLogin(t *testing.T) {
-	for i := 8000; i < 10000; i++ {
+	for i := 0; i < 5000; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
 				SdkNo:     pb.ESdkNumber_Guest,
