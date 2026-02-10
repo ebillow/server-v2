@@ -5,7 +5,6 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"server/pkg/crypt/gaes"
 	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/gnet/gctx"
@@ -90,19 +89,19 @@ func (s *Session) Init(cs2Key, s2cKey []byte) error {
 	s.Id = uint64(idgen.Gen())
 
 	var err error
-	var aesIV = []byte("093po54iuy876tre") // todo
-	if len(cs2Key) > 0 {
-		s.deCyp, err = gaes.NewDecrypter(cs2Key, aesIV)
-		if err != nil {
-			return err
-		}
-	}
-	if len(s2cKey) > 0 {
-		s.enCpy, err = gaes.NewEncrypter(s2cKey, aesIV)
-		if err != nil {
-			return err
-		}
-	}
+	// var aesIV = []byte("093po54iuy876tre") // todo
+	// if len(cs2Key) > 0 {
+	// 	s.deCyp, err = gaes.NewDecrypter(cs2Key, aesIV)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
+	// if len(s2cKey) > 0 {
+	// 	s.enCpy, err = gaes.NewEncrypter(s2cKey, aesIV)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+	// }
 	AddCliSession(s.Id, s)
 	return err
 }
@@ -127,6 +126,8 @@ func (s *Session) start() {
 	s.ctrl = make(chan struct{})
 	s.out = make(chan *MsgSend, netCfg.OutChanSize)
 	s.events = make(chan gctx.Context, netCfg.OutChanSize)
+
+	_ = s.Init([]byte(""), []byte(""))
 
 	go s.sendLoop()
 	go s.readLoop(netCfg)
