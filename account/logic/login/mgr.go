@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	LoginCD = 3
+	LoginCD    = 3
+	LoadThread = 3
 )
 
 type Op int
@@ -60,7 +61,7 @@ func Start(ctx context.Context) {
 
 	loading = newLoader()
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < LoadThread; i++ {
 		thread.GoSafe(func() {
 			loading.run(ctx)
 		})
@@ -284,7 +285,9 @@ func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 	}
 
 	if util.Debug {
-		DebugCheck(acc, req)
+		if !DebugCheck(acc, req) {
+			return
+		}
 	}
 
 	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
@@ -306,7 +309,7 @@ type debugCheck struct {
 
 var debugAcc = make(map[string]*debugCheck)
 
-func DebugCheck(acc *Account, req *pb.S2SReqLogin) {
+func DebugCheck(acc *Account, req *pb.S2SReqLogin) bool {
 	chk, ok := debugAcc[req.Req.Account]
 	if !ok {
 		zap.L().Error("not exist", zap.Any("req", req))
@@ -316,8 +319,10 @@ func DebugCheck(acc *Account, req *pb.S2SReqLogin) {
 	}
 	if chk.AccID != acc.AccID {
 		zap.L().Error("not match", zap.Any("req", req), zap.Any("acc", acc), zap.Any("real", chk))
+		return false
 	}
 	chk.Ok = true
+	return true
 }
 
 func debugGetAccID(account string, sdk pb.ESdkNumber) uint64 {

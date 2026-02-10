@@ -4,10 +4,12 @@ import (
 	"context"
 	"github.com/spf13/cobra"
 	"server/game/component"
+	"server/game/game_db"
 	"server/game/role"
 	"server/game/role/login_mgr"
 	_ "server/game/role/msg"
 	"server/game/role/role_mgr"
+	"server/pkg/db"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
@@ -41,6 +43,9 @@ func main() {
 
 func Init(ctx context.Context) error {
 	inject()
+
+	db.MongoUse("game")
+	game_db.CreateIndex()
 
 	return nil
 }

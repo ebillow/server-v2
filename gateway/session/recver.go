@@ -7,10 +7,8 @@ import (
 )
 
 func (s *Session) readLoop(cfg *Config) {
-	zap.S().Debugf("%s cli recv loop start", s.String())
 	defer func() {
 		close(s.in)
-		zap.S().Debugf("%s cli recv loop stop", s.String())
 	}()
 
 	for {
@@ -19,20 +17,25 @@ func (s *Session) readLoop(cfg *Config) {
 		}
 		mt, data, err := s.conn.ReadMessage()
 		if err != nil {
-			zap.S().Debugf("%d read message err:%v", s.Id, err)
+			zap.L().Warn("read message err", zap.Inline(s), zap.Error(err))
 			return
 		}
 		if mt == websocket.CloseMessage {
-			zap.S().Debugf("%s connection close by client", s.String())
+			zap.L().Debug("connection close by client", zap.Inline(s))
 			return
 		} else if mt != websocket.BinaryMessage {
 			continue
 		}
 
+		if len(data) > maxRecvMsgSize {
+			zap.L().Warn("read msg too big", zap.Uint64("ses_id", s.Id), zap.Int("size", len(data)))
+			return
+		}
+
 		select {
 		case s.in <- data:
 		case <-s.ctrl:
-			zap.S().Debugf("%s connection close by server", s.String())
+			zap.L().Info("connection close by server", zap.Inline(s))
 			return
 		}
 	}

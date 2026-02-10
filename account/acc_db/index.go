@@ -10,7 +10,7 @@ import (
 
 const AccountTable = "accounts"
 
-func CreateAccIndex() {
+func CreateIndex() {
 	idx := make(map[string]mongo.IndexModel)
 	idx["accid_1"] = mongo.IndexModel{
 		Keys:    bson.D{{"accid", 1}},

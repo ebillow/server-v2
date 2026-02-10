@@ -9,7 +9,7 @@ import (
 
 // SendToCli	发送数据给客户端,用于协程外发消息
 func SendToCli(cliSesId uint64, msgID msgid.MsgIDS2C, msg proto.Message) {
-	ses := session.GetCliSession(cliSesId)
+	ses := session.GetSession(cliSesId)
 	if ses != nil {
 		ses.SendPB(msgID, msg)
 	}
@@ -36,7 +36,7 @@ func SendToSomeOne(msgID msgid.MsgIDS2C, msg proto.Message, cliSess map[uint64]b
 		return
 	}
 	for k := range cliSess {
-		ses := session.GetCliSession(k)
+		ses := session.GetSession(k)
 		if ses != nil {
 			ses.SendBytes(uint32(msgID), b)
 		}

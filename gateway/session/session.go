@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	sendCacheLen = 1024
+	sendCacheLen   = 1024
+	maxRecvMsgSize = 102400
 )
 
 const (
@@ -55,21 +56,14 @@ type Session struct {
 	enCpy cipher.BlockMode
 }
 
-func (s *Session) String() string {
-	return util.Uint64ToString(s.ID()) + "_" + s.Ip
-}
-func (s *Session) ID() uint64 {
-	return s.Id
-}
-
 func (s *Session) OnConnect() {
-	zap.L().Info("connect", zap.String("session", s.String()))
+	zap.L().Info("connect", zap.Inline(s))
 }
 
 func (s *Session) OnClosed() {
-	zap.L().Info("disconnect", zap.String("session", s.String()))
+	zap.L().Info("disconnect", zap.Inline(s))
 	if s.flag.Has(SesInit) {
-		RemoveCliSession(s.Id) // todo
+		RemoveSession(s.Id) // todo
 		gnet.SendToGame(s.GameID, &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
 			Why:   s.disConnReason,
@@ -77,7 +71,7 @@ func (s *Session) OnClosed() {
 	}
 }
 
-// close 关闭,非线程安全,只能在消息里调用
+// Close 关闭,非线程安全,只能在消息里调用
 func (s *Session) Close(why pb.DisconnectReason) {
 	s.disConnReason = why
 	s.flag.Add(SesClose)
@@ -102,7 +96,7 @@ func (s *Session) Init(cs2Key, s2cKey []byte) error {
 	// 		return err
 	// 	}
 	// }
-	AddCliSession(s.Id, s)
+	AddSession(s.Id, s)
 	return err
 }
 
@@ -110,7 +104,7 @@ func (s *Session) Post(msg gctx.Context) {
 	select {
 	case s.events <- msg:
 	default:
-		zap.L().Error("[post] events channel full")
+		zap.L().Error("[post] events channel full", zap.Inline(s))
 	}
 }
 
@@ -138,11 +132,8 @@ func (s *Session) start() {
 
 // main
 func (s *Session) mainLoop(cfg *Config) {
-	zap.S().Debugf("%s cli main loop start", s.String())
 	defer func() {
 		waitGroup.Done()
-		zap.S().Debugf("%s cli main loop stop", s.String())
-
 		if err := recover(); err != nil {
 			thread.PrintStack(err)
 		}
@@ -154,9 +145,8 @@ func (s *Session) mainLoop(cfg *Config) {
 		s.OnClosed()
 		err := s.conn.Close()
 		if err != nil {
-			zap.S().Warnf("close websocket %s err:%v", s.String(), err)
+			zap.L().Warn("close websocket err", zap.Inline(s), zap.Error(err))
 		}
-		zap.S().Debugf("close websocket %s", s.String())
 		close(s.ctrl)
 		tick.Stop()
 	}()
@@ -191,7 +181,7 @@ func (s *Session) mainLoop(cfg *Config) {
 
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
-		zap.S().Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
+		zap.L().Warn("pkg cnt per min > limit", zap.Inline(s), zap.Int("cnt", s.pkgCnt1Min))
 		s.Close(pb.DisconnectReason_Limit)
 	}
 	s.pkgCnt1Min = 0
@@ -204,19 +194,18 @@ func (s *Session) getSerID(ser pb.Server) int32 {
 func (s *Session) onRecvClientMsg(src []byte) {
 	msgID, seq, data, err := Decode(src, s.deCyp)
 	if err != nil {
-		zap.S().Warnf("%s read packet err:%v", s.String(), err)
+		zap.L().Warn("read packet err", zap.Inline(s), zap.Error(err))
 		s.Close(pb.DisconnectReason_DecodeErr)
 		return
 	}
 
 	if msgID != uint32(msgid.MsgIDC2S_C2SInit) && !s.flag.Has(SesInit) {
-		zap.S().Errorf("%s not init", s.String())
+		zap.L().Error("not init", zap.Inline(s))
 		s.Close(pb.DisconnectReason_InitErr)
 		return
 	}
 	if seq != 0 && seq != s.pkgCnt {
-		zap.S().Errorf("%s sequeue num err: %d should be %d", s.String(), seq, s.pkgCnt)
-		zap.S().Debug("data=%v", data)
+		zap.L().Error("seq num err:", zap.Inline(s), zap.Uint32("seq", seq), zap.Uint32("cur", s.pkgCnt))
 		s.Close(pb.DisconnectReason_PkgCntErr)
 		return
 	}
@@ -227,14 +216,22 @@ func (s *Session) onRecvClientMsg(src []byte) {
 		C().Handle(msgID, data, s)
 	} else {
 		serName := flag.SrvName(serType)
-		msgq.Q.Send(serName, serID, msgID, data, 0, s.Id)
-
+		err = msgq.Q.Send(serName, serID, msgID, data, 0, s.Id)
+		if err != nil {
+			zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
+				zap.Uint32("msgID", msgID),
+				zap.String("to", serName),
+				zap.Int32("idx", serID),
+				zap.Inline(s),
+				logger.Magenta.Field(),
+			)
+		}
 		if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 			zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 				zap.Uint32("msgID", msgID),
 				zap.String("to", serName),
 				zap.Int32("idx", serID),
-				zap.Uint64("sessID", s.Id),
+				zap.Inline(s),
 				logger.Magenta.Field(),
 			)
 		}

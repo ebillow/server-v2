@@ -78,16 +78,30 @@ func (r *Robot) SecLoop() {
 	// zap.S().Debugf("secloop")
 
 	switch r.state {
+	// case Init:
+	// 	if time.Now().Sub(r.stateTime) > time.Second*10 {
+	// 		r.SendInitMsg()
+	// 		r.stateTime = time.Now()
+	// 	}
+	// case ReConn:
+	// 	if time.Now().Sub(r.stateTime) > time.Second*10 {
+	// 		r.SendInitMsg()
+	// 		r.stateTime = time.Now()
+	// 	}
 	case Init:
-		if time.Now().Sub(r.stateTime) > time.Second*10 {
-			r.SendInitMsg()
-			r.stateTime = time.Now()
+		err := r.s.Init(nil, nil)
+		if err != nil {
+			zap.L().Error("Init fail", zap.Error(err))
+			return
 		}
+		r.Login()
 	case ReConn:
-		if time.Now().Sub(r.stateTime) > time.Second*10 {
-			r.SendInitMsg()
-			r.stateTime = time.Now()
+		err := r.s.Init(nil, nil)
+		if err != nil {
+			zap.L().Error("Init fail", zap.Error(err))
+			return
 		}
+		r.ReConn()
 	case InGame:
 		TaskRun(r)
 	}

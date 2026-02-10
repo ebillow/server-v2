@@ -30,7 +30,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	acc_db.CreateAccIndex()
+	acc_db.CreateIndex()
 
 	err = db.InitRedis(db.RedisCfg{
 		Addr: []string{"127.0.0.1:6380", "127.0.0.1:6381", "127.0.0.1:6382"},

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	jsoniter "github.com/json-iterator/go"
-	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -252,29 +251,9 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 		c.Add(id)
 	}
 
-	MockMsg()
-
 	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
 	c.CheckResult()
-}
-
-func MockMsg() {
-	t := time.NewTicker(time.Millisecond * 100)
-	out := time.After(time.Second * 10)
-	for {
-		select {
-		case <-t.C:
-			for id := uint64(1); id <= IDMax; id++ {
-				msg := nats.NewMsg("test")
-				msg.Data = []byte("hello world")
-				role.RoleMgr().PostEvent(id, role.Event{
-					Msg: msg})
-			}
-		case <-out:
-			return
-		}
-	}
 }
 
 func TestOnlineOffline(t *testing.T) {

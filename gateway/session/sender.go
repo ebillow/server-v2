@@ -17,7 +17,7 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 		zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
-			zap.Uint64("sessID", s.Id),
+			zap.Inline(s),
 			logger.Magenta.Field(),
 		)
 	}
@@ -27,7 +27,7 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 func (s *Session) Send(msg proto.Message) bool {
 	msgID, err := pb.GetMsgIDS2C(msg)
 	if err != nil {
-		zap.S().Warnf("msgIDC2S error:%v", err)
+		zap.L().Warn("send error", zap.Error(err), zap.Inline(s))
 		return false
 	}
 	return s.SendPB(msgid.MsgIDS2C(msgID), msg)
@@ -79,6 +79,6 @@ func (s *Session) rawSend(p *MsgSend, cache []byte) {
 	data := Encode(p.ID, p.Data, s.enCpy, cache)
 	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
-		zap.S().Debugf("send data error, err:%v", err)
+		zap.L().Debug("send data error", zap.Error(err), zap.Inline(s))
 	}
 }

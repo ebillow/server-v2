@@ -132,14 +132,14 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 		if r, ok := result[op.Login.RoleID]; ok {
 			op.Data = r
 		} else {
-			rd, _ := newRoleInDB(op.Login.RoleID)
+			rd, _ := newRoleDBData(op.Login.RoleID)
 			op.Data.Data = rd.Data
 		}
 		postOp(op)
 	}
 }
 
-func newRoleInDB(roleID uint64) (*role.DataToSave, error) {
+func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
 	rData := pb.RoleData{
 		ID:    roleID,
 		Name:  util.ToString(roleID),
@@ -153,7 +153,7 @@ func newRoleInDB(roleID uint64) (*role.DataToSave, error) {
 
 	str, err := jsoniter.MarshalToString(&rData)
 	if err != nil {
-		zap.S().Errorf("[login] marshal role data err:%v", err)
+		zap.L().Error("[login] marshal role data", zap.Error(err))
 		return nil, err
 	}
 	rd.Set(pb.TypeComp_TCBase, str)

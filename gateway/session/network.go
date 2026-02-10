@@ -11,10 +11,6 @@ import (
 	"time"
 )
 
-const (
-	MaxMsgCount = 655350
-)
-
 // Config 网络配置
 type Config struct {
 	ReadDeadline        time.Duration // time.Second * 1500
@@ -122,40 +118,24 @@ var (
 )
 
 /**************************************************************/
-func AddCliSession(cliSesID uint64, c *Session) {
+func AddSession(cliSesID uint64, c *Session) {
 	CliSess.Store(cliSesID, c)
 	atomic.AddInt32(&CliCnt, 1)
 }
 
-func RemoveCliSession(cliSesID uint64) {
+func RemoveSession(cliSesID uint64) {
 	CliSess.Delete(cliSesID)
 	atomic.AddInt32(&CliCnt, -1)
 }
 
-func GetCliSessCnt() int32 {
+func SessionCnt() int32 {
 	return atomic.LoadInt32(&CliCnt)
 }
 
-func GetCliSession(cliSesID uint64) *Session {
+func GetSession(cliSesID uint64) *Session {
 	s, ok := CliSess.Load(cliSesID)
 	if ok {
 		return s.(*Session)
 	}
 	return nil
-}
-
-// **********************************
-var isTraceProto int32
-
-func IsTraceProto() bool {
-	return atomic.LoadInt32(&isTraceProto) == 1
-}
-
-func SetTraceProto(v bool) {
-	zap.S().Infof("set trace msg :%t", v)
-	if v {
-		atomic.StoreInt32(&isTraceProto, 1)
-	} else {
-		atomic.StoreInt32(&isTraceProto, 0)
-	}
 }

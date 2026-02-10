@@ -9,7 +9,7 @@ import (
 
 func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
 	if natsMsg.SesID != 0 {
-		ses := session.GetCliSession(natsMsg.SesID)
+		ses := session.GetSession(natsMsg.SesID)
 		if ses == nil {
 			return
 		}
