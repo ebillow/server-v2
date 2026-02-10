@@ -11,6 +11,8 @@ import (
 
 func init() {
 	router.C().Msg(msgid.MsgIDC2S_C2SLogin, onLogin)
+
+	router.S().Msg(msgid.MsgIDS2S_S2SRoleClear, onClearRole)
 }
 
 func onLogin(msgBase proto.Message, c gctx.Context) {
@@ -24,4 +26,12 @@ func onLogin(msgBase proto.Message, c gctx.Context) {
 		SesID: c.Msg.SesID,
 	}
 	login.Login(msgS)
+}
+
+func onClearRole(msgBase proto.Message, c gctx.Context) {
+	msg := msgBase.(*pb.S2SRoleClear)
+	login.PostEvt(login.EvtParam{
+		Op:    login.OpRoleClear,
+		Clear: msg,
+	})
 }

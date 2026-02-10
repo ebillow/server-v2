@@ -2,7 +2,6 @@ package robot
 
 import (
 	"go.uber.org/zap"
-	"server/pkg/logger"
 	"server/pkg/util"
 	"strings"
 	"time"
@@ -127,7 +126,7 @@ func (m *Monitor) run() {
 						}
 						return true
 					})
-					logger.Info(ss.String())
+					zap.S().Info(ss.String())
 				}
 			}
 		case <-t.C:
@@ -154,7 +153,7 @@ func (m *Monitor) run() {
 					}
 					recvCnt = recvCnt / len(m.msgRecv)
 				}
-				logger.Infof("%s active player cnt:%d time out cnt:%d SendPB:%d Recv:%d\n", m.name, len(m.onLine), cnt, sendCnt, recvCnt)
+				zap.S().Infof("%s active player cnt:%d time out cnt:%d SendPB:%d Recv:%d\n", m.name, len(m.onLine), cnt, sendCnt, recvCnt)
 				m.msgSend = make(map[uint64]int)
 				m.msgRecv = make(map[uint64]int)
 				m.onLine = make(map[uint64]time.Time)

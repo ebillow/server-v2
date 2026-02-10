@@ -3,10 +3,10 @@ package clinet
 import (
 	"crypto/cipher"
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 	"math/big"
 	"net"
 	"server/pkg/crypt/gaes"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/thread"
 	"server/pkg/util"
@@ -73,11 +73,11 @@ func (s *Session) ID() uint32 {
 }
 
 func (s *Session) OnConnect() {
-	logger.Tracef("%s connect", s.String())
+	zap.S().Debugf("%s connect", s.String())
 }
 
 func (s *Session) OnClosed() {
-	// logger.Tracef("%s disconnect", s.String())
+	// zap.S().Debugf("%s disconnect", s.String())
 
 	if s.flag.Has(SesInit) {
 		RemoveCliSession(s.Id)
@@ -136,10 +136,10 @@ func (s *Session) start(cfg *Config) {
 
 // main
 func (s *Session) mainLoop(cfg *Config) {
-	logger.Debug("main loop start")
+	zap.S().Debug("main loop start")
 	defer func() {
 		waitGroup.Done()
-		logger.Debugf("main loop stop %v", waitGroup)
+		zap.S().Debugf("main loop stop %v", waitGroup)
 
 		if err := recover(); err != nil {
 			thread.PrintStack(err)
@@ -163,7 +163,7 @@ func (s *Session) mainLoop(cfg *Config) {
 		select {
 		case cliMsg, ok := <-s.in:
 			if !ok {
-				logger.Debugf("session %d close by recv thread exit", s.Id)
+				zap.S().Debugf("session %d close by recv thread exit", s.Id)
 				return
 			}
 
@@ -191,7 +191,7 @@ func (s *Session) mainLoop(cfg *Config) {
 
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
-		logger.Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
+		zap.S().Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
 		s.Close()
 	}
 	s.pkgCnt1Min = 0
@@ -215,31 +215,31 @@ func (s *Session) forwardToGame(msgId uint16, msgData []byte) {
 	//	Raw: msgData,
 	// }
 	// if s.StreamGm == nil {
-	//	logger.Errorf("%s stream to game no open %d", s.String(), msgId)
+	//	zap.S().Errorf("%s stream to game no open %d", s.String(), msgId)
 	//	s.Close()
 	//	return
 	// }
 	//
 	// if err := s.StreamGm.SendPB(msg); err != nil {
-	//	logger.Errorf("forward to game:%v", err)
+	//	zap.S().Errorf("forward to game:%v", err)
 	//	s.Close()
 	//	return
 	// }
 	// if msgId != uint16(pb.MsgIDC2S_C2SHeartBeat) {
-	//	logger.Debugf("%s forward to game:[%d]%s", s.String(), msgId, pb.MsgIDC2S_name[int32(msgId)])
+	//	zap.S().Debugf("%s forward to game:[%d]%s", s.String(), msgId, pb.MsgIDC2S_name[int32(msgId)])
 	// }
 }
 
 func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 	// msg := &pb.SrvMsg{ID: uint32(msgID), Raw: msgData}
 	// if s.StreamFt == nil {
-	//	logger.Errorf("stream to ft no open %d", msgID)
+	//	zap.S().Errorf("stream to ft no open %d", msgID)
 	//	s.Close()
 	//	return
 	// }
 	//
 	// if err := s.StreamFt.SendPB(msg); err != nil {
-	//	logger.Errorf("forward to fight:%v", err)
+	//	zap.S().Errorf("forward to fight:%v", err)
 	//	s.Close()
 	//	return
 	// }
@@ -249,49 +249,49 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // startStreamGm 开启到game的流
 // func (s *Session) startStreamGm(gameID uint32, acc uint64) {
 // 	if s.StreamGm != nil {
-// 		logger.Error("can not create double stream to game")
+// 		zap.S().Error("can not create double stream to game")
 // 		return
 // 	}
 // 	// 连接到已选定game服务器
-// 	//	logger.Debugf("%s get service", acc)
+// 	//	zap.S().Debugf("%s get service", acc)
 // 	// conn := gnet.Get("game", gameID)
 // 	// if conn == nil {
-// 	//	logger.Errorf("cannot get game service, id:%d", gameID)
+// 	//	zap.S().Errorf("cannot get game service, id:%d", gameID)
 // 	//	s.Close()
 // 	//	return
 // 	// }
 // 	//
-// 	// //	logger.Debugf("%s new client", acc)
+// 	// //	zap.S().Debugf("%s new client", acc)
 // 	// cli := pb.NewSrvServiceClient(conn)
 // 	// // 开启到游戏服的流
 // 	// mtdata := metadata.New(map[string]string{"acc": util.ToString(acc)})
 // 	// ctx := metadata.NewOutgoingContext(context.Background(), mtdata)
-// 	// //	logger.Debugf("%s start srv", acc)
+// 	// //	zap.S().Debugf("%s start srv", acc)
 // 	// stream, err := cli.SrvSrv(ctx)
 // 	// if err != nil {
-// 	//	logger.Errorf("%d start game stream[%s] err:%v", acc, conn.Router(), err)
+// 	//	zap.S().Errorf("%d start game stream[%s] err:%v", acc, conn.Router(), err)
 // 	//	s.Close()
 // 	//	return
 // 	// }
 // 	//
 // 	// s.StreamGm = stream
-// 	// logger.Debugf("%s acc=%d start to game%d stream success", s.String(), acc, gameID)
+// 	// zap.S().Debugf("%s acc=%d start to game%d stream success", s.String(), acc, gameID)
 // 	// // 读取GAME返回消息的goroutine
 // 	// go func(s *Session, stream pb.SrvService_SrvSrvClient, desc string) {
 // 	//	for {
 // 	//		in, err := stream.Recv()
 // 	//		if err == io.EOF { // 流关闭
-// 	//			logger.Debugf("%s game stream close %v", desc, err)
+// 	//			zap.S().Debugf("%s game stream close %v", desc, err)
 // 	//			return
 // 	//		}
 // 	//		if err != nil {
-// 	//			logger.Errorf("%s game stream close %v", desc, err)
+// 	//			zap.S().Errorf("%s game stream close %v", desc, err)
 // 	//			return
 // 	//		}
 // 	//		select {
 // 	//		case s.serMsg <- in:
 // 	//		case <-s.ctrl:
-// 	//			logger.Debugf("%s game stream close by main goroutine", desc)
+// 	//			zap.S().Debugf("%s game stream close by main goroutine", desc)
 // 	//			return
 // 	//		}
 // 	//	}
@@ -299,14 +299,14 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // }
 //
 // func (s *Session) startStreamFt(roleGuid int, ftID uint32, btGuid int, token string) {
-// 	// logger.Debugf("%d start stream ft %d", roleGuid, ftID)
+// 	// zap.S().Debugf("%d start stream ft %d", roleGuid, ftID)
 // 	if s.StreamFt != nil {
-// 		logger.Error("can not create double stream to ft")
+// 		zap.S().Error("can not create double stream to ft")
 // 		return
 // 	}
 // 	// conn := gnet.Get("fight", ftID)
 // 	// if conn == nil {
-// 	//	logger.Errorf("cannot get fight service, id:%d", ftID)
+// 	//	zap.S().Errorf("cannot get fight service, id:%d", ftID)
 // 	//	s.Close()
 // 	//	return
 // 	// }
@@ -317,7 +317,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// ctx := metadata.NewOutgoingContext(context.Background(), mtdata)
 // 	// stream, err := cli.SrvSrv(ctx)
 // 	// if err != nil {
-// 	//	logger.Errorf("%s start fight stream %s err:%v", s.String(), conn.Router(), err)
+// 	//	zap.S().Errorf("%s start fight stream %s err:%v", s.String(), conn.Router(), err)
 // 	//	s.Close()
 // 	//	return
 // 	// }
@@ -332,17 +332,17 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	//	for {
 // 	//		in, err := stream.Recv()
 // 	//		if err == io.EOF { // 流关闭
-// 	//			logger.Debugf("%s fight stream close %v", desc, err)
+// 	//			zap.S().Debugf("%s fight stream close %v", desc, err)
 // 	//			return
 // 	//		}
 // 	//		if err != nil {
-// 	//			logger.Errorf("%s fight stream close %v", desc, err)
+// 	//			zap.S().Errorf("%s fight stream close %v", desc, err)
 // 	//			return
 // 	//		}
 // 	//		select {
 // 	//		case sess.serMsg <- in:
 // 	//		case <-sess.fightDie:
-// 	//			logger.Debugf("%s fight stream close by main goroutine", desc)
+// 	//			zap.S().Debugf("%s fight stream close by main goroutine", desc)
 // 	//			return
 // 	//		}
 // 	//	}
@@ -353,7 +353,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	s.startStreamGm(msg.GameID, msg.Acc)
 // 	b, err := proto.Marshal(msg)
 // 	if err != nil {
-// 		logger.Warnf("ReConn marshal err:%v", err)
+// 		zap.S().Warnf("ReConn marshal err:%v", err)
 // 		s.Close()
 // 	}
 // 	s.forwardToGame(uint16(pb.MsgIDC2S_C2SReConn), b)

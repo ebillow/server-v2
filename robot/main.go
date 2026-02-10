@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	_ "net/http/pprof"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
@@ -39,7 +39,7 @@ func main() {
 func Init(ctx context.Context) error {
 	robot.Setup = &robot.ServerCfg{
 		ServerAddr: "127.0.0.1:3001",
-		Cnt:        1000,
+		Cnt:        5000,
 		BeginID:    1,
 		LoginOnly:  false,
 	}
@@ -53,13 +53,13 @@ func Init(ctx context.Context) error {
 }
 
 func UnInit(ctx context.Context) {
-	logger.Info("closing...")
+	zap.S().Info("closing...")
 	clinet.Close()
-	logger.Info("robot exit")
+	zap.S().Info("robot exit")
 }
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
-	logger.Info("start run")
+	zap.S().Info("start run")
 	robot.InitRobots(robot.Setup.Cnt, robot.Setup.BeginID)
 
 	return nil

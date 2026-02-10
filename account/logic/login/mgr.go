@@ -11,7 +11,6 @@ import (
 	"server/account/logic/sdk"
 	"server/pkg/db"
 	"server/pkg/gnet"
-	"server/pkg/logger"
 	"server/pkg/model"
 	"server/pkg/pb"
 	"server/pkg/thread"
@@ -19,9 +18,6 @@ import (
 	"sync/atomic"
 	"time"
 )
-
-// todo 服务断线
-// 重进
 
 const (
 	LoginCD = 3
@@ -33,6 +29,7 @@ const (
 	OpLogin Op = iota
 	OpAfterSDKCheck
 	OpRoleClear
+	OpLoginFail
 )
 
 type EvtParam struct {
@@ -40,6 +37,7 @@ type EvtParam struct {
 	Login *pb.S2SReqLogin
 	Acc   *Account
 	Clear *pb.S2SRoleClear
+	Code  pb.LoginCode
 }
 
 var (
@@ -71,7 +69,7 @@ func Start(ctx context.Context) {
 		t := time.NewTicker(time.Minute)
 		tFillBucket := time.NewTicker(time.Millisecond * 200)
 		defer func() {
-			logger.Debug("stop Login mgr run")
+			zap.S().Debug("stop Login mgr run")
 			t.Stop()
 		}()
 
@@ -118,6 +116,8 @@ func onEvent(ctx context.Context, e EvtParam) {
 		login(ctx, e.Login)
 	case OpAfterSDKCheck:
 		AfterSDKCheck(e.Acc, e.Login)
+	case OpLoginFail:
+		loginFail(e.Login, e.Code)
 	case OpRoleClear:
 		onRoleLogout(model.GetAccID(e.Clear.RoleID), e.Clear.Seq)
 	default:
@@ -158,10 +158,14 @@ func checkTimeout(now int64) {
 
 func login(ctx context.Context, req *pb.S2SReqLogin) {
 	if code := canSdkCheck(req); code != pb.LoginCode_LCSuccess {
-		gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
-	} else {
-		sdkCheck(ctx, req)
+		PostEvt(EvtParam{
+			Op:    OpLoginFail,
+			Code:  code,
+			Login: req,
+		})
+		return
 	}
+	sdkCheck(ctx, req)
 }
 
 func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
@@ -190,6 +194,11 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 	var s = sdk.CreateSdk(req.Req.SdkNo)
 	if s == nil {
 		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkNo, req.Req.String())
+		PostEvt(EvtParam{
+			Op:    OpLoginFail,
+			Code:  pb.LoginCode_LCSDKErr,
+			Login: req,
+		})
 	}
 
 	if util.Debug {
@@ -203,11 +212,21 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 		defer func() {
 			if err := recover(); err != nil {
 				thread.PrintStack("Login check err:", err, req.Req.String())
+				PostEvt(EvtParam{
+					Op:    OpLoginFail,
+					Code:  pb.LoginCode_LCSdkCheckFaild,
+					Login: req,
+				})
 			}
 		}()
 
 		err := s.Login(ctx, req.Req)
 		if err != nil {
+			PostEvt(EvtParam{
+				Op:    OpLoginFail,
+				Code:  pb.LoginCode_LCSdkCheckFaild,
+				Login: req,
+			})
 			return
 		}
 
@@ -247,7 +266,7 @@ func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	defer cancel()
 	err := acc.SaveLoginData(ctx)
 	if err != nil {
-		logger.Warnf("save acc Login data err:%v", err)
+		zap.S().Warnf("save acc Login data err:%v", err)
 		return pb.LoginCode_LCServerErr
 	}
 
@@ -274,6 +293,10 @@ func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 		gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
 	}
+}
+
+func loginFail(req *pb.S2SReqLogin, code pb.LoginCode) {
+	gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 }
 
 type debugCheck struct {

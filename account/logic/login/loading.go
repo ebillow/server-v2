@@ -66,6 +66,7 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	// defer cancel()
 	ctx := context.Background()
+
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
 		pipeBind.Get(ctx, model.KeyAccBind(op.Req.Account))
@@ -92,26 +93,28 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 		}
 	}
 
-	_, err = pipeAcc.Exec(ctx)
-	if err != nil && !errors.Is(err, redis.Nil) {
-		zap.L().Error("[login] redis load batch pipeAcc failed", zap.Error(err))
-		return
-	}
-	for i, c := range cmdAcc {
-		if c.Err() == nil {
-			acc := &Account{}
-			err = c.Scan(acc)
-			if err == nil && acc.AccID > 0 {
-				PostEvt(EvtParam{
-					Op:    OpAfterSDKCheck,
-					Login: batch[i],
-					Acc:   acc,
-				})
+	if len(cmdAcc) > 0 {
+		_, err = pipeAcc.Exec(ctx)
+		if err != nil && !errors.Is(err, redis.Nil) {
+			zap.L().Error("[login] redis load batch pipeAcc failed", zap.Error(err))
+			return
+		}
+		for i, c := range cmdAcc {
+			if c.Err() == nil {
+				acc := &Account{}
+				err = c.Scan(acc)
+				if err == nil && acc.AccID > 0 {
+					PostEvt(EvtParam{
+						Op:    OpAfterSDKCheck,
+						Login: batch[i],
+						Acc:   acc,
+					})
+				} else {
+					batchFromDB = append(batchFromDB, batch[i])
+				}
 			} else {
 				batchFromDB = append(batchFromDB, batch[i])
 			}
-		} else {
-			batchFromDB = append(batchFromDB, batch[i])
 		}
 	}
 
@@ -146,11 +149,11 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 			filter = bson.M{"fbid": bson.M{"$in": bt.accs}}
 		default:
 		}
-		l.loadAccountFromDB(ctx, filter, bt.batch, k)
+		l.loadOneKindAccFromDB(ctx, filter, bt.batch, k)
 	}
 }
 
-func (l *loader) loadAccountFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.ESdkNumber) {
+func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.ESdkNumber) {
 	cursor, err := db.MongoDB.Collection(acc_db.AccountTable).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -180,19 +183,49 @@ func (l *loader) loadAccountFromDB(ctx context.Context, filter bson.M, batch []*
 	}
 
 	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
+	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
-			r.Update(ctx, op.Req.Account)
 			PostEvt(EvtParam{
 				Op:    OpAfterSDKCheck,
 				Login: op,
 				Acc:   r,
 			})
+			updateAccBatch = append(updateAccBatch, accWrap{Acc: r, Account: op.Req.Account})
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
 	}
-	l.newAccountBatch(ctx, newAccBatch)
+
+	if len(newAccBatch) > 0 {
+		l.newAccountBatch(ctx, newAccBatch)
+	}
+	if len(updateAccBatch) > 0 {
+		l.updateBatch(ctx, updateAccBatch)
+	}
+}
+
+type accWrap struct {
+	Account string
+	Acc     *Account
+}
+
+func (l *loader) updateBatch(ctx context.Context, batch []accWrap) {
+	const expiration = time.Hour * 24 * 7
+	pipe := db.Redis.Pipeline()
+	for _, b := range batch {
+		keyAcc := model.KeyAccount(b.Acc.AccID)
+		pipe.HSet(ctx, keyAcc, "acc_id", b.Acc.AccID, "freeze", b.Acc.Freeze)
+		pipe.Expire(ctx, keyAcc, expiration)
+		keyBind := model.KeyAccBind(b.Account)
+		pipe.Set(ctx, keyBind, b.Acc.AccID, expiration)
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		zap.L().Error("redis hset acc_id failed", zap.Error(err))
+		return
+	}
 }
 
 func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {

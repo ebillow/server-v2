@@ -16,11 +16,11 @@ func (t *Facebook) Login(ctx context.Context, req *pb.C2SLogin) error {
 	//
 	// b, err := share.HttpGet(addr, []byte(param.Encode()), false)
 	// if err != nil {
-	//	logger.Warnf("facebook login check err:%v:%s", err, req.Uid)
+	//	zap.S().Warnf("facebook login check err:%v:%s", err, req.Uid)
 	//	return err
 	// }
 	//
-	// logger.Debugf("login sdk ret:%s", string(b))
+	// zap.S().Debugf("login sdk ret:%s", string(b))
 	//
 	// ret := &facebookRet{}
 	// err = json.Unmarshal(b, ret)

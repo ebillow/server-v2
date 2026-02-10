@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"server/pkg/flag"
 	"server/pkg/gnet"
-	"server/pkg/logger"
 	"server/pkg/model"
 	"server/pkg/thread"
 	"server/pkg/util"
@@ -215,7 +214,7 @@ func (r *Role) Marshal() (*DataToSave, error) {
 
 	str, err := jsoniter.MarshalToString(r.Data)
 	if err != nil {
-		logger.Errorf("marshal role data err:%v", err)
+		zap.S().Errorf("marshal role data err:%v", err)
 		return nil, err
 	}
 	rd.Set(pb.TypeComp_TCBase, str)
@@ -274,7 +273,7 @@ func (r *Role) SecLoop(now time.Time) {
 		}
 
 		if reset { // 每日数据重置
-			// logger.Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+			// zap.S().Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 			if comp, ok := r.Comps[i].(ICompDataReset); ok {
 				comp.OnDataReset(r)
 			}
@@ -298,14 +297,14 @@ func (r *Role) SecLoop(now time.Time) {
 		if monthChange {
 			curMonthBegin := time.Date(now.Year(), now.Month(), 1, ResetHour, 0, 0, 0, now.Location())
 			r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
-			logger.Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
+			zap.S().Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
 		}
-		// logger.Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
+		// zap.S().Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 	}
 	if dayChange {
 		begin := util.CurDayBegin()
 		r.Data.DayChange = begin.Add(time.Duration(24) * time.Hour).Unix()
-		// logger.Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
+		// zap.S().Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
 		// r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
 	}
 	if reset {

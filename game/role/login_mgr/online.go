@@ -4,7 +4,6 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"server/game/role"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/thread"
 	"time"
@@ -93,7 +92,7 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *pb.S2SReqLogin) {
 	r, err := role.NewRole(data, login)
 	if err != nil {
-		logger.Errorf("new role err:%v", err)
+		zap.S().Errorf("new role err:%v", err)
 		return
 	}
 

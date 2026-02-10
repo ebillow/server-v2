@@ -7,5 +7,9 @@ import (
 )
 
 func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
-	router.C().Handle(natsMsg, raw)
+	if natsMsg.SerType == pb.Server_Gateway {
+		router.C().Handle(natsMsg, raw)
+	} else {
+		router.S().Handle(natsMsg, raw)
+	}
 }

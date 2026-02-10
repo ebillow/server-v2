@@ -2,8 +2,8 @@ package clinet
 
 import (
 	"errors"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"server/pkg/logger"
 	"server/pkg/pb/msgid"
 )
 
@@ -46,13 +46,13 @@ func (r *Route) Handle(id uint32, data []byte, s *Session) bool {
 
 	msg, err := r.parseMsg(node, data)
 	if err != nil {
-		logger.Warnf("%s parser msg %d error:%v", s.String(), id, err)
+		zap.S().Warnf("%s parser msg %d error:%v", s.String(), id, err)
 		s.Close()
 		return false
 	}
 
 	if id != uint32(msgid.MsgIDS2C_S2CHeartBeat) {
-		logger.Tracef("%s recv [%d]%s msg:%s", s.String(), id, msgid.MsgIDS2C_name[int32(id)], msg)
+		zap.S().Debugf("%s recv [%d]%s msg:%s", s.String(), id, msgid.MsgIDS2C_name[int32(id)], msg)
 	}
 
 	node.handleFunc(msg, s)

@@ -1,11 +1,11 @@
 package logic
 
 import (
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"math/big"
 	"server/gateway/session"
 	"server/pkg/crypt/dh"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"server/pkg/thread"
@@ -24,31 +24,31 @@ func onNetInit(msgBase proto.Message, ses *session.Session) {
 	if IsCrypto {
 		msg, ok := msgBase.(*pb.C2SInit)
 		if !ok {
-			logger.Warnf("msg type err %s", thread.FuncCaller(1))
+			zap.S().Warnf("msg type err %s", thread.FuncCaller(1))
 			return
 		}
 
 		S2CPrivate, S2CPublic := dh.Exchange()
-		logger.Debugf("%s s2c public=%s, private=%s", ses.String(), S2CPublic.String(), S2CPrivate.String())
+		zap.S().Debugf("%s s2c public=%s, private=%s", ses.String(), S2CPublic.String(), S2CPrivate.String())
 		k, err := strconv.Atoi(msg.S2CPublic)
 		if err != nil {
-			logger.Warnf("s2c key err:%v", err)
+			zap.S().Warnf("s2c key err:%v", err)
 			return
 		}
 		s2cKey := dh.GetKey(S2CPrivate, big.NewInt(int64(k)))
 
 		C2SPrivate, C2SPublic := dh.Exchange()
-		logger.Debugf("%s c2s public=%s, private=%s", ses.String(), C2SPublic.String(), C2SPrivate.String())
+		zap.S().Debugf("%s c2s public=%s, private=%s", ses.String(), C2SPublic.String(), C2SPrivate.String())
 		k, err = strconv.Atoi(msg.C2SPublic)
 		if err != nil {
-			logger.Warnf("c2s key err:%v", err)
+			zap.S().Warnf("c2s key err:%v", err)
 			return
 		}
 		c2sKey := dh.GetKey(C2SPrivate, big.NewInt(int64(k)))
 
 		err = ses.Init(c2sKey.Bytes(), s2cKey.Bytes())
 		if err != nil {
-			logger.Warnf("init err:%v", err)
+			zap.S().Warnf("init err:%v", err)
 			return
 		}
 		ses.Send(&pb.S2CInit{
@@ -56,13 +56,13 @@ func onNetInit(msgBase proto.Message, ses *session.Session) {
 			C2SPublic: C2SPublic.String(),
 			Crypto:    IsCrypto,
 		})
-		// logger.Infof("%s send init msg", ses.String())
+		// zap.S().Infof("%s send init msg", ses.String())
 	} else {
 		_ = ses.Init([]byte(""), []byte(""))
 		ses.Send(&pb.S2CInit{
 			Crypto: false,
 		})
-		// logger.Infof("%s send init msg", ses.String())
+		// zap.S().Infof("%s send init msg", ses.String())
 	}
 }
 

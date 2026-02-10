@@ -19,7 +19,7 @@ func CreateAccIndex() {
 
 	idx["device_1"] = mongo.IndexModel{
 		Keys:    bson.D{{"device", 1}},
-		Options: options.Index().SetUnique(true),
+		Options: options.Index().SetUnique(false),
 	}
 
 	idx["apple_1"] = mongo.IndexModel{

@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"runtime"
-	"server/pkg/logger"
 	"server/pkg/util"
 	"strings"
 	"syscall"
@@ -74,7 +73,7 @@ func PrintStack(vars ...interface{}) {
 	n := runtime.Stack(buf[:], false)
 	stack = append(stack, string(buf[0:n]))
 
-	logger.Error(stack)
+	zap.S().Error(stack)
 }
 
 // FuncCaller 得到调用者

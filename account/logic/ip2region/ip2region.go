@@ -12,7 +12,7 @@ func InitIpDB() {
 	var err error
 	ip2locationDB, err = ip2location.OpenDB("./IP2LOCATION-LITE-DB1.BIN")
 	if err != nil {
-		logger.Errorf("ip2location open acc_db err:%v", err)
+		zap.S().Errorf("ip2location open acc_db err:%v", err)
 		return
 	}
 }

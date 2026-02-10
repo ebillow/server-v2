@@ -6,7 +6,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
-	"server/pkg/logger"
 	"time"
 )
 
@@ -96,7 +95,7 @@ func CreateIndexIfNotExist(db *mongo.Database, table string, createIDXs map[stri
 		if err != nil {
 			return err
 		}
-		logger.Infof("table %s create index %v", table, name)
+		zap.S().Infof("table %s create index %v", table, name)
 	}
 
 	return err

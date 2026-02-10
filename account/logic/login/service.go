@@ -2,9 +2,9 @@ package login
 
 import (
 	"context"
+	"go.uber.org/zap"
 	"server/pkg/discovery"
 	"server/pkg/flag"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"time"
 )
@@ -40,7 +40,7 @@ func onRoleLogout(accID uint64, sn uint32) {
 		acc.GameID = 0
 		err := acc.SaveLoginData(ctx)
 		if err != nil {
-			logger.Warnf("save acc Login data err:%v", err)
+			zap.S().Warnf("save acc Login data err:%v", err)
 		}
 	}
 }

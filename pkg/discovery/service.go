@@ -43,7 +43,7 @@ func Register(serType pb.Server, serID int32) error {
 	if err != nil {
 		return err
 	}
-	register = newRegister(cli, fmt.Sprintf("%s%s_%d", Prefix, flag.SrvName(serType), serID), string(b), 5)
+	register = newRegister(cli, fmt.Sprintf("%s%s_%d", Prefix, flag.SrvName(serType), serID), string(b), 30)
 	return register.register()
 }
 

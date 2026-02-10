@@ -27,7 +27,7 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 func (s *Session) Send(msg proto.Message) bool {
 	msgID, err := pb.GetMsgIDS2C(msg)
 	if err != nil {
-		logger.Warnf("msgIDC2S error:%v", err)
+		zap.S().Warnf("msgIDC2S error:%v", err)
 		return false
 	}
 	return s.SendPB(msgid.MsgIDS2C(msgID), msg)
@@ -36,7 +36,7 @@ func (s *Session) Send(msg proto.Message) bool {
 // SendPB 发送proto数据给客户端
 func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	if msg == nil {
-		logger.Warnf("msg is nil")
+		zap.S().Warnf("msg is nil")
 		return false
 	}
 
@@ -44,7 +44,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	var err error
 	b, err = proto.Marshal(msg)
 	if err != nil {
-		logger.Warnf("send pb, marshal error:%v", err)
+		zap.S().Warnf("send pb, marshal error:%v", err)
 		return false
 	}
 
@@ -79,6 +79,6 @@ func (s *Session) rawSend(p *MsgSend, cache []byte) {
 	data := Encode(p.ID, p.Data, s.enCpy, cache)
 	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
 	if err != nil {
-		logger.Debugf("send data error, err:%v", err)
+		zap.S().Debugf("send data error, err:%v", err)
 	}
 }

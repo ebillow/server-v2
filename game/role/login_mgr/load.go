@@ -9,7 +9,6 @@ import (
 	"go.uber.org/zap"
 	"server/game/role"
 	"server/pkg/db"
-	"server/pkg/logger"
 	"server/pkg/model"
 	"server/pkg/pb"
 	"server/pkg/util"
@@ -154,7 +153,7 @@ func newRoleInDB(roleID uint64) (*role.DataToSave, error) {
 
 	str, err := jsoniter.MarshalToString(&rData)
 	if err != nil {
-		logger.Errorf("[login] marshal role data err:%v", err)
+		zap.S().Errorf("[login] marshal role data err:%v", err)
 		return nil, err
 	}
 	rd.Set(pb.TypeComp_TCBase, str)

@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"math/big"
 	"server/pkg/crypt/dh"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"server/pkg/util"
@@ -61,7 +60,7 @@ func onLogin(msgBase proto.Message, ses *clinet.Session) {
 	r := ses.U.(*Robot)
 
 	if msg.Code != pb.LoginCode_LCSuccess {
-		logger.Warnf("%s login err:%s", r.acc, pb.LoginCode_name[int32(msg.Code)])
+		zap.S().Warnf("%s login err:%s", r.acc, pb.LoginCode_name[int32(msg.Code)])
 		return
 	}
 

@@ -1,9 +1,9 @@
 package logic
 
 import (
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"server/gateway/session"
-	"server/pkg/logger"
 	"server/pkg/pb/msgid"
 )
 
@@ -18,7 +18,7 @@ func SendToCli(cliSesId uint64, msgID msgid.MsgIDS2C, msg proto.Message) {
 func SendToAll(msgID msgid.MsgIDS2C, msg proto.Message) {
 	b, err := proto.Marshal(msg)
 	if err != nil {
-		logger.Warnf("send pb, marshal error:%v", err)
+		zap.S().Warnf("send pb, marshal error:%v", err)
 		return
 	}
 
@@ -32,7 +32,7 @@ func SendToAll(msgID msgid.MsgIDS2C, msg proto.Message) {
 func SendToSomeOne(msgID msgid.MsgIDS2C, msg proto.Message, cliSess map[uint64]bool) {
 	b, err := proto.Marshal(msg)
 	if err != nil {
-		logger.Warnf("send pb, marshal error:%v", err)
+		zap.S().Warnf("send pb, marshal error:%v", err)
 		return
 	}
 	for k := range cliSess {

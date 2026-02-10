@@ -137,10 +137,10 @@ func (s *Session) start() {
 
 // main
 func (s *Session) mainLoop(cfg *Config) {
-	logger.Debugf("%s cli main loop start", s.String())
+	zap.S().Debugf("%s cli main loop start", s.String())
 	defer func() {
 		waitGroup.Done()
-		logger.Debugf("%s cli main loop stop", s.String())
+		zap.S().Debugf("%s cli main loop stop", s.String())
 
 		if err := recover(); err != nil {
 			thread.PrintStack(err)
@@ -153,9 +153,9 @@ func (s *Session) mainLoop(cfg *Config) {
 		s.OnClosed()
 		err := s.conn.Close()
 		if err != nil {
-			logger.Warnf("close websocket %s err:%v", s.String(), err)
+			zap.S().Warnf("close websocket %s err:%v", s.String(), err)
 		}
-		logger.Debugf("close websocket %s", s.String())
+		zap.S().Debugf("close websocket %s", s.String())
 		close(s.ctrl)
 		tick.Stop()
 	}()
@@ -166,7 +166,7 @@ func (s *Session) mainLoop(cfg *Config) {
 		select {
 		case cliMsg, ok := <-s.in:
 			if !ok {
-				// logger.Debugf("session %d close by recv thread exit", s.Id)
+				// zap.S().Debugf("session %d close by recv thread exit", s.Id)
 				return
 			}
 
@@ -190,7 +190,7 @@ func (s *Session) mainLoop(cfg *Config) {
 
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
-		logger.Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
+		zap.S().Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
 		s.Close(pb.DisconnectReason_Limit)
 	}
 	s.pkgCnt1Min = 0
@@ -203,19 +203,19 @@ func (s *Session) getSerID(ser pb.Server) int32 {
 func (s *Session) onRecvClientMsg(src []byte) {
 	msgID, seq, data, err := Decode(src, s.deCyp)
 	if err != nil {
-		logger.Warnf("%s read packet err:%v", s.String(), err)
+		zap.S().Warnf("%s read packet err:%v", s.String(), err)
 		s.Close(pb.DisconnectReason_DecodeErr)
 		return
 	}
 
 	if msgID != uint32(msgid.MsgIDC2S_C2SInit) && !s.flag.Has(SesInit) {
-		logger.Errorf("%s not init", s.String())
+		zap.S().Errorf("%s not init", s.String())
 		s.Close(pb.DisconnectReason_InitErr)
 		return
 	}
 	if seq != 0 && seq != s.pkgCnt {
-		logger.Errorf("%s sequeue num err: %d should be %d", s.String(), seq, s.pkgCnt)
-		logger.Debug("data=%v", data)
+		zap.S().Errorf("%s sequeue num err: %d should be %d", s.String(), seq, s.pkgCnt)
+		zap.S().Debug("data=%v", data)
 		s.Close(pb.DisconnectReason_PkgCntErr)
 		return
 	}

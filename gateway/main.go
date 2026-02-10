@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 	"server/gateway/logic"
 	"server/gateway/session"
 	"server/pkg/flag"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/util"
@@ -49,20 +49,20 @@ func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	cfg := loadNetCfg()
 	go session.StartWSServer("0.0.0.0:"+util.ToString(flag.TcpPort), cfg)
 
-	logger.Infof("listen on ws:%d", flag.TcpPort)
+	zap.S().Infof("listen on ws:%d", flag.TcpPort)
 	return nil
 }
 
 func UnInit(ctx context.Context) {
 	session.Close()
 	logic.UnInit()
-	logger.Info("server closed")
+	zap.S().Info("server closed")
 }
 
 func loadNetCfg() *session.Config {
 	d, err := time.ParseDuration("60s")
 	if err != nil {
-		logger.Panicf("parse read_dead_line err:%v", err)
+		zap.S().Error("parse read_dead_line err:%v", err)
 		return nil
 	}
 	cfg := &session.Config{
@@ -73,7 +73,7 @@ func loadNetCfg() *session.Config {
 		RpmLimit:            60 * 5,
 		RecvPkgLenLimit:     uint32(10240),
 	}
-	logger.Infof("read_dead_line=%v, out_chan_size=%d, read_sock_size=%d, write_sock_size=%d, rpm=%d, pkg_len_limit=%d",
+	zap.S().Infof("read_dead_line=%v, out_chan_size=%d, read_sock_size=%d, write_sock_size=%d, rpm=%d, pkg_len_limit=%d",
 		cfg.ReadDeadline, cfg.OutChanSize, cfg.ReadSocketBuffSize, cfg.WriteSocketBuffSize, cfg.RpmLimit, cfg.RecvPkgLenLimit)
 	return cfg
 }

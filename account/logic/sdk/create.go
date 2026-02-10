@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
-	"server/pkg/logger"
+	"go.uber.org/zap"
 	"server/pkg/pb"
 )
 
@@ -34,7 +34,7 @@ func CreateSdk(no pb.ESdkNumber) ISdkLogin {
 		return &Apple{}
 
 	default:
-		logger.Warnf("recv not exist sdk no:%d", no)
+		zap.S().Warnf("recv not exist sdk no:%d", no)
 		return nil
 	}
 }

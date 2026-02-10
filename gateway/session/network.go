@@ -2,9 +2,9 @@ package session
 
 import (
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 	"net"
 	"net/http"
-	"server/pkg/logger"
 	"server/pkg/thread"
 	"sync"
 	"sync/atomic"
@@ -37,7 +37,7 @@ func StartWSServer(listenEndPoint string, cfg *Config) {
 	http.HandleFunc("/", handleClient)
 	err := http.ListenAndServe(listenEndPoint, nil)
 	if err != nil {
-		logger.Errorf("listen err:%v", err)
+		zap.S().Errorf("listen err:%v", err)
 		return
 	}
 }
@@ -59,20 +59,20 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 	}
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Debug("connect err: upgrade:", err)
+		zap.S().Debug("connect err: upgrade:", err)
 		return
 	}
 
 	host, port, err := net.SplitHostPort(c.RemoteAddr().String())
 	if err != nil {
-		logger.Error("cannot get remote address:", err)
+		zap.S().Error("cannot get remote address:", err)
 		return
 	}
 	c.SetReadLimit(int64(netCfg.RecvPkgLenLimit))
 	var s = &Session{}
 	s.conn = c
 	s.Ip = net.ParseIP(host).String()
-	logger.Tracef("new connection from:%v port:%v", host, port)
+	zap.S().Debugf("new connection from:%v port:%v", host, port)
 
 	s.start()
 }
@@ -92,16 +92,16 @@ func handleClient(conn net.Conn, cfg *Config) {
 	s.in = make(chan []byte) //no active_role
 	defer func() {
 		close(s.in)
-		//logger.Debug("recv loop stop")
+		//zap.S().Debug("recv loop stop")
 	}()
 
 	host, port, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
-		logger.Error("cannot get remote address:", err)
+		zap.S().Error("cannot get remote address:", err)
 		return
 	}
 	s.Ip = net.ParseIP(host)
-	logger.Tracef("new connection from:%v port:%v", host, port)
+	zap.S().Debugf("new connection from:%v port:%v", host, port)
 
 	s.ctrl = make(chan struct{})
 
@@ -152,7 +152,7 @@ func IsTraceProto() bool {
 }
 
 func SetTraceProto(v bool) {
-	logger.Infof("set trace msg :%t", v)
+	zap.S().Infof("set trace msg :%t", v)
 	if v {
 		atomic.StoreInt32(&isTraceProto, 1)
 	} else {

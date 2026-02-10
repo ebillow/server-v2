@@ -2,8 +2,8 @@ package robot
 
 import (
 	"fmt"
+	"go.uber.org/zap"
 	"server/pkg/crypt/dh"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"server/robot/clinet"
@@ -67,7 +67,7 @@ func NewUnitRobot(id int, area uint32) {
 	InitTask(r)
 	r.s = s
 	if r.s == nil {
-		logger.Error("init robot ses nil")
+		zap.S().Error("init robot ses nil")
 		return
 	}
 	r.s.U = r
@@ -75,7 +75,7 @@ func NewUnitRobot(id int, area uint32) {
 }
 
 func (r *Robot) SecLoop() {
-	// logger.Debugf("secloop")
+	// zap.S().Debugf("secloop")
 
 	switch r.state {
 	case Init:
@@ -115,7 +115,7 @@ func checkReconn(r *Robot) {
 				}
 				r.s = s
 				s.U = r
-				logger.Infof("%s start reconnect", r.acc)
+				zap.S().Infof("%s start reconnect", r.acc)
 				if r.Data != nil {
 					r.state = ReConn
 				} else {
@@ -155,7 +155,7 @@ func (r *Robot) SendInitMsg() {
 		C2SPublic: c2sPublicKey.String(),
 	}
 	r.Send(msgid.MsgIDC2S_C2SInit, msg)
-	// logger.Infof("%s %s send init msg", r.acc, r.s.String())
+	// zap.S().Infof("%s %s send init msg", r.acc, r.s.String())
 }
 
 func (r *Robot) Login() {
@@ -199,13 +199,13 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 	r.gameId = msg.GameID
 
 	// if r.acc != r.Data.Acc {
-	// 	logger.Warnf("acc err:%s!=%s", r.acc, r.Data.Uid)
+	// 	zap.S().Warnf("acc err:%s!=%s", r.acc, r.Data.Uid)
 	// 	return
 	// }
 
 	if Setup.LoginOnly {
 		Robots.Store(r.id, true)
-		logger.Infof("%s login success in world %d", r.Data.Name, r.area)
+		zap.S().Infof("%s login success in world %d", r.Data.Name, r.area)
 		return
 	}
 
@@ -213,7 +213,7 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 	r.ReconnToken = msg.Token
 	// r.Send(pb.MsgIDC2S_C2SCilentReady, nil)
 	// worldId := share.GetWorldFromGuid(r.Data.Guid)
-	logger.Infof("%s %s %d %s login into success", r.acc, r.Data.Name, r.Data.ID, r.s.String())
+	zap.S().Infof("%s %s %d %s login into success", r.acc, r.Data.Name, r.Data.ID, r.s.String())
 	r.state = InGame
 	Active(r.Data.ID)
 }

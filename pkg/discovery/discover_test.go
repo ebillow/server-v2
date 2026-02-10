@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"server/pkg/logger"
 	"server/pkg/pb"
 	"testing"
@@ -65,4 +66,15 @@ func TestService(t *testing.T) {
 	}
 	Close()
 	time.Sleep(time.Second * 5)
+}
+
+func TestRegister(t *testing.T) {
+	err := Register(pb.Server_Game, 1)
+	if err != nil {
+		panic(err)
+	}
+
+	time.Sleep(time.Second * 5)
+	Close()
+	zap.L().Info("exit")
 }
