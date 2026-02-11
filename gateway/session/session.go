@@ -63,7 +63,7 @@ func (s *Session) OnConnect() {
 func (s *Session) OnClosed() {
 	zap.L().Info("disconnect", zap.Inline(s))
 	if s.flag.Has(SesInit) {
-		RemoveSession(s.Id) // todo
+		RemoveSession(s.Id)
 		gnet.SendToGame(s.GameID, &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
 			Why:   s.disConnReason,
