@@ -10,11 +10,11 @@ import (
 	"server/account/acc_db"
 	"server/account/logic/sdk"
 	"server/pkg/db"
-	"server/pkg/gnet"
 	"server/pkg/model"
 	"server/pkg/pb"
 	"server/pkg/thread"
 	"server/pkg/util"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -98,10 +98,16 @@ func PostEvt(e EvtParam) {
 	evt <- e
 }
 
-func Login(data *pb.S2SReqLogin) {
+func Login(req *pb.S2SReqLogin) {
+	if util.Debug {
+		debugWait.Add(1)
+	}
+
+	zap.L().Debug("login req:", zap.Reflect("req", req))
+
 	PostEvt(EvtParam{
 		Op:    OpLogin,
-		Login: data,
+		Login: req,
 	})
 }
 
@@ -170,6 +176,13 @@ func login(ctx context.Context, req *pb.S2SReqLogin) {
 }
 
 func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
+	if util.Debug {
+		debugAcc[RealAcc(req.Req.SdkType, req.Req.Account)] = &debugCheck{
+			AccID: debugGetAccID(req.Req.Account, req.Req.SdkType),
+			Ok:    false,
+		}
+	}
+
 	if req.Req.Account == "" {
 		return pb.LoginCode_LCAccountEmpty
 	}
@@ -178,7 +191,7 @@ func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 		return pb.LoginCode_LCServerBusy
 	}
 
-	req.Req.Account = RealAcc(req.Req.SdkNo, req.Req.Account)
+	req.Req.Account = RealAcc(req.Req.SdkType, req.Req.Account)
 
 	now := time.Now().Unix()
 	if now-loginTime[req.Req.Account] < LoginCD {
@@ -192,21 +205,14 @@ func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 }
 
 func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
-	var s = sdk.CreateSdk(req.Req.SdkNo)
+	var s = sdk.CreateSdk(req.Req.SdkType)
 	if s == nil {
-		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkNo, req.Req.String())
+		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkType, req.Req.String())
 		PostEvt(EvtParam{
 			Op:    OpLoginFail,
 			Code:  pb.LoginCode_LCSDKErr,
 			Login: req,
 		})
-	}
-
-	if util.Debug {
-		debugAcc[req.Req.Account] = &debugCheck{
-			AccID: debugGetAccID(req.Req.Account, req.Req.SdkNo),
-			Ok:    false,
-		}
 	}
 
 	go func() {
@@ -279,27 +285,31 @@ func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 }
 
 func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
+	zap.L().Debug("loading finish", zap.Any("req", req), zap.Any("acc", acc))
 	if acc == nil { // 加载失败
-		gnet.SendToRole(&pb.S2CLogin{Code: pb.LoginCode_LCServerErr}, req.SesID, 0)
+		loginFail(req, pb.LoginCode_LCServerErr)
 		return
 	}
 
 	if util.Debug {
 		if !DebugCheck(acc, req) {
+			debugWait.Done()
 			return
 		}
+		debugWait.Done()
 	}
 
 	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
-		gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
+		loginFail(req, code)
 	} else {
-		gnet.SendToGame(acc.GameID, req, 0, 0)
+		// gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
 	}
 }
 
 func loginFail(req *pb.S2SReqLogin, code pb.LoginCode) {
-	gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
+	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
+	// gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 }
 
 type debugCheck struct {
@@ -308,6 +318,7 @@ type debugCheck struct {
 }
 
 var debugAcc = make(map[string]*debugCheck)
+var debugWait sync.WaitGroup
 
 func DebugCheck(acc *Account, req *pb.S2SReqLogin) bool {
 	chk, ok := debugAcc[req.Req.Account]
@@ -315,30 +326,30 @@ func DebugCheck(acc *Account, req *pb.S2SReqLogin) bool {
 		zap.L().Error("not exist", zap.Any("req", req))
 	}
 	if chk.AccID == 0 {
-		chk.AccID = debugGetAccID(req.Req.Account, req.Req.SdkNo)
+		chk.AccID = debugGetAccID(req.Req.Account, req.Req.SdkType)
 	}
 	if chk.AccID != acc.AccID {
-		zap.L().Error("not match", zap.Any("req", req), zap.Any("acc", acc), zap.Any("real", chk))
+		zap.L().Panic("not match", zap.Any("req", req), zap.Any("acc", acc), zap.Any("real", chk))
 		return false
 	}
 	chk.Ok = true
 	return true
 }
 
-func debugGetAccID(account string, sdk pb.ESdkNumber) uint64 {
+func debugGetAccID(account string, sdk pb.SdkType) uint64 {
 	filter := bson.M{"device": account}
 	switch sdk {
-	case pb.ESdkNumber_Google:
-		filter = bson.M{"googleid": account}
-	case pb.ESdkNumber_Apple:
-		filter = bson.M{"appleid": account}
-	case pb.ESdkNumber_Facebook:
-		filter = bson.M{"fbid": account}
+	case pb.SdkType_Google:
+		filter = bson.M{"google_id": account}
+	case pb.SdkType_Apple:
+		filter = bson.M{"apple_id": account}
+	case pb.SdkType_Facebook:
+		filter = bson.M{"fb_id": account}
 	default:
 
 	}
 	acc := Account{}
-	err := db.MongoDB.Collection(acc_db.AccountTable).FindOne(context.Background(), filter).Decode(&acc)
+	err := db.MongoDB().Collection(acc_db.AccountTable).FindOne(context.Background(), filter).Decode(&acc)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		zap.L().Error("find account err", zap.Error(err))
 		return 0

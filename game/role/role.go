@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/cfg"
 	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/model"
@@ -31,6 +32,10 @@ func (d *DataToSave) Set(comID pb.TypeComp, data string) {
 	d.Data[model.GetCompName(comID)] = data
 }
 
+func (d *DataToSave) IsEmpty() bool {
+	return len(d.Data) == 0
+}
+
 const EventChanSize = 128
 
 type Event struct {
@@ -52,13 +57,14 @@ type Role struct {
 
 	Events chan Event
 	Wait   sync.WaitGroup
-	ctx    context.Context
+	Ctx    context.Context
 	Cancel context.CancelFunc
 
 	// 注意：临时属性，重连后就丢了
-	FlagSave   bool
-	NowSec     int64
-	LastSave   time.Time
+	NowSec int64
+
+	dirty      bool
+	lastSave   time.Time
 	LastMinute time.Time
 }
 
@@ -82,7 +88,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	}
 
 	r.Events = make(chan Event, EventChanSize)
-	r.ctx, r.Cancel = context.WithCancel(context.Background())
+	r.Ctx, r.Cancel = context.WithCancel(context.Background())
 
 	CreateComps(r)
 
@@ -98,14 +104,15 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	}
 
 	if r.Data.CreateTime == 0 {
-
+		r.Data.CreateTime = time.Now().Unix()
+		r.SetDirty()
 	}
 
 	return r, nil
 }
 
 func (r *Role) CloseAndWait() {
-	close(r.Events)
+	r.Cancel()
 	r.Wait.Wait()
 }
 
@@ -122,10 +129,14 @@ func (r *Role) Loop(ctx context.Context) {
 		for {
 			select {
 			case evt := <-r.Events:
-				r.onEvent(evt)
+				thread.RunSafe(func() {
+					r.onEvent(evt)
+				})
 			case now := <-t.C:
-				r.SecLoop(now)
-			case <-r.ctx.Done():
+				thread.RunSafe(func() {
+					r.SecLoop(now)
+				})
+			case <-r.Ctx.Done():
 				return // 自己退出
 			case <-ctx.Done():
 				return // 进程退出
@@ -142,10 +153,10 @@ func (r *Role) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 
 func (r *Role) Online() {
 	r.Data.OnlineTime = time.Now().Unix()
-	r.LastSave = time.Now()
+	r.lastSave = time.Now()
 
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
-	// r.SecLoop(r)
+	r.SecLoop(r.lastSave)
 	//
 	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtLogin, &pb.MsgKVGuidValue{
 	// 	Guid:  r.Data.Guid,
@@ -157,15 +168,7 @@ func (r *Role) Online() {
 			comp.Online(r)
 		}
 	}
-	//
-	// msgSend := &pb.S2CLogin{}
-	// msgSend.Player = makeMsgForCli(r)
-	// msgSend.GameID = setup.Setup.ID
-	// msgSend.Dev = connParam.Dev
-	// msgSend.Token = connParam.ReConnToken
-	// msgSend.ServerNowTime = util.GetNowTimeM()
-	// msgSend.ServerBeginTime = time.Date(1970, 1, 1, 0, 0, 0, 0, time.Local).Unix()
-	//
+
 	gnet.SendToGate(&pb.S2SResLogin{
 		Res: &pb.S2CLogin{
 			Player: r.Data,
@@ -187,7 +190,7 @@ func (r *Role) Offline() {
 
 	RoleMgr().Delete(r.ID, r.SesID)
 
-	data, err := r.Marshal()
+	data, err := r.marshal(true)
 	if err != nil {
 		return
 	}
@@ -206,30 +209,35 @@ func (r *Role) Disconnect(why pb.DisconnectReason) {
 	}, r.SesID)
 }
 
-func (r *Role) Marshal() (*DataToSave, error) {
+func (r *Role) marshal(force bool) (*DataToSave, error) {
 	rd := &DataToSave{
 		ID:   r.ID,
 		Data: make(map[string]string),
 	}
 
-	str, err := jsoniter.MarshalToString(r.Data)
-	if err != nil {
-		zap.S().Errorf("marshal role data err:%v", err)
-		return nil, err
+	if force || r.dirty {
+		str, err := jsoniter.MarshalToString(r.Data)
+		if err != nil {
+			zap.S().Errorf("marshal role data err:%v", err)
+			return nil, err
+		}
+
+		rd.Set(pb.TypeComp_TCBase, str)
+		r.dirty = false
 	}
-	rd.Set(pb.TypeComp_TCBase, str)
 
 	for i, v := range r.Comps {
-		str, err = jsoniter.MarshalToString(v)
+		if !force && !v.IsDirty() {
+			continue
+		}
+		str, err := jsoniter.MarshalToString(v)
 		if err != nil {
 			zap.L().Error("marshal role comp data err", zap.Error(err), zap.Inline(r))
 			continue
 		}
-		if len(str) == 0 {
-			continue
-		}
 
 		rd.Set(i, str)
+		v.ClearDirty()
 	}
 
 	return rd, nil
@@ -241,7 +249,7 @@ func (r *Role) SecLoop(now time.Time) {
 		return
 	}
 
-	r.NowSec = time.Now().Unix()
+	r.NowSec = now.Unix()
 
 	reset := false
 	dayChange := false
@@ -311,11 +319,11 @@ func (r *Role) SecLoop(now time.Time) {
 		// r.Send(pb.MsgIDS2C_S2CDataReset, nil) // 告知客户端数据重置
 	}
 
-	// if r.FlagSave || now.Sub(r.LastSave).Seconds() > float64(cfgs.Server().Config.CacheRoleTime) {
-	// 	save(r.Data)
-	// 	r.FlagSave = false
-	// 	r.LastSave = now
-	// }
+	conf := cfg.Get()
+	if now.Sub(r.lastSave).Seconds() > float64(conf.Time.AutoSave) {
+		r.save()
+		r.lastSave = now
+	}
 }
 
 func (r *Role) MinuteLoop(now time.Time) {
@@ -352,6 +360,17 @@ func (r *Role) Send(msg proto.Message) {
 	gnet.SendToRole(msg, r.SesID, r.ID)
 }
 
-func (r *Role) Save() {
-	r.FlagSave = true
+func (r *Role) SetDirty() {
+	r.dirty = true
+}
+
+func (r *Role) save() {
+	data, err := r.marshal(false)
+	if err != nil {
+		return
+	}
+	if data.IsEmpty() {
+		return
+	}
+	LoginMgr().SaveRole(data) // offline时在mgr里保存,批量存
 }

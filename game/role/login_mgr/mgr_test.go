@@ -2,9 +2,6 @@ package login_mgr
 
 import (
 	"context"
-	"fmt"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -12,6 +9,7 @@ import (
 	"server/game/component"
 	"server/game/role"
 	"server/game/role/role_mgr"
+	"server/pkg/cfg"
 	"server/pkg/db"
 	"server/pkg/logger"
 	"server/pkg/model"
@@ -23,19 +21,18 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	cfg.Load("127.0.0.1:2379", "local")
+
 	logger.NewZapLog("../../../bin/logger/test.logger", logger.Config{
 		Level:   0,
 		Console: true,
 	})
-	err := db.InitMongo(db.MongoCfg{
-		URI:    "mongodb://localhost:27017",
-		DbName: "game",
-	}, 10, 16)
+	err := db.InitMongo("mongodb://localhost:27017", "game", 10, 16)
 	if err != nil {
 		panic(err)
 	}
 
-	err = db.CreateIndexIfNotExist(db.MongoDB, "roles", map[string]mongo.IndexModel{
+	err = db.CreateIndexIfNotExist(db.MongoDB(), "roles", map[string]mongo.IndexModel{
 		"role_id": {Keys: bson.D{{"id", 1}}, Options: options.Index().SetUnique(true)},
 	})
 	if err != nil {
@@ -56,58 +53,19 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-type LoginCheck struct {
-	loginCnt map[uint64]int64
-	mtx      sync.Mutex
-}
+func checkSuccess() bool {
+	debugWait.Wait()
+	debugMtx.Lock()
+	defer debugMtx.Unlock()
 
-func NewLoginCheck() *LoginCheck {
-	ctx := context.Background()
-
-	cur := uint64(0)
-	var ss []string
-	for {
-		ss, cur = db.Redis.Scan(ctx, cur, "role:*", 1000).Val()
-		for _, s := range ss {
-			db.Redis.Del(context.Background(), s)
-		}
-		if cur == 0 {
-			break
+	ok := true
+	for k, v := range debugCheck {
+		if v == 0 {
+			ok = false
+			zap.L().Error("role login fail", zap.Uint64("role", k))
 		}
 	}
-
-	return &LoginCheck{
-		loginCnt: make(map[uint64]int64),
-	}
-}
-
-func (l *LoginCheck) Add(id uint64) {
-	l.mtx.Lock()
-	l.loginCnt[id]++
-	l.mtx.Unlock()
-}
-
-func (l *LoginCheck) CheckResult() {
-	l.mtx.Lock()
-	defer l.mtx.Unlock()
-	ctx := context.Background()
-	for k, v := range l.loginCnt {
-		datas := db.Redis.HGetAll(ctx, model.KeyRole(k)).Val()
-		data := role.DataToSave{Data: datas}
-		r := pb.RoleData{}
-		err := jsoniter.UnmarshalFromString(data.Get(pb.TypeComp_TCBase), &r)
-		if err != nil {
-			panic(err)
-		}
-		if int64(r.Country) != int64(r.Exp) {
-			fmt.Printf("role=%d cnt=%d login=%d offline=%d\n", k, v, r.Exp, int64(r.Country))
-			panic(v)
-		}
-		// if int64(r.Exp) != v {
-		// 	fmt.Printf("role=%d cnt=%d login=%d offline=%d\n", k, v, r.Exp, int64(r.Country))
-		// }
-	}
-	fmt.Println("check result finished")
+	return ok
 }
 
 func TestLoadBatch(t *testing.T) {
@@ -117,7 +75,7 @@ func TestLoadBatch(t *testing.T) {
 	}
 	ctx := context.Background()
 	filter := bson.M{"id": bson.M{"$in": ids}}
-	cursor, err := db.MongoDB.Collection("roles").Find(ctx, filter)
+	cursor, err := db.MongoDB().Collection("roles").Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("find role failed", zap.Error(err))
 		return
@@ -132,7 +90,6 @@ func TestLoadBatch(t *testing.T) {
 }
 
 func TestLoginAndOffline(t *testing.T) {
-	c := NewLoginCheck()
 	Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 		CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 	},
@@ -141,16 +98,19 @@ func TestLoginAndOffline(t *testing.T) {
 		ReConnToken: 2,
 		Seq:         1,
 	})
-	c.Add(111)
 
 	time.Sleep(time.Second * 2)
 	role.RoleMgr().KickRoleAndWait(111)
 	Mgr.Close()
-	c.CheckResult()
+	if !checkSuccess() {
+		t.Fatal("login check fail")
+	}
 }
 
 func TestDataDelete(t *testing.T) {
-	c := NewLoginCheck()
+	roleID := uint64(111)
+	db.Redis.Del(context.Background(), model.KeyRole(roleID))
+
 	Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 		CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 	},
@@ -159,41 +119,18 @@ func TestDataDelete(t *testing.T) {
 		ReConnToken: 2,
 		Seq:         1,
 	})
-	c.Add(111)
 
 	time.Sleep(time.Second * 1)
 	role.RoleMgr().KickRoleAndWait(111)
-	time.Sleep(time.Second * 10)
-	c.CheckResult()
 
-	time.Sleep(time.Minute * 6)
-}
-
-func TestBson(t *testing.T) {
-	d := pb.RoleData{
-		ID:    2,
-		Level: 100,
-		Exp:   9999,
-		Name:  "testName",
-		Items: map[string]int64{"Gold": 888, "ItemA": 5555},
+	if !checkSuccess() {
+		t.Fatal("login check fail")
 	}
-	b, err := bson.Marshal(&d)
-	require.NoError(t, err)
-	t.Log(string(b))
-
-	db.Redis.Set(context.Background(), "test:bson", string(b), 0)
-
-	b2 := db.Redis.Get(context.Background(), "test:bson").Val()
-	d2 := pb.RoleData{}
-	err = bson.Unmarshal([]byte(b2), &d2)
-	require.NoError(t, err)
-	t.Log(&d2)
 }
 
 const IDMax = 3000
 
 func TestLoginAndOfflineContinue(t *testing.T) {
-	c := NewLoginCheck()
 	go func() {
 		ticker := time.NewTicker(time.Millisecond)
 		id := uint64(1)
@@ -208,7 +145,6 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 					ReConnToken: 2,
 					Seq:         1,
 				})
-				c.Add(id)
 				id++
 				if id == IDMax {
 					return
@@ -217,7 +153,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 		}
 	}()
 
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 3)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond)
 		id := uint64(1)
@@ -234,11 +170,12 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 	}()
 	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
-	c.CheckResult()
+	if !checkSuccess() {
+		t.Fatal("login check fail")
+	}
 }
 
 func TestLoginAndOfflineBatch(t *testing.T) {
-	c := NewLoginCheck()
 	for id := uint64(1); id <= IDMax; id++ {
 		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
@@ -248,16 +185,16 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		c.Add(id)
 	}
-
+	time.Sleep(time.Second * 3)
 	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
-	c.CheckResult()
+	if !checkSuccess() {
+		t.Fatal("login check fail")
+	}
 }
 
 func TestOnlineOffline(t *testing.T) {
-	c := NewLoginCheck()
 	for i := 0; i < 50; i++ {
 		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
@@ -267,17 +204,14 @@ func TestOnlineOffline(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		c.Add(1)
 		role.RoleMgr().KickRoleAndWait(1)
 	}
 	time.Sleep(time.Second * 3)
 	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
-	c.CheckResult()
 }
 
 func TestLoginOtherDev(t *testing.T) {
-	c := NewLoginCheck()
 	for i := 0; i < 1000; i++ {
 		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
@@ -287,7 +221,6 @@ func TestLoginOtherDev(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		c.Add(1)
 
 		time.Sleep(time.Millisecond * time.Duration(util.RandInt(5)))
 		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
@@ -298,13 +231,11 @@ func TestLoginOtherDev(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		c.Add(1)
 		time.Sleep(time.Millisecond * time.Duration(util.RandInt(10)))
 	}
 
 	role.RoleMgr().CloseAndWait()
 	Mgr.Close()
-	c.CheckResult()
 }
 
 func TestDrain(t *testing.T) {

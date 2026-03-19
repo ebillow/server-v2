@@ -14,16 +14,16 @@ import (
 )
 
 type Account struct {
-	AccID    uint64 `redis:"acc_id"`
-	Freeze   bool   `redis:"freeze"`
-	GameID   int32  `redis:"game_id"`
-	Time     int64  `redis:"time"`
-	Seq      uint32 `redis:"seq"`
-	Passwd   uint64 `redis:"passwd"`
-	Device   string
-	AppleID  string
-	GoogleID string
-	FbID     string
+	AccID    uint64 `redis:"acc_id" bson:"acc_id"`
+	Freeze   bool   `redis:"freeze" bson:"freeze"`
+	GameID   int32  `redis:"game_id" bson:"-"`
+	Time     int64  `redis:"time" bson:"-"`
+	Seq      uint32 `redis:"seq" bson:"-"`
+	Passwd   uint64 `redis:"passwd" bson:"-"`
+	Device   string `redis:"-" bson:"device,omitempty"`
+	AppleID  string `redis:"-" bson:"apple_id,omitempty"`
+	GoogleID string `redis:"-" bson:"google_id,omitempty"`
+	FbID     string `redis:"-" bson:"fb_id,omitempty"`
 }
 
 type AccBind struct {
@@ -31,7 +31,7 @@ type AccBind struct {
 	AccID   uint64 `redis:"acc_id"`
 }
 
-func RealAcc(typ pb.ESdkNumber, acc string) string {
+func RealAcc(typ pb.SdkType, acc string) string {
 	return fmt.Sprintf("%d@%s", typ, acc)
 }
 
@@ -54,7 +54,7 @@ func (acc *Account) LoadSeq(ctx context.Context) uint32 {
 func GetCurAccID(ctx context.Context) (uint64, error) {
 	acc := &Account{}
 	opts := options.FindOne().SetSort(bson.M{"accid": -1})
-	err := db.MongoDB.Collection(acc_db.AccountTable).FindOne(ctx, bson.M{}, opts).Decode(acc)
+	err := db.MongoDB().Collection(acc_db.AccountTable).FindOne(ctx, bson.M{}, opts).Decode(acc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
 			return 0, nil

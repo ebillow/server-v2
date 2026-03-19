@@ -1,11 +1,12 @@
 package role
 
 import (
-	"server/pkg/pb"
 	"time"
 )
 
 type IComp interface {
+	IsDirty() bool // 是否需要保存
+	ClearDirty()   // 清除脏数据标志
 }
 
 // ICompSecLoop 如果需要每秒update，就实现该接口
@@ -52,9 +53,4 @@ type ICompOnPay interface {
 // ICompAnyPay 任意支付都触发事件
 type ICompAnyPay interface {
 	AnyPay(payFee float64, r *Role)
-}
-
-// ICompChgData 如果在给客户端发送角色所有数据前，需要做些修改，就实现该接口
-type ICompChgData interface {
-	ChangeForCli(data *pb.RoleData, r *Role) // 数据发给客户端前可以做修改
 }

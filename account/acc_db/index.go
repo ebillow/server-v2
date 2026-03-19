@@ -12,31 +12,31 @@ const AccountTable = "accounts"
 
 func CreateIndex() {
 	idx := make(map[string]mongo.IndexModel)
-	idx["accid_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"accid", 1}},
+	idx["acc_id_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"acc_id", 1}},
 		Options: options.Index().SetUnique(true),
 	}
 
 	idx["device_1"] = mongo.IndexModel{
 		Keys:    bson.D{{"device", 1}},
-		Options: options.Index().SetUnique(false),
+		Options: options.Index().SetUnique(false).SetSparse(true),
 	}
 
-	idx["apple_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"appleid", 1}},
-		Options: options.Index().SetUnique(false),
+	idx["apple_id_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"apple_id", 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
 
-	idx["google_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"googleid", 1}},
-		Options: options.Index().SetUnique(false),
+	idx["google_id_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"google_id", 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
-	idx["fb_1"] = mongo.IndexModel{
-		Keys:    bson.D{{"fbid", 1}},
-		Options: options.Index().SetUnique(false),
+	idx["fb_id_1"] = mongo.IndexModel{
+		Keys:    bson.D{{"fb_id", 1}},
+		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
 
-	err := db.CreateIndexIfNotExist(db.MongoDB, AccountTable, idx)
+	err := db.CreateIndexIfNotExist(db.MongoDB(), AccountTable, idx)
 	if err != nil {
 		zap.L().Error("create account index failed", zap.Error(err))
 	}

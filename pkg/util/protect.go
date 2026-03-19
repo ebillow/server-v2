@@ -1,7 +1,8 @@
 package util
 
 const SuccessShow = `
-#       ┏┓　       ┏┓
+#
+#      ┏┓　       ┏┓
 #　　　┏┛┻━━━━━━━━━┛┻┓ 
 #　　　┃　　　　　　 ┃ 　
 #　　　┃　　　━　　　┃ 

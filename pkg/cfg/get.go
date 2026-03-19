@@ -12,8 +12,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
-func getVersion(name string, addr string) string {
-	// 创建一个独立的 etcd 客户端用于 Watch
+func getVersion(addr string, iid string) string {
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{addr},
 		DialTimeout: 5 * time.Second,
@@ -26,7 +25,7 @@ func getVersion(name string, addr string) string {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
-	resp, err := cli.Get(ctx, fmt.Sprintf("/%s/version", name))
+	resp, err := cli.Get(ctx, fmt.Sprintf("/%s/version", iid))
 	if err != nil {
 		zap.L().Warn("get version err", zap.Error(err))
 		return ""
@@ -37,9 +36,9 @@ func getVersion(name string, addr string) string {
 	return string(resp.Kvs[0].Value)
 }
 
-func Load(addr string, name string) {
-	version := getVersion(name, addr)
-	path := configPath(name, version)
+func Load(addr string, iid string) {
+	version := getVersion(addr, iid)
+	path := configPath(iid, version)
 	// 1. 初始化 Viper 基础配置
 	err := viper.AddRemoteProvider("etcd3", addr, path)
 	if err != nil {
@@ -57,6 +56,7 @@ func Load(addr string, name string) {
 	if err := viper.Unmarshal(c); err != nil {
 		panic(err)
 	}
+	SetDefaultValue(c)
 	cfg.Store(c)
 	zap.S().Infof("初始配置: %+v\n", c)
 
@@ -103,7 +103,7 @@ func watch(endpoint, key string) {
 					zap.S().Warnf("Unmarshal 失败: %v", err)
 					continue
 				}
-
+				SetDefaultValue(c)
 				cfg.Store(c)
 				zap.S().Infof("配置更新成功: %+v\n", c)
 			}

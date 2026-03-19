@@ -9,13 +9,10 @@ import (
 )
 
 func TestMongoConnect(t *testing.T) {
-	err := InitMongo(&MongoCfg{
-		URI:    "mongodb://localhost:27017",
-		DbName: "test",
-	}, 16, 200)
+	err := InitMongo("mongodb://localhost:27017", "test", 16, 200)
 	require.NoError(t, err)
 	for i := 0; i < 10; i++ {
-		_, err = MongoDB.Collection("test").InsertOne(context.Background(), bson.M{"name": fmt.Sprintf("test%d", i)})
+		_, err = MongoDB().Collection("test").InsertOne(context.Background(), bson.M{"name": fmt.Sprintf("test%d", i)})
 		require.NoError(t, err)
 	}
 }

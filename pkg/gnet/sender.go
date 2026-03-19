@@ -3,7 +3,6 @@ package gnet
 import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"server/pkg/flag"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
 	"server/pkg/logger"
@@ -22,9 +21,8 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
-	serName := flag.SrvName(pb.Server_Gateway)
 	serID := GateIDFromSesID(sesID)
-	err = msgq.Q.ForwardToRole(serName, serID, msgID, data, roleID, sesID)
+	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
 	if err != nil {
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
@@ -35,7 +33,7 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
 			zap.Any("data", msg),
-			zap.String("to", serName),
+			zap.Any("to", pb.Server_Gateway),
 			zap.Int32("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),
@@ -45,20 +43,19 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 }
 
 func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64, sesID uint64) {
-	serName := flag.SrvName(serType)
 	data, err := proto.Marshal(msg)
 	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.String("serName", serName), zap.Int32("serID", serID))
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Int32("serID", serID))
 		return
 	}
 	msgID, err := pb.GetMsgIDS2S(msg)
 	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.String("serName", serName), zap.Int32("serID", serID))
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Int32("serID", serID))
 		return
 	}
-	err = msgq.Q.Send(serName, serID, msgID, data, roleID, sesID)
+	err = msgq.Q.Send(serType, serID, msgID, data, roleID, sesID)
 	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.String("serName", serName), zap.Int32("serID", serID))
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Int32("serID", serID))
 		return
 	}
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
@@ -66,7 +63,7 @@ func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64,
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
 			zap.Any("data", msg),
-			zap.String("to", serName),
+			zap.Any("to", serType),
 			zap.Int32("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),

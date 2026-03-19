@@ -176,7 +176,7 @@ func (r *Robot) Login() {
 	msg := pb.C2SLogin{
 		Account: r.acc,
 		Dev:     r.acc,
-		SdkNo:   pb.ESdkNumber_Guest,
+		SdkType: pb.SdkType_Guest,
 		Channel: 0,
 
 		CliInfo: &pb.ClientInfo{
@@ -190,7 +190,7 @@ func (r *Robot) ReConn() {
 	msg := pb.C2SLogin{
 		Account:   r.acc,
 		Dev:       r.acc,
-		SdkNo:     pb.ESdkNumber_Guest,
+		SdkType:   pb.SdkType_Guest,
 		Channel:   0,
 		Reconnect: true,
 

@@ -17,8 +17,8 @@ type opSaveData struct {
 	Op   uint32
 }
 
-func (d *opSaveData) Values() []string {
-	ret := make([]string, 0, len(d.Data))
+func (d *opSaveData) Values() []interface{} {
+	ret := make([]interface{}, 0, len(d.Data))
 	for k, v := range d.Data {
 		ret = append(ret, k, v)
 	}
@@ -65,8 +65,10 @@ func (s *saver) run(wait *sync.WaitGroup) {
 
 	flush := func() {
 		if len(batch) > 0 {
-			s.saveBatch(batch)
-			batch = make(map[uint64]*opSaveData, batchSize)
+			err := s.saveBatch(batch)
+			if err == nil {
+				batch = make(map[uint64]*opSaveData, batchSize)
+			}
 		}
 	}
 
@@ -88,16 +90,16 @@ func (s *saver) run(wait *sync.WaitGroup) {
 	}
 }
 
-func (s *saver) saveBatch(batch map[uint64]*opSaveData) {
+func (s *saver) saveBatch(batch map[uint64]*opSaveData) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	pipe := db.Redis.Pipeline()
 	toDB := make([]*opSaveData, 0, len(batch))
 	for _, v := range batch {
-		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values())
+		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values()...)
 		pipe.Expire(ctx, model.KeyRole(v.ID), time.Hour*24*7)
-		zap.L().Debug("[login] save to redis", zap.Uint64("id", v.ID))
+		zap.L().Debug("[login] save to redis", zap.Uint64("id", v.ID), zap.Any("data", v))
 		if v.Op == OpOffline {
 			toDB = append(toDB, v)
 		}
@@ -105,13 +107,13 @@ func (s *saver) saveBatch(batch map[uint64]*opSaveData) {
 	_, err := pipe.Exec(ctx)
 	if err != nil {
 		zap.S().Errorf("[login] real save role err:%v", err)
-		return
+		return err
 	}
 
-	s.saveToDB(ctx, toDB)
+	return s.saveToDB(ctx, toDB)
 }
 
-func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) {
+func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) error {
 	models := make([]mongo.WriteModel, 0, len(toDB))
 	for i := range toDB {
 		mod := mongo.NewUpdateOneModel()
@@ -124,10 +126,10 @@ func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) {
 		zap.S().Debugf("[login] bulk write save role %d to acc_db", toDB[i].ID)
 	}
 
-	_, err := db.MongoDB.Collection("roles").BulkWrite(ctx, models)
+	_, err := db.MongoDB().Collection("roles").BulkWrite(ctx, models)
 	if err != nil {
 		zap.S().Errorf("[login] bulk write save role err:%v", err)
-		return
+		return err
 	}
 
 	op := &Operator{Op: OpSaveSuccess}
@@ -135,4 +137,5 @@ func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) {
 		op.IDs = append(op.IDs, toDB[i].ID)
 	}
 	postOp(op)
+	return nil
 }

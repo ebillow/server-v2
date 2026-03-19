@@ -77,12 +77,11 @@ func TestSubscribe(t *testing.T) {
 
 // BenchmarkEncode-10    	 3087978	       383.8 ns/op
 func BenchmarkEncode(b *testing.B) {
-	serName := "game"
 	serID := int32(1)
 	msgID := 2
 
 	for i := 0; i < b.N; i++ {
-		msg := nats.NewMsg(getIndexSubject(serName, serID))
+		msg := nats.NewMsg(getIndexSubject(pb.Server_Game, serID))
 
 		data, err := proto.Marshal(&pb.RankItemShow{
 			Id:      1,
@@ -117,12 +116,11 @@ func BenchmarkEncode(b *testing.B) {
 
 // BenchmarkHead-10    	 9132805	       127.9 ns/op
 func BenchmarkHead(b *testing.B) {
-	serName := "game"
 	serID := int32(1)
 	msgID := 2
 
 	for i := 0; i < b.N; i++ {
-		msg := nats.NewMsg(getIndexSubject(serName, serID))
+		msg := nats.NewMsg(getIndexSubject(pb.Server_Game, serID))
 
 		msg.Header.Set("ser_name", "self name")
 		msg.Header.Set("ser_id", "self_id")

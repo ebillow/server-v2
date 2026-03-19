@@ -11,6 +11,7 @@ type meta struct {
 	events chan role.Event
 	wait   *sync.WaitGroup
 	cancel context.CancelFunc
+	ctx    context.Context
 }
 
 type RoleMgr struct {
@@ -34,6 +35,7 @@ func (m *RoleMgr) Add(roleID uint64, sesID uint64, r *role.Role) {
 		events: r.Events,
 		wait:   &r.Wait,
 		cancel: r.Cancel,
+		ctx:    r.Ctx,
 	}
 	m.ses[sesID] = roleID
 	m.mtx.Unlock()
@@ -112,6 +114,8 @@ func (m *RoleMgr) PostEvent(roleID uint64, evt role.Event) {
 	}
 	select {
 	case r.events <- evt:
+	case <-r.ctx.Done():
+		return
 	default:
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", roleID))
 	}
@@ -124,6 +128,8 @@ func (m *RoleMgr) PostEventBySesID(sesID uint64, evt role.Event) {
 	}
 	select {
 	case r.events <- evt:
+	case <-r.ctx.Done():
+		return
 	default:
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", sesID))
 	}

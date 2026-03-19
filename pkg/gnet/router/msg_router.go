@@ -49,8 +49,7 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context) error {
 	}
 
 	if trace.Rule.ShouldLog(c.Msg.MsgID, c.Msg.RoleID, c.Msg.SesID) {
-		info := "<<< msg.recv:"
-		zap.L().Info(info,
+		zap.L().Info("<<< msg.recv:",
 			zap.Inline(c),
 			zap.Any("data", msgPB),
 			logger.Blue.Field(),

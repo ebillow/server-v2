@@ -20,6 +20,7 @@ type IRoleMgr interface {
 type ILoginMgr interface {
 	Online(msg *pb.S2SReqLogin)
 	Offline(data *DataToSave)
+	SaveRole(data *DataToSave)
 }
 
 type ICRouter interface {

@@ -12,3 +12,11 @@ func NewEmpty(r *role.Role) *Empty {
 		tmp: make(map[int32]bool),
 	}
 }
+
+func (d *Empty) IsDirty() bool {
+	return false
+}
+
+func (d *Empty) ClearDirty() {
+
+}

@@ -3,14 +3,13 @@ package msgq
 import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
-	"server/pkg/flag"
 	"server/pkg/pb"
 	"time"
 )
 
 func RpcCall[T proto.Message](bs DataBus, msgID uint32, req proto.Message, toSer pb.Server, toSerID int32, roleID uint64, sesID uint64, timeOut time.Duration) (res T, err error) {
 	var ack T
-	toSub := getIndexSubject(flag.SrvName(toSer), toSerID)
+	toSub := getIndexSubject(toSer, toSerID)
 	b, err := proto.Marshal(req)
 	if err != nil {
 		return ack, errors.Wrapf(err, "rpc call:marshal err; msg[%d] to %s", msgID, toSub)

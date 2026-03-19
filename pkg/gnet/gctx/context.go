@@ -16,11 +16,13 @@ type Context struct {
 }
 
 func (s Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
-	encoder.AddUint32("msgID", s.Msg.MsgID)
-	encoder.AddString("msgName", s.MsgName[int32(s.Msg.MsgID)])
-	encoder.AddUint64("roleID", s.Msg.RoleID)
-	encoder.AddUint64("sesID", s.Msg.SesID)
-	encoder.AddString("from", flag.SrvName(s.Msg.SerType))
-	encoder.AddInt32("serID", s.Msg.SerID)
+	if s.Msg != nil {
+		encoder.AddUint32("msgID", s.Msg.MsgID)
+		encoder.AddString("msgName", s.MsgName[int32(s.Msg.MsgID)])
+		encoder.AddUint64("roleID", s.Msg.RoleID)
+		encoder.AddUint64("sesID", s.Msg.SesID)
+		encoder.AddString("from", flag.SrvName(s.Msg.SerType))
+		encoder.AddInt32("serID", s.Msg.SerID)
+	}
 	return nil
 }

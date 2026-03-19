@@ -17,7 +17,7 @@ func CreateIndex() {
 		Options: options.Index().SetUnique(true),
 	}
 
-	err := db.CreateIndexIfNotExist(db.MongoDB, RoleTable, idx)
+	err := db.CreateIndexIfNotExist(db.MongoDB(), RoleTable, idx)
 	if err != nil {
 		zap.L().Error("create index failed", zap.Error(err))
 	}

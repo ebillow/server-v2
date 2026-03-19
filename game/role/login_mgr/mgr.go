@@ -8,13 +8,10 @@ import (
 	"server/pkg/gnet"
 	"server/pkg/pb"
 	"server/pkg/thread"
+	"server/pkg/util"
 	"sync"
 	"time"
 )
-
-/* todo
-1.json->bson
-*/
 
 const (
 	OpChanSize   = 40960
@@ -42,7 +39,6 @@ const (
 )
 
 type loginData struct {
-	Acc       string
 	State     loginState
 	StateTime int64
 	Cache     map[string]string
@@ -60,6 +56,21 @@ type Operator struct {
 	Login *pb.S2SReqLogin  // 上线的参数
 	Data  *role.DataToSave // 下线，保存的参数
 	IDs   []uint64
+}
+
+var (
+	debugCheck = make(map[uint64]uint64)
+	debugMtx   sync.RWMutex
+	debugWait  sync.WaitGroup
+)
+
+func DebugLoginOk(id uint64) {
+	if util.Debug {
+		debugMtx.Lock()
+		debugCheck[id] = id
+		debugMtx.Unlock()
+		debugWait.Done()
+	}
 }
 
 var Mgr LoginMgr
@@ -112,6 +123,13 @@ func (m *LoginMgr) Close() {
 
 // Online	请求角色的数据
 func (m *LoginMgr) Online(msg *pb.S2SReqLogin) {
+	if util.Debug {
+		debugMtx.Lock()
+		debugCheck[msg.RoleID] = 0
+		debugMtx.Unlock()
+		debugWait.Add(1)
+	}
+
 	m.ops <- &Operator{Op: OpOnline, Login: msg}
 }
 
@@ -171,7 +189,6 @@ func (m *LoginMgr) checkClear() {
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
 			gnet.SendToAccount(&pb.S2SRoleClear{
-				// Acc:    k,
 				RoleID: k,
 				Seq:    v.LoginSeq,
 			})

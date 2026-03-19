@@ -5,7 +5,6 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
@@ -215,12 +214,11 @@ func (s *Session) onRecvClientMsg(src []byte) {
 	if serType == pb.Server_Gateway {
 		C().Handle(msgID, data, s)
 	} else {
-		serName := flag.SrvName(serType)
-		err = msgq.Q.Send(serName, serID, msgID, data, 0, s.Id)
+		err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
 		if err != nil {
 			zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 				zap.Uint32("msgID", msgID),
-				zap.String("to", serName),
+				zap.String("to", serType.String()),
 				zap.Int32("idx", serID),
 				zap.Inline(s),
 				logger.Magenta.Field(),
@@ -229,7 +227,7 @@ func (s *Session) onRecvClientMsg(src []byte) {
 		if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 			zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 				zap.Uint32("msgID", msgID),
-				zap.String("to", serName),
+				zap.String("to", serType.String()),
 				zap.Int32("idx", serID),
 				zap.Inline(s),
 				logger.Magenta.Field(),

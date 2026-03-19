@@ -96,6 +96,11 @@ func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *
 		return
 	}
 
+	if r.ID != login.RoleID {
+		zap.L().Error("role id and login id are not the same", zap.Uint64("role_id", r.ID), zap.Uint64("login_id", login.RoleID))
+		return
+	}
+
 	v := m.data[r.ID]
 	v.Cache = data.Data
 	v.LoginSeq = login.Seq
@@ -103,6 +108,8 @@ func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *
 	role.RoleMgr().Add(r.ID, r.SesID, r)
 
 	r.Loop(ctx)
+
+	DebugLoginOk(r.ID)
 }
 
 // 处理其它设备
@@ -111,7 +118,7 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 	// 避免阻塞login协程，不在login协程wait
 	v.setState(stateKicking)
 
-	thread.GoSafe(func() { // 这里带数据的话，offline里就不能修改数据了
+	thread.GoSafe(func() { // 这里角色数据做参数的话，offline里就不能修改数据了
 		role.RoleMgr().KickRoleAndWait(p.Login.RoleID) // 可以wait多次
 		p.Op = OpRepeatedLogin
 		m.ops <- p

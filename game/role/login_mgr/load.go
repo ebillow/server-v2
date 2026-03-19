@@ -108,7 +108,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 	}
 
 	filter := bson.M{"id": bson.M{"$in": ids}}
-	cursor, err := db.MongoDB.Collection("roles").Find(ctx, filter)
+	cursor, err := db.MongoDB().Collection("roles").Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
 		return

@@ -42,7 +42,7 @@ func Init(ctx context.Context) error {
 	logic.Init()
 
 	db.MongoUse("account")
-	acc_db.CreateAccIndex()
+	acc_db.CreateIndex()
 
 	return nil
 }

@@ -22,15 +22,15 @@ type ISdkLogin interface {
 }
 
 // 创建sdk的实例 根据sdk number
-func CreateSdk(no pb.ESdkNumber) ISdkLogin {
+func CreateSdk(no pb.SdkType) ISdkLogin {
 	switch no {
-	case pb.ESdkNumber_Guest:
+	case pb.SdkType_Guest:
 		return &SdkLocal{}
-	case pb.ESdkNumber_Google:
+	case pb.SdkType_Google:
 		return &Google{}
-	case pb.ESdkNumber_Facebook:
+	case pb.SdkType_Facebook:
 		return &Facebook{}
-	case pb.ESdkNumber_Apple:
+	case pb.SdkType_Apple:
 		return &Apple{}
 
 	default:

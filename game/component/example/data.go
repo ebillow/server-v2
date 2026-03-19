@@ -1,6 +1,8 @@
 package example
 
-import "server/game/role"
+import (
+	"server/game/role"
+)
 
 type Data struct {
 	OnlineCnt  int32
@@ -10,8 +12,9 @@ type Data struct {
 	Award      map[int32]struct{}
 	Info       []int32
 
-	cur int32
-	tmp map[int32]bool
+	cur   int32
+	tmp   map[int32]bool
+	dirty bool
 }
 
 func New(r *role.Role) *Data {
@@ -20,6 +23,14 @@ func New(r *role.Role) *Data {
 		Info:  make([]int32, 0),
 		tmp:   make(map[int32]bool),
 	}
+}
+
+func (d *Data) IsDirty() bool {
+	return d.dirty
+}
+
+func (d *Data) ClearDirty() {
+	d.dirty = false
 }
 
 func (d *Data) Online(r *role.Role) {

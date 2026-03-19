@@ -52,7 +52,7 @@ func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
 
 func (a *App) init(ctx context.Context) error {
 	idgen.Init(flag.SvcIndex)
-	cfg.Load(flag.EtcdAddr[0], flag.Name)
+	cfg.Load(flag.EtcdAddr[0], flag.IID)
 	conf := cfg.Get()
 
 	a.initLog(conf)
@@ -76,7 +76,7 @@ func (a *App) init(ctx context.Context) error {
 	if err = a.Init(ctx); err != nil {
 		return err
 	}
-
+	// 这之前不能访问mongoDB，因为还未设置dbName
 	return nil
 }
 
@@ -98,10 +98,7 @@ func (a *App) initDB(conf *cfg.Config) error {
 		return err
 	}
 
-	if err := db.InitMongo(db.MongoCfg{
-		URI:    conf.Mongo.URL,
-		DbName: "admin",
-	}, 16, 32); err != nil {
+	if err := db.InitMongo(conf.Mongo.URL, "admin", 16, 32); err != nil {
 		return err
 	}
 	return nil
@@ -123,7 +120,7 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 		return err
 	}
 
-	fmt.Print(util.SuccessShow)
+	zap.S().Info(util.SuccessShow)
 	zap.L().Info("启动成功", zap.String("version", version.GitCommit))
 
 	thread.WaitExit()

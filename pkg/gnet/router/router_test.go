@@ -1,0 +1,20 @@
+package router
+
+import (
+	"go.uber.org/zap"
+	"server/pkg/logger"
+	"server/pkg/pb/msgid"
+	"testing"
+)
+
+func TestMain(m *testing.M) {
+	logger.NewZapLog("../../../../bin/log/test.log", logger.Config{
+		Level:   0,
+		Console: true,
+	})
+	m.Run()
+}
+
+func TestMsgID(t *testing.T) {
+	zap.L().Info("test", zap.Any("msgid", msgid.MsgIDS2S_S2SGt2SDisconnect))
+}

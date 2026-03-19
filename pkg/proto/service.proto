@@ -15,6 +15,14 @@ message NatsMsg{
   bool Forward = 7;
 }
 
+message LogMsg {
+  string  EventID = 1;            // UUID，用于去重
+  int64   RoleID = 2;             // 用户ID
+  string  Type = 3;               // 事件类型，如 "login", "level_up"
+  int64   TimeStamp = 4;          // Unix 时间戳 (毫秒/秒)
+  bytes   Payload = 5;
+}
+
 message SrvMsg{
     uint32  ID = 2;
     bytes 	Msg = 3;

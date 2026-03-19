@@ -24,6 +24,7 @@ func newLoader() *loader {
 }
 
 func (l *loader) post(op *pb.S2SReqLogin) {
+	zap.L().Debug("start load", zap.Any("op", op))
 	l.loading <- op
 }
 
@@ -63,9 +64,9 @@ func (l *loader) run(ctx context.Context) {
 }
 
 func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	// defer cancel()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	// ctx := context.Background()
 
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
@@ -128,12 +129,12 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 		accs  []string
 		batch []*pb.S2SReqLogin
 	}
-	batch := make(map[pb.ESdkNumber]*Tmp)
+	batch := make(map[pb.SdkType]*Tmp)
 	for _, op := range all {
-		one, ok := batch[op.Req.SdkNo]
+		one, ok := batch[op.Req.SdkType]
 		if !ok {
 			one = &Tmp{}
-			batch[op.Req.SdkNo] = one
+			batch[op.Req.SdkType] = one
 		}
 		one.accs = append(one.accs, op.Req.Account)
 		one.batch = append(one.batch, op)
@@ -141,20 +142,20 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 	for k, bt := range batch {
 		filter := bson.M{"device": bson.M{"$in": bt.accs}}
 		switch k {
-		case pb.ESdkNumber_Apple:
-			filter = bson.M{"appleid": bson.M{"$in": bt.accs}}
-		case pb.ESdkNumber_Google:
-			filter = bson.M{"googleid": bson.M{"$in": bt.accs}}
-		case pb.ESdkNumber_Facebook:
-			filter = bson.M{"fbid": bson.M{"$in": bt.accs}}
+		case pb.SdkType_Apple:
+			filter = bson.M{"apple_id": bson.M{"$in": bt.accs}}
+		case pb.SdkType_Google:
+			filter = bson.M{"google_id": bson.M{"$in": bt.accs}}
+		case pb.SdkType_Facebook:
+			filter = bson.M{"fb_id": bson.M{"$in": bt.accs}}
 		default:
 		}
 		l.loadOneKindAccFromDB(ctx, filter, bt.batch, k)
 	}
 }
 
-func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.ESdkNumber) {
-	cursor, err := db.MongoDB.Collection(acc_db.AccountTable).Find(ctx, filter)
+func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
+	cursor, err := db.MongoDB().Collection(acc_db.AccountTable).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
 		return
@@ -171,11 +172,11 @@ func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch 
 	result := make(map[string]*Account, len(accDatas))
 	for _, acc := range accDatas {
 		switch typ {
-		case pb.ESdkNumber_Apple:
+		case pb.SdkType_Apple:
 			result[acc.AppleID] = acc
-		case pb.ESdkNumber_Google:
+		case pb.SdkType_Google:
 			result[acc.GoogleID] = acc
-		case pb.ESdkNumber_Facebook:
+		case pb.SdkType_Facebook:
 			result[acc.FbID] = acc
 		default:
 			result[acc.Device] = acc
@@ -191,7 +192,7 @@ func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch 
 				Login: op,
 				Acc:   r,
 			})
-			updateAccBatch = append(updateAccBatch, accWrap{Acc: r, Account: op.Req.Account})
+			updateAccBatch = append(updateAccBatch, accWrap{Acc: r, Account: op.Req.Account}) // 延后了点，需要mgr保证不重进
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
@@ -240,12 +241,12 @@ func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 			AccID:  id,
 			Device: req.Req.Dev,
 		}
-		switch req.Req.SdkNo {
-		case pb.ESdkNumber_Apple:
+		switch req.Req.SdkType {
+		case pb.SdkType_Apple:
 			acc.AppleID = req.Req.Account
-		case pb.ESdkNumber_Google:
+		case pb.SdkType_Google:
 			acc.GoogleID = req.Req.Account
-		case pb.ESdkNumber_Facebook:
+		case pb.SdkType_Facebook:
 			acc.FbID = req.Req.Account
 		default:
 			acc.Device = req.Req.Account
@@ -259,7 +260,7 @@ func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 		pipe.Set(ctx, keyBind, acc.AccID, expiration)
 	}
 
-	_, err := db.MongoDB.Collection(acc_db.AccountTable).InsertMany(ctx, accBat)
+	_, err := db.MongoDB().Collection(acc_db.AccountTable).InsertMany(ctx, accBat)
 	if err != nil {
 		zap.L().Error("[login] insert account failed", zap.Error(err))
 		return

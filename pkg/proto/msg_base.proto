@@ -39,7 +39,7 @@ message S2CHeartBeat{
 //登录请求
 message C2SLogin{
 	//sdk登录需要的数据
-	ESdkNumber SdkNo = 1;
+	SdkType SdkType = 1;
 	string Account = 2;
 	string Token = 3;
 	uint32 Channel = 4;			//子渠道
@@ -123,7 +123,7 @@ message C2SBindAcc{
 		AccIsBind = 2;		//账号已经有角色了
 		GuestNotFind = 3;	//游客数据出错了
 	}
-	ESdkNumber 	SdkToBind = 1;
+	SdkType 	  SdkToBind = 1;
 	string 			AccToBind = 2; 	//要绑定的账号（google等）
 	BindAccCode Ret = 3;	//返回结果
 	repeated string ConnectedAcc = 4;	//已绑定的账号

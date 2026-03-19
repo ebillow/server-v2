@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
-	"server/pkg/gnet/trace"
+	"server/pkg/flag"
 	"server/pkg/pb"
 	"time"
 )
@@ -16,7 +16,6 @@ type DataBus struct {
 	conn    *nats.Conn
 	serType pb.Server
 	serID   int32
-	Tracer  *trace.TraceRule
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options ...nats.Option) error {
@@ -67,14 +66,14 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 	return nc, nil
 }
 
-func getIndexSubject(serName string, serID int32) string {
-	return fmt.Sprintf("msg.%s.idx.%d", serName, serID)
+func getIndexSubject(serType pb.Server, serID int32) string {
+	return fmt.Sprintf("msg.%s.idx.%d", flag.SrvName(serType), serID)
 }
 
-func getGroupSubject(serName string) string {
-	return fmt.Sprintf("msg.%s.group", serName)
+func getGroupSubject(serType pb.Server) string {
+	return fmt.Sprintf("msg.%s.group", flag.SrvName(serType))
 }
 
-func getAllSubject(serName string) string {
-	return fmt.Sprintf("msg.%s.all", serName)
+func getAllSubject(serType pb.Server) string {
+	return fmt.Sprintf("msg.%s.all", flag.SrvName(serType))
 }

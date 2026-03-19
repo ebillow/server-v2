@@ -19,13 +19,10 @@ import (
 
 func TestMain(m *testing.M) {
 	logger.NewZapLog("../../../bin/logger/test.logger", logger.Config{
-		Level:   0,
+		Level:   -1,
 		Console: true,
 	})
-	err := db.InitMongo(db.MongoCfg{
-		URI:    "mongodb://localhost:27017",
-		DbName: "account",
-	}, 10, 16)
+	err := db.InitMongo("mongodb://localhost:27017", "account", 10, 16)
 	if err != nil {
 		panic(err)
 	}
@@ -53,19 +50,78 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func checkSuccess() {
-	fmt.Println("start check success")
+func checkSuccess() bool {
+	debugWait.Wait()
+	ok := true
+	fmt.Println("start check success,total:", len(debugAcc))
 	for k, v := range debugAcc {
 		if !v.Ok {
-			fmt.Println("login fail", k, v.AccID)
+			fmt.Println("check fail", k, v.AccID)
+			ok = false
 		}
+	}
+	fmt.Println("finish check success,total:", len(debugAcc))
+	return ok
+}
+
+func TestLoginBatch(t *testing.T) {
+	// 正常情况
+	for i := 1; i <= 10000; i++ {
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
+				Account:   "test" + strconv.Itoa(i),
+				Reconnect: false,
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
+			},
+			SesID:  uint64(i),
+			RoleID: uint64(i),
+			Seq:    uint32(util.RandInt(10)),
+		})
+	}
+	if !checkSuccess() {
+		t.Fatal("check fail")
+	}
+}
+
+func TestLoginRedisExpire(t *testing.T) {
+	ctx := context.Background()
+	for i := 1; i <= 10000; i++ {
+		keyBind := model.KeyAccBind(RealAcc(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
+		if util.Rand(5000) {
+			accID, err := db.Redis.Get(ctx, keyBind).Result()
+			if err != nil && err != redis.Nil {
+				t.Fatal("redis get fail")
+			}
+			db.Redis.Del(ctx, model.KeyAccount(util.ParseUint64(accID)))
+		}
+		if util.Rand(5000) {
+			db.Redis.Del(ctx, keyBind)
+		}
+	}
+
+	for i := 1; i <= 10000; i++ {
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
+				Account:   "test" + strconv.Itoa(i),
+				Reconnect: false,
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
+			},
+			SesID:  uint64(i),
+			RoleID: uint64(i),
+			Seq:    uint32(util.RandInt(10)),
+		})
+	}
+	if !checkSuccess() {
+		t.Fatal("check fail")
 	}
 }
 
 func TestDBAndRedis(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	sor, err := db.MongoDB.Collection(acc_db.AccountTable).Find(ctx, bson.M{})
+	sor, err := db.MongoDB().Collection(acc_db.AccountTable).Find(ctx, bson.M{})
 	if err != nil {
 		panic(err)
 	}
@@ -145,7 +201,7 @@ func TestLoginApple(t *testing.T) {
 	for i := 20000; i < 20001; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
-				SdkNo:     pb.ESdkNumber_Apple,
+				SdkType:   pb.SdkType_Apple,
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -162,15 +218,16 @@ func TestLoginApple(t *testing.T) {
 			ConnectedAcc: nil,
 		})
 	}
-	time.Sleep(time.Second * 10)
-	checkSuccess()
+	if !checkSuccess() {
+		t.Fatal("check fail")
+	}
 }
 
 func TestLogin(t *testing.T) {
 	for i := 0; i < 5000; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
-				SdkNo:     pb.ESdkNumber_Guest,
+				SdkType:   pb.SdkType_Guest,
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -187,15 +244,16 @@ func TestLogin(t *testing.T) {
 			ConnectedAcc: nil,
 		})
 	}
-	time.Sleep(time.Second * 10)
-	checkSuccess()
+	if !checkSuccess() {
+		t.Fatal("check fail")
+	}
 }
 
 func TestLoginRandSdk(t *testing.T) {
 	for i := 10000; i < 15000; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
-				SdkNo:     pb.ESdkNumber(util.RandInt(4)),
+				SdkType:   pb.SdkType(util.RandInt(4)),
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -212,6 +270,37 @@ func TestLoginRandSdk(t *testing.T) {
 			ConnectedAcc: nil,
 		})
 	}
-	time.Sleep(time.Second * 10)
-	checkSuccess()
+	if !checkSuccess() {
+		t.Fatal("check fail")
+	}
+}
+
+func TestLoginDup(t *testing.T) {
+	for i := 1; i <= 100; i++ {
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
+				Account:   "test" + strconv.Itoa(i),
+				Reconnect: false,
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
+			},
+			SesID:  uint64(i),
+			RoleID: uint64(i),
+			Seq:    uint32(util.RandInt(10)),
+		})
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
+				Account:   "test" + strconv.Itoa(i),
+				Reconnect: false,
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
+			},
+			SesID:  uint64(i),
+			RoleID: uint64(i),
+			Seq:    uint32(util.RandInt(10)),
+		})
+	}
+	// if !checkSuccess() {
+	// 	t.Fatal("check fail")
+	// }
 }
