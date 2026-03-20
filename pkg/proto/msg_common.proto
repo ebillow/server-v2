@@ -37,32 +37,3 @@ enum TypeComp{
 	TCEmptyExample = 2;
 	TCDebug = 3;
 }
-
-//--------------奖励-----------------
-enum EPrizeType{//奖励类型
-	None = 0;
-	Card = 1;	//卡
-	Bottle = 2; //漂流瓶
-	Good = 3;	//物品
-}
-
-message PrizeItem{
-    EPrizeType Type = 1;		//物品类型
-    string Oriname = 2;			//物品原始名
-    sint64 Count = 3;		//物品数量
-	float Rate = 4;	//倍率
-    repeated sint32 Extra = 5;		//额外属性(与具体功能有关)
-}
-
-message PrizeItems{
-	repeated PrizeItem Items = 1;
-}
-
-message PrizePoolData {
-	EPrizeType Type = 1;	//物品类型
-    string Oriname = 2;		//物品原始名
-    sint64 Count = 3;		//物品数量
-    uint32 TeShu = 4;		//特殊
-    uint32 Ex = 5;			//特殊
-    uint32 Rand = 6;		//特殊
-}

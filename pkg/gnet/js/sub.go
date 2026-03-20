@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
+	"server/pkg/gnet/codec"
 	"server/pkg/pb"
 	"strings"
 	"time"
@@ -55,19 +55,13 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg *pb.Na
 	}
 
 	// 2. 开始消费消息 (Iterator / Consume 方法)
-	// 使用 Consume 方法可以更方便地处理并发
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		// --- 业务逻辑开始 ---
-		msg := &pb.NatsMsg{}
-		err = proto.Unmarshal(msgRaw.Data(), msg)
+		msg, err := codec.Decode(msgRaw.Data())
 		if err != nil {
 			zap.L().Error("Error unmarshalling log", zap.Error(err))
 			return
 		}
 		cb(msg)
-		// --- 业务逻辑结束 ---
-
-		// 3. 确认消息 (Ack)
 		// 只有 Ack 后，Server 才会认为这条消息处理完成
 		if err = msgRaw.Ack(); err != nil {
 			zap.L().Error("Ack failed", zap.Error(err))

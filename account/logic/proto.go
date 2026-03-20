@@ -10,12 +10,12 @@ import (
 )
 
 func init() {
-	router.C().Msg(msgid.MsgIDC2S_C2SLogin, onLogin)
+	router.C().OnG(msgid.MsgIDC2S_C2SLogin, onLogin)
 
-	router.S().Msg(msgid.MsgIDS2S_S2SRoleClear, onClearRole)
+	router.S().OnG(msgid.MsgIDS2S_S2SRoleClear, onClearRole)
 }
 
-func onLogin(msgBase proto.Message, c gctx.Context) {
+func onLogin(c gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.C2SLogin)
 	if msg == nil {
 		return
@@ -28,7 +28,7 @@ func onLogin(msgBase proto.Message, c gctx.Context) {
 	login.Login(msgS)
 }
 
-func onClearRole(msgBase proto.Message, c gctx.Context) {
+func onClearRole(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SRoleClear)
 	login.PostEvt(login.EvtParam{
 		Op:    login.OpRoleClear,

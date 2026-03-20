@@ -6,11 +6,12 @@ import (
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/trace"
 	"server/pkg/logger"
+	"time"
 )
 
 type MsgHandler struct {
 	createFunc func() proto.Message
-	HandleFunc func(proto.Message, gctx.Context)
+	HandleFunc func(gctx.Context, proto.Message)
 }
 
 // MsgRouter 消息处理器
@@ -27,7 +28,7 @@ func NewMsgRouter() *MsgRouter {
 }
 
 // Register 注册消息
-func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(msg proto.Message, c gctx.Context)) error {
+func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c gctx.Context, msg proto.Message)) error {
 	rt.handlers[msgID] = &MsgHandler{
 		createFunc: cf,
 		HandleFunc: df,
@@ -56,7 +57,19 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context) error {
 		)
 	}
 
-	node.HandleFunc(msgPB, c)
+	begin := time.Now()
+	node.HandleFunc(c, msgPB)
+	span := time.Since(begin)
+	if span.Milliseconds() > 200 {
+		zap.L().Warn("handle msg timeout:",
+			zap.Inline(c),
+			zap.Any("data", msgPB),
+			logger.Yellow.Field(),
+			zap.Duration("cost", span),
+		)
+	}
+	c.FreeNatsMsg()
+
 	return nil
 }
 

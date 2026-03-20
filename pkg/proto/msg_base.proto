@@ -116,25 +116,6 @@ message S2CKickRole{
 	
 }
 
-message C2SBindAcc{
-	enum BindAccCode{
-		BindSuccess = 0;	//成功
-		GuestIsBind = 1;	//游客账号已经被绑定
-		AccIsBind = 2;		//账号已经有角色了
-		GuestNotFind = 3;	//游客数据出错了
-	}
-	SdkType 	  SdkToBind = 1;
-	string 			AccToBind = 2; 	//要绑定的账号（google等）
-	BindAccCode Ret = 3;	//返回结果
-	repeated string ConnectedAcc = 4;	//已绑定的账号
-	string Name = 6;
-	repeated PrizeItem Prize = 7;
-	//服务器使用
-	uint64 GuestAccID = 8;
-	uint64 RoleGuid = 10;
-	ClientInfo CliInfo = 11;//日志
-}
-
 message S2SReqRoleOnline{
 	uint64 RoleID = 1;
 	uint32 GameID = 2;

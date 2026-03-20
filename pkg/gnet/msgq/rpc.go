@@ -3,6 +3,7 @@ package msgq
 import (
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
+	"server/pkg/gnet/codec"
 	"server/pkg/pb"
 	"time"
 )
@@ -15,7 +16,7 @@ func RpcCall[T proto.Message](bs DataBus, msgID uint32, req proto.Message, toSer
 		return ack, errors.Wrapf(err, "rpc call:marshal err; msg[%d] to %s", msgID, toSub)
 	}
 
-	out, err := encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    b,
 		SerID:   bs.serID,
@@ -28,11 +29,17 @@ func RpcCall[T proto.Message](bs DataBus, msgID uint32, req proto.Message, toSer
 	if err != nil {
 		return ack, errors.Wrapf(err, "rpc call:request err; msg[%d]", msgID)
 	}
+	codec.FreeBuffer(out)
 
-	err = proto.Unmarshal(resMsg.Data, ack)
+	nstMsg, err := codec.Decode(resMsg.Data)
 	if err != nil {
 		return ack, errors.Wrapf(err, "rpc call:unmarshal err; msg[%d]", msgID)
 	}
+	err = proto.Unmarshal(nstMsg.Data, ack)
+	if err != nil {
+		return ack, errors.Wrapf(err, "rpc call:unmarshal err; msg[%d]", msgID)
+	}
+	codec.PutNatsMsg(nstMsg)
 
 	return ack, nil
 }

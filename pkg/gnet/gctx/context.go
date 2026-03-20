@@ -4,6 +4,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap/zapcore"
 	"server/pkg/flag"
+	"server/pkg/gnet/codec"
 	"server/pkg/pb"
 )
 
@@ -25,4 +26,8 @@ func (s Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 		encoder.AddInt32("serID", s.Msg.SerID)
 	}
 	return nil
+}
+
+func (s Context) FreeNatsMsg() {
+	codec.PutNatsMsg(s.Msg)
 }

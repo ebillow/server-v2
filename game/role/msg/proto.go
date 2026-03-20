@@ -13,14 +13,14 @@ import (
 )
 
 func init() {
-	router.S().Msg(msgid.MsgIDS2S_S2SReqLogin, onLogin) // 角色登录
-	router.S().Msg(msgid.MsgIDS2S_S2SGt2SDisconnect, onDisconnect)
+	router.S().OnG(msgid.MsgIDS2S_S2SReqLogin, onLogin) // 角色登录
+	router.S().OnG(msgid.MsgIDS2S_S2SGt2SDisconnect, onDisconnect)
 
-	router.C().RoleMsg(msgid.MsgIDC2S_C2SHeartBeat, onHeartBeat) // 心跳
+	router.C().On(msgid.MsgIDC2S_C2SHeartBeat, onHeartBeat) // 心跳
 }
 
 /*-------------------角色消息-----------------*/
-func onHeartBeat(msgIn proto.Message, r *role.Role, _ gctx.Context) {
+func onHeartBeat(_ gctx.Context, msgIn proto.Message, r *role.Role) {
 	msg := msgIn.(*pb.C2SHeartBeat)
 	r.Send(&pb.S2CHeartBeat{
 		CliTime: msg.CliTime,
@@ -29,12 +29,12 @@ func onHeartBeat(msgIn proto.Message, r *role.Role, _ gctx.Context) {
 }
 
 /*-------------------非角色消息-----------------*/
-func onLogin(msgBase proto.Message, _ gctx.Context) {
+func onLogin(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SReqLogin)
 	login_mgr.Mgr.Online(msg)
 }
 
-func onDisconnect(msgBase proto.Message, _ gctx.Context) {
+func onDisconnect(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SGt2SDisconnect)
 	role_mgr.Mgr.Kick(msg.SesID)
 }

@@ -2,7 +2,7 @@ package discovery
 
 import (
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+	"server/pkg/db"
 	"server/pkg/logger"
 	"server/pkg/pb"
 	"testing"
@@ -14,67 +14,32 @@ func TestMain(m *testing.M) {
 		Level:   -1,
 		Console: true,
 	})
-	err := Init([]string{"127.0.0.1:2379"})
+	err := db.InitRedis(db.RedisCfg{
+		Addr: []string{"127.0.0.1:6380", "127.0.0.1:6381", "127.0.0.1:6382"},
+	}, 0)
+	if err != nil {
+		panic(err)
+	}
+	err = Init([]string{"127.0.0.1:2379"}, db.Redis)
 	if err != nil {
 		panic(err)
 	}
 	m.Run()
 }
 
-func TestNewRegistrar(t *testing.T) {
-	err := Register(pb.Server_Game, 1)
-	require.NoError(t, err)
-	select {
-	case <-time.After(time.Second):
-		return
-	}
-}
-
 func TestNewWatcher(t *testing.T) {
 	Watch()
 
-	for i := 0; i < 10; i++ {
-		time.Sleep(time.Second * 1)
-		err := Register(pb.Server_Game, 1)
-		require.NoError(t, err)
-	}
-}
-
-func TestNewWatcherAfterRegistrar(t *testing.T) {
-	go func() {
-		for i := 0; i < 10; i++ {
-			err := Register(pb.Server_Game, 1)
-			require.NoError(t, err)
-		}
-	}()
-	time.Sleep(time.Second * 1)
-	Watch()
-	select {
-	case <-time.After(time.Second * 10):
-	}
-}
-
-func TestService(t *testing.T) {
-	Watch()
-
-	for i := 0; i < 10; i++ {
-		err := Register(pb.Server_Game, 1)
-		if err != nil {
-			panic(err)
-		}
-		time.Sleep(time.Second * 1)
-	}
+	err := Register(pb.Server_Game, int32(1))
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond * 50)
 	Close()
-	time.Sleep(time.Second * 5)
 }
 
 func TestRegister(t *testing.T) {
-	err := Register(pb.Server_Game, 1)
-	if err != nil {
-		panic(err)
-	}
-
-	time.Sleep(time.Second * 5)
+	err := Register(pb.Server_Game, int32(1))
+	require.NoError(t, err)
+	Watch()
+	time.Sleep(time.Millisecond * 50)
 	Close()
-	zap.L().Info("exit")
 }

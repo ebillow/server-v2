@@ -25,5 +25,5 @@ func OnServerMsg(natMsg *pb.NatsMsg, raw *nats.Msg) {
 		return
 	}
 
-	router.S().Handle(natMsg, raw)
+	router.S().HandleG(natMsg, raw)
 }

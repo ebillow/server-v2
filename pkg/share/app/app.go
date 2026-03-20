@@ -63,7 +63,7 @@ func (a *App) init(ctx context.Context) error {
 		return err
 	}
 	lock.InitPool(db.Redis)
-	err = discovery.Init(flag.EtcdAddr)
+	err = discovery.Init(flag.EtcdAddr, db.Redis)
 	if err != nil {
 		return err
 	}

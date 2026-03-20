@@ -4,11 +4,11 @@ import (
 	"server/pkg/cfg"
 )
 
+//	type ITrace interface {
+//		ShouldLog(msgID uint32, roleID uint64, sessionID uint64) bool
+//	}
 //
-// type ITrace interface {
-// 	ShouldLog(msgID uint32, roleID uint64, sessionID uint64) bool
-// }
-
+// 初始化时调用，不能热更新，否则要加锁
 var Rule = NewTraceRule()
 
 type TraceRule struct {
@@ -26,14 +26,14 @@ func NewTraceRule() *TraceRule {
 }
 
 func (t *TraceRule) SetWhiteList(whiteList map[uint32]struct{}) {
-	if whiteList != nil {
+	if whiteList == nil {
 		return
 	}
 	t.whiteList = whiteList
 }
 
 func (t *TraceRule) SetBlackList(blackList map[uint32]struct{}) {
-	if blackList != nil {
+	if blackList == nil {
 		return
 	}
 	t.blackList = blackList

@@ -11,13 +11,13 @@ import (
 
 func init() {
 	// 客户端消息
-	router.C().RoleMsg(msgid.MsgIDC2S_C2SEcho, onEchoCli)
+	router.C().On(msgid.MsgIDC2S_C2SEcho, onEchoCli)
 
 	// 服务器消息
-	router.S().RoleMsg(msgid.MsgIDS2S_S2SNone, onEchoSer)
+	router.S().On(msgid.MsgIDS2S_S2SNone, onEchoSer)
 }
 
-func onEchoCli(msgBase proto.Message, r *role.Role, _ gctx.Context) {
+func onEchoCli(_ gctx.Context, msgBase proto.Message, r *role.Role) {
 	msg := msgBase.(*pb.C2SEcho)
 	r.Send(&pb.S2CEcho{
 		ID:    msg.ID,
@@ -28,6 +28,6 @@ func onEchoCli(msgBase proto.Message, r *role.Role, _ gctx.Context) {
 	})
 }
 
-func onEchoSer(msg proto.Message, r *role.Role, _ gctx.Context) {
+func onEchoSer(_ gctx.Context, msg proto.Message, r *role.Role) {
 
 }

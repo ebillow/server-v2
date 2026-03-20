@@ -1,0 +1,53 @@
+syntax = "proto3";
+package tb;
+option go_package = "./;tb";
+
+message DailyBaseRow {
+	int32	Count			 = 1;
+	int32	LevelMin			 = 2;
+	int32	LevelMax			 = 3;
+}
+
+message DailyBase {
+	repeated	DailyBaseRow	 List = 1;
+	map<string, DailyBaseRow>	 Map = 2;
+}
+
+message DailyPrizeRow {
+	uint64	Uid			 = 1;
+	int32	No			 = 2;
+	map<string,int32>	Gift			 = 3;
+}
+
+message DailyPrize {
+	repeated	DailyPrizeRow	 List = 1;
+	map<string, DailyPrizeRow>	 Map = 2;
+}
+
+message LoginConditionRow {
+	string	Start			 = 1;
+	string	End			 = 2;
+}
+
+message LoginCondition {
+	repeated	LoginConditionRow	 List = 1;
+	map<string, LoginConditionRow>	 Map = 2;
+}
+
+message LoginPrizeRow {
+	uint64	Uid			 = 1;
+	int32	Mail			 = 2;
+	repeated int32	Prize			 = 3;
+}
+
+message LoginPrize {
+	repeated	LoginPrizeRow	 List = 1;
+	map<string, LoginPrizeRow>	 Map = 2;
+}
+
+message Data {
+	DailyBase	DailyBase			 = 1;
+	DailyPrize	DailyPrize			 = 2;
+	LoginCondition	LoginCondition			 = 3;
+	LoginPrize	LoginPrize			 = 4;
+}

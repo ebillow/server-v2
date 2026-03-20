@@ -28,11 +28,6 @@ func registerAllC2SMsg() {
 		NewMessage:  func() proto.Message { return &C2SLogin{} },
 	})
 
-	registerC2SMsg(msgid.MsgIDC2S_C2SBindAcc, &messageMeta{
-		MessageType: reflect.TypeOf(C2SBindAcc{}),
-		NewMessage:  func() proto.Message { return &C2SBindAcc{} },
-	})
-
 	registerC2SMsg(msgid.MsgIDC2S_C2SGameHandle, &messageMeta{
 		MessageType: reflect.TypeOf(C2SGameHandle{}),
 		NewMessage:  func() proto.Message { return &C2SGameHandle{} },

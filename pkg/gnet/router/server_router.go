@@ -19,8 +19,8 @@ func newServerRouter() *ServerRouter {
 	return &ServerRouter{MsgRouter: NewMsgRouter()}
 }
 
-// RoleMsg 注册服务器间消息，并且是发给指定角色的消息处理函数
-func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *role.Role, c gctx.Context)) {
+// On 注册服务器间消息，并且是发给指定角色的消息处理函数
+func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *role.Role)) {
 	if netStart.Load() {
 		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
@@ -28,8 +28,8 @@ func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message,
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
-		df(msg, c.U.(*role.Role), c)
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
+		df(c, msg, c.U.(*role.Role))
 	})
 	if err != nil {
 		zap.L().Error("Register error",
@@ -39,7 +39,7 @@ func (rt *ServerRouter) RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message,
 	}
 }
 
-func (rt *ServerRouter) HandleWithRole(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) {
+func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) {
 	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: r, MsgName: msgid.MsgIDS2S_name})
 	if err != nil {
 		zap.L().Warn("HandleWithRole failed",
@@ -47,13 +47,13 @@ func (rt *ServerRouter) HandleWithRole(natMsg *pb.NatsMsg, raw *nats.Msg, r *rol
 			zap.String("from", flag.SrvName(natMsg.SerType)),
 			zap.Int32("idx", natMsg.SerID),
 			zap.Uint64("roleID", natMsg.RoleID),
-			zap.String("raw name", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
 		return
 	}
 }
 
-// Msg 注册服务器间消息，不是角色消息处理函数
-func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c gctx.Context)) {
+// OnG 注册服务器间消息，不是角色消息处理函数
+func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message)) {
 	if netStart.Load() {
 		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
@@ -61,8 +61,8 @@ func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c g
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
-		df(msg, c)
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
+		df(c, msg)
 	})
 	if err != nil {
 		zap.L().Error("Register error",
@@ -72,14 +72,14 @@ func (rt *ServerRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c g
 	}
 }
 
-func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg) {
+func (rt *ServerRouter) HandleG(natMsg *pb.NatsMsg, raw *nats.Msg) {
 	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, MsgName: msgid.MsgIDS2S_name})
 	if err != nil {
 		zap.L().Warn("Handle failed",
 			zap.Uint32("msgID", natMsg.MsgID),
 			zap.String("from", flag.SrvName(natMsg.SerType)),
 			zap.Int32("idx", natMsg.SerID),
-			zap.String("raw name", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
 		return
 	}
 }

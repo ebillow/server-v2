@@ -24,14 +24,14 @@ type ILoginMgr interface {
 }
 
 type ICRouter interface {
-	RoleMsg(msgID msgid.MsgIDC2S, df func(msg proto.Message, r *Role, c gctx.Context))
-	HandleWithRole(natMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
+	On(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg proto.Message, r *Role))
+	Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
 }
 
 type ISRouter interface {
-	Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, c gctx.Context))
-	RoleMsg(msgID msgid.MsgIDS2S, df func(msg proto.Message, r *Role, c gctx.Context))
-	HandleWithRole(natsMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
+	OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message))
+	On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *Role))
+	Handle(natsMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
 }
 
 // ---------------------------------------------------------

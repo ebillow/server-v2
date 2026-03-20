@@ -116,6 +116,8 @@ func (r *Role) CloseAndWait() {
 	r.Wait.Wait()
 }
 
+// todo 退出时，events排空
+
 func (r *Role) Loop(ctx context.Context) {
 	r.Wait.Add(1)
 	thread.GoSafe(func() {
@@ -344,9 +346,9 @@ func (r *Role) onEvent(evt Event) {
 
 func (r *Role) onProto(natsMsg *pb.NatsMsg, raw *nats.Msg, isCli bool) {
 	if isCli {
-		cRouter().HandleWithRole(natsMsg, raw, r)
+		cRouter().Handle(natsMsg, raw, r)
 	} else {
-		sRouter().HandleWithRole(natsMsg, raw, r)
+		sRouter().Handle(natsMsg, raw, r)
 	}
 }
 

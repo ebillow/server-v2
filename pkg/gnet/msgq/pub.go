@@ -1,10 +1,14 @@
 package msgq
 
-import "server/pkg/pb"
+import (
+	"github.com/pkg/errors"
+	"server/pkg/gnet/codec"
+	"server/pkg/pb"
+)
 
 // Send 指定发送
 func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, err := encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   serID,
@@ -14,13 +18,18 @@ func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byt
 		Forward: false,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "encode err:")
 	}
-	return bs.conn.Publish(getIndexSubject(serType, serID), out)
+	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
+	if err != nil {
+		return errors.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(out)
+	return nil
 }
 
 func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, err := encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   serID,
@@ -30,14 +39,19 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, d
 		Forward: true,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "encode err:")
 	}
-	return bs.conn.Publish(getIndexSubject(serType, serID), out)
+	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
+	if err != nil {
+		return errors.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(out)
+	return nil
 }
 
 // SendAny 组发送. 随机一个能收到
 func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, err := encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
@@ -46,14 +60,19 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 		Forward: false,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "encode err:")
 	}
-	return bs.conn.Publish(getGroupSubject(serType), out)
+	err = bs.conn.Publish(getGroupSubject(serType), out)
+	if err != nil {
+		return errors.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(out)
+	return nil
 }
 
 // SendAll 所有的 serName 服节点都能收到
 func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, err := encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
@@ -62,7 +81,12 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID 
 		Forward: false,
 	})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "encode err:")
 	}
-	return bs.conn.Publish(getAllSubject(serType), out)
+	err = bs.conn.Publish(getAllSubject(serType), out)
+	if err != nil {
+		return errors.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(out)
+	return nil
 }
