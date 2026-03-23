@@ -3,10 +3,12 @@ package robot
 import (
 	"fmt"
 	"go.uber.org/zap"
+	"server/account/logic/login"
 	"server/pkg/crypt/dh"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"server/robot/clinet"
+	"slices"
 	"sync/atomic"
 	"time"
 
@@ -19,6 +21,7 @@ const (
 	Init = iota
 	InGame
 	ReConn
+	Pending
 )
 
 type Robot struct {
@@ -95,6 +98,7 @@ func (r *Robot) SecLoop() {
 			return
 		}
 		r.Login()
+		r.state = Pending
 	case ReConn:
 		err := r.s.Init(nil, nil)
 		if err != nil {
@@ -104,6 +108,8 @@ func (r *Robot) SecLoop() {
 		r.ReConn()
 	case InGame:
 		TaskRun(r)
+	case Pending:
+
 	}
 }
 
@@ -225,6 +231,10 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 
 	r.s.U = r
 	r.ReconnToken = msg.Token
+	rawAcc := login.RealAcc(pb.SdkType_Guest, r.acc)
+	if !slices.Contains(msg.ConnectAcc, rawAcc) {
+		panic("connect acc not exist")
+	}
 	// r.Send(pb.MsgIDC2S_C2SCilentReady, nil)
 	// worldId := share.GetWorldFromGuid(r.Data.Guid)
 	zap.S().Infof("%s %s %d %s login into success", r.acc, r.Data.Name, r.Data.ID, r.s.String())

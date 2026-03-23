@@ -48,12 +48,13 @@ type Event struct {
 
 // Role	角色数据
 type Role struct {
-	ID      uint64 // role_mgr需要访问
-	SesID   uint64
-	Comps   map[pb.TypeComp]IComp
-	Data    *pb.RoleData // 入库数据
-	CliInfo *pb.ClientInfo
-	Seq     uint32
+	ID         uint64 // role_mgr需要访问
+	SesID      uint64
+	Comps      map[pb.TypeComp]IComp
+	Data       *pb.RoleData // 入库数据
+	CliInfo    *pb.ClientInfo
+	ConnectAcc []string
+	Seq        uint32
 
 	Events chan Event
 	Wait   sync.WaitGroup
@@ -80,11 +81,12 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	}
 
 	r := &Role{
-		ID:      data.ID,
-		Data:    dataBase,
-		SesID:   login.SesID,
-		Comps:   make(map[pb.TypeComp]IComp),
-		CliInfo: login.Req.CliInfo,
+		ID:         data.ID,
+		Data:       dataBase,
+		SesID:      login.SesID,
+		Comps:      make(map[pb.TypeComp]IComp),
+		CliInfo:    login.Req.CliInfo,
+		ConnectAcc: login.ConnectedAcc,
 	}
 
 	r.Events = make(chan Event, EventChanSize)
@@ -173,7 +175,8 @@ func (r *Role) Online() {
 
 	gnet.SendToGate(&pb.S2SResLogin{
 		Res: &pb.S2CLogin{
-			Player: r.Data,
+			Player:     r.Data,
+			ConnectAcc: r.ConnectAcc,
 		},
 		GameID: int32(flag.SvcIndex),
 	}, r.SesID)

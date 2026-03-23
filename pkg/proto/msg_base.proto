@@ -65,6 +65,7 @@ message S2CLogin{
 
 	C2SLogin Data = 10;
 	RoleData Player = 11;
+	repeated string ConnectAcc = 12;
 }
 
 message S2SReqLogin{
@@ -80,7 +81,6 @@ message S2SReqLogin{
 
 message S2SResLogin{
 	S2CLogin Res = 1;
-
 	//客户端不用的
 	int32 GameID = 2;
 }
@@ -94,6 +94,7 @@ enum DisconnectReason{
 	PkgCntErr = 5;
 	InitErr = 6;
 	Kick = 7;
+	SlowClient = 8;
 }
 
 message S2SGt2SDisconnect{

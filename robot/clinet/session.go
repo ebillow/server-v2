@@ -216,13 +216,13 @@ func (s *Session) forwardToGame(msgId uint16, msgData []byte) {
 	// }
 	// if s.StreamGm == nil {
 	//	zap.S().Errorf("%s stream to game no open %d", s.String(), msgId)
-	//	s.Close()
+	//	s.close()
 	//	return
 	// }
 	//
 	// if err := s.StreamGm.SendPB(msg); err != nil {
 	//	zap.S().Errorf("forward to game:%v", err)
-	//	s.Close()
+	//	s.close()
 	//	return
 	// }
 	// if msgId != uint16(pb.MsgIDC2S_C2SHeartBeat) {
@@ -234,13 +234,13 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 	// msg := &pb.SrvMsg{ID: uint32(msgID), Raw: msgData}
 	// if s.StreamFt == nil {
 	//	zap.S().Errorf("stream to ft no open %d", msgID)
-	//	s.Close()
+	//	s.close()
 	//	return
 	// }
 	//
 	// if err := s.StreamFt.SendPB(msg); err != nil {
 	//	zap.S().Errorf("forward to fight:%v", err)
-	//	s.Close()
+	//	s.close()
 	//	return
 	// }
 	//
@@ -257,7 +257,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// conn := gnet.Get("game", gameID)
 // 	// if conn == nil {
 // 	//	zap.S().Errorf("cannot get game service, id:%d", gameID)
-// 	//	s.Close()
+// 	//	s.close()
 // 	//	return
 // 	// }
 // 	//
@@ -270,7 +270,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// stream, err := cli.SrvSrv(ctx)
 // 	// if err != nil {
 // 	//	zap.S().Errorf("%d start game stream[%s] err:%v", acc, conn.Router(), err)
-// 	//	s.Close()
+// 	//	s.close()
 // 	//	return
 // 	// }
 // 	//
@@ -307,7 +307,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// conn := gnet.Get("fight", ftID)
 // 	// if conn == nil {
 // 	//	zap.S().Errorf("cannot get fight service, id:%d", ftID)
-// 	//	s.Close()
+// 	//	s.close()
 // 	//	return
 // 	// }
 // 	//
@@ -318,7 +318,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// stream, err := cli.SrvSrv(ctx)
 // 	// if err != nil {
 // 	//	zap.S().Errorf("%s start fight stream %s err:%v", s.String(), conn.Router(), err)
-// 	//	s.Close()
+// 	//	s.close()
 // 	//	return
 // 	// }
 // 	//
@@ -354,7 +354,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	b, err := proto.Marshal(msg)
 // 	if err != nil {
 // 		zap.S().Warnf("ReConn marshal err:%v", err)
-// 		s.Close()
+// 		s.close()
 // 	}
 // 	s.forwardToGame(uint16(pb.MsgIDC2S_C2SReConn), b)
 // }

@@ -37,7 +37,7 @@ func getVersion(addr string, iid string) string {
 }
 
 func Load(addr string, iid string) {
-	version := getVersion(addr, iid)
+	version := getVersion(addr, iid) // 版本不兼容时使用
 	path := configPath(iid, version)
 	// 1. 初始化 Viper 基础配置
 	err := viper.AddRemoteProvider("etcd3", addr, path)

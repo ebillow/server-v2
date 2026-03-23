@@ -21,8 +21,8 @@ func InitRobots(cnt int, bg int) {
 	for i := 0; i != cnt; i++ {
 		id := bg + i
 		go NewUnitRobot(id, Setup.WorldBegin)
-		if id%500 == 0 {
-			time.Sleep(time.Second)
+		if id%1000 == 0 {
+			time.Sleep(time.Millisecond * 200)
 		}
 	}
 }

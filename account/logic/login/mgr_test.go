@@ -36,7 +36,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	err = discovery.Init([]string{"127.0.0.1:2379"})
+	err = discovery.Init([]string{"127.0.0.1:2379"}, db.Redis)
 	if err != nil {
 		panic(err)
 	}
@@ -121,7 +121,7 @@ func TestLoginRedisExpire(t *testing.T) {
 func TestDBAndRedis(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
-	sor, err := db.MongoDB().Collection(acc_db.AccountTable).Find(ctx, bson.M{})
+	sor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, bson.M{})
 	if err != nil {
 		panic(err)
 	}

@@ -7,9 +7,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 	"math/rand"
-	"server/account/acc_db"
 	"server/account/logic/sdk"
 	"server/pkg/db"
+	"server/pkg/gnet"
 	"server/pkg/model"
 	"server/pkg/pb"
 	"server/pkg/thread"
@@ -302,14 +302,15 @@ func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
 		loginFail(req, code)
 	} else {
-		// gnet.SendToGame(acc.GameID, req, 0, 0)
+		req.ConnectedAcc = append(req.ConnectedAcc, acc.Device) // todo发送所有已绑定
+		gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
 	}
 }
 
 func loginFail(req *pb.S2SReqLogin, code pb.LoginCode) {
 	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
-	// gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
+	gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 }
 
 type debugCheck struct {
@@ -337,19 +338,20 @@ func DebugCheck(acc *Account, req *pb.S2SReqLogin) bool {
 }
 
 func debugGetAccID(account string, sdk pb.SdkType) uint64 {
-	filter := bson.M{"device": account}
+	acc := Account{}
+
+	filter := bson.M{acc.FieldDevice(): account}
 	switch sdk {
 	case pb.SdkType_Google:
-		filter = bson.M{"google_id": account}
+		filter = bson.M{acc.FieldGoogleID(): account}
 	case pb.SdkType_Apple:
-		filter = bson.M{"apple_id": account}
+		filter = bson.M{acc.FieldAppleID(): account}
 	case pb.SdkType_Facebook:
-		filter = bson.M{"fb_id": account}
+		filter = bson.M{acc.FieldFBID(): account}
 	default:
 
 	}
-	acc := Account{}
-	err := db.MongoDB().Collection(acc_db.AccountTable).FindOne(context.Background(), filter).Decode(&acc)
+	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(context.Background(), filter).Decode(&acc)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		zap.L().Error("find account err", zap.Error(err))
 		return 0

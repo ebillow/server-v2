@@ -87,7 +87,7 @@ func handleClient(conn net.Conn, cfg *Config) {
 
 	s.in = make(chan []byte) //no active_role
 	defer func() {
-		close(s.in)
+		Close(s.in)
 		//zap.S().Debug("recv loop stop")
 	}()
 

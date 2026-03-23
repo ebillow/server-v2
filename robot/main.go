@@ -39,7 +39,7 @@ func main() {
 func Init(ctx context.Context) error {
 	robot.Setup = &robot.ServerCfg{
 		ServerAddr: "127.0.0.1:3001",
-		Cnt:        5000,
+		Cnt:        10000,
 		BeginID:    1,
 		LoginOnly:  false,
 	}

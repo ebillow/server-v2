@@ -35,7 +35,7 @@ func newCRouter() *CRouter {
 
 // Msg 注册客户端发来的消息处理函数
 func (rt *CRouter) Msg(msgID msgid.MsgIDC2S, df func(msg proto.Message, s *Session)) {
-	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(msg proto.Message, c gctx.Context) {
+	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(msg, c.U.(*Session))
 	})
 	if err != nil {
@@ -75,7 +75,7 @@ func (rt *CRouter) Handle(msgID uint32, msgData []byte, s *Session) {
 		)
 	}
 
-	node.HandleFunc(msgPB, gctx.Context{U: s})
+	node.HandleFunc(gctx.Context{U: s}, msgPB)
 }
 
 type SRouter struct {
@@ -86,9 +86,9 @@ func newSRouter() *SRouter {
 	return &SRouter{MsgRouter: router.NewMsgRouter()}
 }
 
-// Msg 注册客户端发来的消息处理函数
-func (rt *SRouter) Msg(msgID msgid.MsgIDS2S, df func(msg proto.Message, s *Session)) {
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(msg proto.Message, c gctx.Context) {
+// On 注册客户端发来的消息处理函数
+func (rt *SRouter) On(msgID msgid.MsgIDS2S, df func(msg proto.Message, s *Session)) {
+	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(msg, c.U.(*Session))
 	})
 	if err != nil {

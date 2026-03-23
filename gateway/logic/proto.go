@@ -10,8 +10,8 @@ import (
 func init() {
 	//	session.C().Msg(msgid.MsgIDC2S_C2SInit, onNetInit) // 初始化
 
-	session.S().Msg(msgid.MsgIDS2S_S2SResLogin, onLoginSuccess)
-	session.S().Msg(msgid.MsgIDS2S_S2SS2GtDisconnect, onDisconnect)
+	session.S().On(msgid.MsgIDS2S_S2SResLogin, onLoginSuccess)
+	session.S().On(msgid.MsgIDS2S_S2SS2GtDisconnect, onDisconnect)
 }
 
 //

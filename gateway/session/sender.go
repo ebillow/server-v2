@@ -1,6 +1,7 @@
 package session
 
 import (
+	"encoding/binary"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -10,16 +11,21 @@ import (
 	"server/pkg/pb/msgid"
 )
 
-// SendBytes 发送数据给客户端
+// SendBytes 发送数据给客户端 todo 有必要改成select非阻塞？
 func (s *Session) SendBytes(msgID uint32, data []byte) {
-	s.out <- &MsgSend{ID: msgID, Data: data}
-
-	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
-		zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
-			zap.Uint32("msgID", msgID),
-			zap.Inline(s),
-			logger.Magenta.Field(),
-		)
+	select {
+	case s.out <- &MsgSend{ID: msgID, Data: data}:
+		if trace.Rule.ShouldLog(msgID, 0, s.Id) {
+			zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
+				zap.Uint32("msgID", msgID),
+				zap.Inline(s),
+				logger.Magenta.Field(),
+			)
+		}
+	default:
+		// 客户端接收太慢，积压了，直接断开防雪崩
+		zap.L().Warn("send buffer full, kick slow client", zap.Inline(s))
+		// s.Close(pb.DisconnectReason_SlowClient) todo Close
 	}
 }
 
@@ -52,33 +58,39 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	return true
 }
 
-// send
+// 看需求，可以合并发送
 func (s *Session) sendLoop() {
-	cache := make([]byte, sendCacheLen+8)
+	var headerBuf [4]byte
 
 	for {
 		select {
 		case p := <-s.out:
-			s.sendWithCache(p, cache)
+			w, err := s.conn.NextWriter(websocket.BinaryMessage)
+			if err != nil {
+				zap.L().Warn("NextWriter error", zap.Error(err))
+				return
+			}
+
+			binary.BigEndian.PutUint32(headerBuf[0:4], p.ID)
+
+			_, err = w.Write(headerBuf[:])
+			if err != nil {
+				return
+			}
+
+			if len(p.Data) > 0 {
+				_, err = w.Write(p.Data)
+				if err != nil {
+					return
+				}
+			}
+
+			if err := w.Close(); err != nil {
+				return
+			}
+
 		case <-s.ctrl:
 			return
 		}
-	}
-}
-
-func (s *Session) sendWithCache(p *MsgSend, cache []byte) {
-	if len(p.Data) > sendCacheLen {
-		cacheTemp := make([]byte, len(p.Data)+8)
-		s.rawSend(p, cacheTemp)
-	} else {
-		s.rawSend(p, cache)
-	}
-}
-
-func (s *Session) rawSend(p *MsgSend, cache []byte) {
-	data := Encode(p.ID, p.Data, s.enCpy, cache)
-	err := s.conn.WriteMessage(websocket.BinaryMessage, data)
-	if err != nil {
-		zap.L().Debug("send data error", zap.Error(err), zap.Inline(s))
 	}
 }

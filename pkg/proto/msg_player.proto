@@ -16,7 +16,7 @@ message RoleData
 	uint32 	Exp = 4;
 	string	Name = 5;
 	uint32 Country = 20;
-	
+
 	int64 OfflineTime = 23; //离线时间
 	int64 OnlineTime  = 24; //上线时间;
 	int64 CreateTime = 25;			//创建角色时间

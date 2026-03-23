@@ -104,7 +104,7 @@ var (
 func AddCliSession(cliSesID uint32, c *Session) {
 	// ip := c.Ip.String()
 	// if _, ok := blackList.Load(ip); ok{
-	//	c.Close()
+	//	c.close()
 	//	return
 	// }
 	// cliConnChan <- ip

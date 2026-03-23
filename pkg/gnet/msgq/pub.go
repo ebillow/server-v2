@@ -8,7 +8,7 @@ import (
 
 // Send 指定发送
 func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, err := codec.Encode(&pb.NatsMsg{
+	out, err := codec.Encode(&pb.NatsMsg{ // 可以考虑不用proto，直接写[]byte
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   serID,

@@ -6,7 +6,6 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.uber.org/zap"
-	"server/account/acc_db"
 	"server/pkg/db"
 	"server/pkg/model"
 	"server/pkg/pb"
@@ -139,15 +138,16 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 		one.accs = append(one.accs, op.Req.Account)
 		one.batch = append(one.batch, op)
 	}
+	acc := &Account{}
 	for k, bt := range batch {
-		filter := bson.M{"device": bson.M{"$in": bt.accs}}
+		filter := bson.M{acc.FieldDevice(): bson.M{"$in": bt.accs}}
 		switch k {
 		case pb.SdkType_Apple:
-			filter = bson.M{"apple_id": bson.M{"$in": bt.accs}}
+			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
 		case pb.SdkType_Google:
-			filter = bson.M{"google_id": bson.M{"$in": bt.accs}}
+			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
 		case pb.SdkType_Facebook:
-			filter = bson.M{"fb_id": bson.M{"$in": bt.accs}}
+			filter = bson.M{acc.FieldFBID(): bson.M{"$in": bt.accs}}
 		default:
 		}
 		l.loadOneKindAccFromDB(ctx, filter, bt.batch, k)
@@ -155,7 +155,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 }
 
 func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
-	cursor, err := db.MongoDB().Collection(acc_db.AccountTable).Find(ctx, filter)
+	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
 		return
@@ -216,7 +216,12 @@ func (l *loader) updateBatch(ctx context.Context, batch []accWrap) {
 	pipe := db.Redis.Pipeline()
 	for _, b := range batch {
 		keyAcc := model.KeyAccount(b.Acc.AccID)
-		pipe.HSet(ctx, keyAcc, "acc_id", b.Acc.AccID, "freeze", b.Acc.Freeze)
+		pipe.HSet(ctx, keyAcc, b.Acc.FieldAccID(), b.Acc.AccID,
+			"freeze", b.Acc.Freeze,
+			b.Acc.FieldDevice(), b.Acc.Device,
+			b.Acc.FieldAppleID(), b.Acc.AppleID,
+			b.Acc.FieldGoogleID(), b.Acc.GoogleID,
+			b.Acc.FieldFBID(), b.Acc.FbID)
 		pipe.Expire(ctx, keyAcc, expiration)
 		keyBind := model.KeyAccBind(b.Account)
 		pipe.Set(ctx, keyBind, b.Acc.AccID, expiration)
@@ -241,26 +246,31 @@ func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 			AccID:  id,
 			Device: req.Req.Dev,
 		}
+
+		keyAcc := model.KeyAccount(acc.AccID)
+
 		switch req.Req.SdkType {
 		case pb.SdkType_Apple:
 			acc.AppleID = req.Req.Account
+			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldAppleID(), acc.AppleID)
 		case pb.SdkType_Google:
 			acc.GoogleID = req.Req.Account
+			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldGoogleID(), acc.GoogleID)
 		case pb.SdkType_Facebook:
 			acc.FbID = req.Req.Account
+			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldFBID(), acc.FbID)
 		default:
 			acc.Device = req.Req.Account
+			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldDevice(), acc.Device)
 		}
 		accBat = append(accBat, acc)
 
-		keyAcc := model.KeyAccount(acc.AccID)
-		pipe.HSet(ctx, keyAcc, "acc_id", acc.AccID)
 		pipe.Expire(ctx, keyAcc, expiration)
 		keyBind := model.KeyAccBind(req.Req.Account)
 		pipe.Set(ctx, keyBind, acc.AccID, expiration)
 	}
 
-	_, err := db.MongoDB().Collection(acc_db.AccountTable).InsertMany(ctx, accBat)
+	_, err := db.MongoDB().Collection(AccountCollection).InsertMany(ctx, accBat)
 	if err != nil {
 		zap.L().Error("[login] insert account failed", zap.Error(err))
 		return

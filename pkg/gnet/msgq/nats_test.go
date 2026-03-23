@@ -3,7 +3,6 @@ package msgq
 import (
 	"github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"log"
 	"server/pkg/pb"
 	"server/pkg/util"
@@ -73,45 +72,6 @@ func TestSubscribe(t *testing.T) {
 
 	// Wait for a message to come in
 	wg.Wait()
-}
-
-// BenchmarkEncode-10    	 3087978	       383.8 ns/op
-func BenchmarkEncode(b *testing.B) {
-	serID := int32(1)
-	msgID := 2
-
-	for i := 0; i < b.N; i++ {
-		msg := nats.NewMsg(getIndexSubject(pb.Server_Game, serID))
-
-		data, err := proto.Marshal(&pb.RankItemShow{
-			Id:      1,
-			Name:    "name",
-			Score:   999,
-			Club:    "club",
-			Country: "cn",
-			Flag:    1,
-			Vip:     99,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		msg.Header.Set("ser_name", "self name")
-		msg.Header.Set("ser_id", "self_id")
-		msg.Header.Set("msg_id", util.ToString(msgID))
-		msg.Header.Set("role_id", "3")
-		msg.Data = data
-		// ------------------
-		msg.Header.Get("ser_name")
-		msg.Header.Get("ser_id")
-		msg.Header.Get("msg_id")
-		msg.Header.Get("role_id")
-
-		dataMsg := &pb.RankItemShow{}
-		err = proto.Unmarshal(msg.Data, dataMsg)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
 }
 
 // BenchmarkHead-10    	 9132805	       127.9 ns/op

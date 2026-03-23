@@ -15,6 +15,7 @@ import (
 	"server/pkg/pb/msgid"
 	"server/pkg/thread"
 	"server/pkg/util"
+	"sync/atomic"
 	"time"
 )
 
@@ -49,7 +50,7 @@ type Session struct {
 
 	ctrl          chan struct{}
 	flag          util.Flag
-	disConnReason pb.DisconnectReason
+	disConnReason atomic.Int32
 
 	deCyp cipher.BlockMode
 	enCpy cipher.BlockMode
@@ -65,14 +66,14 @@ func (s *Session) OnClosed() {
 		RemoveSession(s.Id)
 		gnet.SendToGame(s.GameID, &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
-			Why:   s.disConnReason,
+			Why:   pb.DisconnectReason(s.disConnReason.Load()),
 		}, 0, 0)
 	}
 }
 
 // Close 关闭,非线程安全,只能在消息里调用
 func (s *Session) Close(why pb.DisconnectReason) {
-	s.disConnReason = why
+	s.disConnReason.Store(int32(why))
 	s.flag.Add(SesClose)
 }
 
@@ -82,7 +83,7 @@ func (s *Session) Init(cs2Key, s2cKey []byte) error {
 	s.Id = uint64(idgen.Gen())
 
 	var err error
-	// var aesIV = []byte("093po54iuy876tre") // todo
+	// var aesIV = []byte("093po54iuy876tre") //
 	// if len(cs2Key) > 0 {
 	// 	s.deCyp, err = gaes.NewDecrypter(cs2Key, aesIV)
 	// 	if err != nil {
@@ -104,6 +105,7 @@ func (s *Session) Post(msg gctx.Context) {
 	case s.events <- msg:
 	default:
 		zap.L().Error("[post] events channel full", zap.Inline(s))
+		// todo Close
 	}
 }
 
@@ -172,7 +174,7 @@ func (s *Session) mainLoop(cfg *Config) {
 			s.Close(pb.DisconnectReason_ShutDown)
 		}
 
-		if s.flag.Has(SesClose) {
+		if s.flag.Has(SesClose) { // 使用标志可以立即退出，避免一直处理s.in
 			return
 		}
 	}

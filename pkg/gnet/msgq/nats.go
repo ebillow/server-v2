@@ -51,7 +51,7 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			if errors.Is(err, nats.ErrSlowConsumer) {
 				dropped, _ := sub.Dropped()
-				zap.S().Warn("nats slow consumer on subject %q: dropped %d messages\n",
+				zap.S().Warnf("nats slow consumer on subject %q: dropped %d messages\n",
 					sub.Subject, dropped)
 			} else {
 				zap.S().Errorf(err.Error())
