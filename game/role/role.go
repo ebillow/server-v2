@@ -11,6 +11,7 @@ import (
 	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/model"
+	"server/pkg/queue"
 	"server/pkg/thread"
 	"server/pkg/util"
 	"sync"
@@ -36,7 +37,7 @@ func (d *DataToSave) IsEmpty() bool {
 	return len(d.Data) == 0
 }
 
-const EventChanSize = 128
+const EventChanSize = 16
 
 type Event struct {
 	Raw    *nats.Msg
@@ -56,7 +57,7 @@ type Role struct {
 	ConnectAcc []string
 	Seq        uint32
 
-	Events chan Event
+	Events *queue.SwapQueue[Event]
 	Wait   sync.WaitGroup
 	Ctx    context.Context
 	Cancel context.CancelFunc
@@ -89,7 +90,8 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 		ConnectAcc: login.ConnectedAcc,
 	}
 
-	r.Events = make(chan Event, EventChanSize)
+	// r.Events = make(chan Event, EventChanSize)
+	r.Events = queue.NewSwapQueue[Event](EventChanSize, EventChanSize*100)
 	r.Ctx, r.Cancel = context.WithCancel(context.Background())
 
 	CreateComps(r)
@@ -118,8 +120,6 @@ func (r *Role) CloseAndWait() {
 	r.Wait.Wait()
 }
 
-// todo 退出时，events排空
-
 func (r *Role) Loop(ctx context.Context) {
 	r.Wait.Add(1)
 	thread.GoSafe(func() {
@@ -132,14 +132,13 @@ func (r *Role) Loop(ctx context.Context) {
 		r.Online()
 		for {
 			select {
-			case evt := <-r.Events:
-				thread.RunSafe(func() {
+			case <-r.Events.Sig():
+				r.Events.Range(func(evt Event) bool {
 					r.onEvent(evt)
+					return true
 				})
 			case now := <-t.C:
-				thread.RunSafe(func() {
-					r.SecLoop(now)
-				})
+				r.SecLoop(now)
 			case <-r.Ctx.Done():
 				return // 自己退出
 			case <-ctx.Done():

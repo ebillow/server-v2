@@ -11,7 +11,7 @@ func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byt
 	out, err := codec.Encode(&pb.NatsMsg{ // 可以考虑不用proto，直接写[]byte
 		MsgID:   msgID,
 		Data:    data,
-		SerID:   serID,
+		SerID:   bs.serID,
 		SerType: bs.serType,
 		RoleID:  roleID,
 		SesID:   sesID,
@@ -32,7 +32,7 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, d
 	out, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    data,
-		SerID:   serID,
+		SerID:   bs.serID,
 		SerType: bs.serType,
 		RoleID:  roleID,
 		SesID:   sesID,
@@ -55,6 +55,7 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
+		SerID:   bs.serID,
 		RoleID:  roleID,
 		SesID:   sesID,
 		Forward: false,
@@ -76,6 +77,7 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID 
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
+		SerID:   bs.serID,
 		RoleID:  roleID,
 		SesID:   sesID,
 		Forward: false,

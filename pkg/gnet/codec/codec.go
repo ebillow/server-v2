@@ -18,7 +18,7 @@ var bufPool = sync.Pool{
 
 // FreeBuffer 发送完毕后，需要手动归还 []byte
 func FreeBuffer(b []byte) {
-	// 防御性编程：容量过大的异常包直接丢弃，防止占用过多常驻内存
+	//  容量过大的异常包直接丢弃，防止占用过多常驻内存
 	if cap(b) > 64*1024 {
 		return
 	}

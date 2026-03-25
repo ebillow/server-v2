@@ -4,11 +4,12 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"server/game/role"
+	"server/pkg/queue"
 	"sync"
 )
 
 type meta struct {
-	events chan role.Event
+	events *queue.SwapQueue[role.Event]
 	wait   *sync.WaitGroup
 	cancel context.CancelFunc
 	ctx    context.Context
@@ -112,11 +113,7 @@ func (m *RoleMgr) PostEvent(roleID uint64, evt role.Event) {
 	if !ok {
 		return
 	}
-	select {
-	case r.events <- evt:
-	case <-r.ctx.Done():
-		return
-	default:
+	if err := r.events.Push(evt); err != nil {
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", roleID))
 	}
 }
@@ -126,11 +123,36 @@ func (m *RoleMgr) PostEventBySesID(sesID uint64, evt role.Event) {
 	if !ok {
 		return
 	}
-	select {
-	case r.events <- evt:
-	case <-r.ctx.Done():
-		return
-	default:
+	if err := r.events.Push(evt); err != nil {
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", sesID))
 	}
 }
+
+//
+// func (m *RoleMgr) PostEvent(roleID uint64, evt role.Event) {
+// 	r, ok := m.get(roleID)
+// 	if !ok {
+// 		return
+// 	}
+// 	select {
+// 	case r.events <- evt:
+// 	case <-r.ctx.Done():
+// 		return
+// 	default:
+// 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", roleID))
+// 	}
+// }
+//
+// func (m *RoleMgr) PostEventBySesID(sesID uint64, evt role.Event) {
+// 	r, ok := m.getBySes(sesID)
+// 	if !ok {
+// 		return
+// 	}
+// 	select {
+// 	case r.events <- evt:
+// 	case <-r.ctx.Done():
+// 		return
+// 	default:
+// 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", sesID))
+// 	}
+// }
