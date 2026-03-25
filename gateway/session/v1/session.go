@@ -1,7 +1,7 @@
-package session
+package v1
 
 import (
-	"crypto/cipher"
+	"context"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -41,19 +41,21 @@ type Session struct {
 	conn   *websocket.Conn
 
 	in     chan []byte
-	out    chan *MsgSend
+	out    chan MsgSend
 	events chan gctx.Context
 
 	pkgCnt     uint32
 	pkgCnt1Min int
 	Ip         string
 
-	ctrl          chan struct{}
+	ctrl   chan struct{}
+	cancel context.CancelFunc
+
 	flag          util.Flag
 	disConnReason atomic.Int32
 
-	deCyp cipher.BlockMode
-	enCpy cipher.BlockMode
+	// deCyp cipher.BlockMode
+	// enCpy cipher.BlockMode
 }
 
 func (s *Session) OnConnect() {
@@ -71,8 +73,14 @@ func (s *Session) OnClosed() {
 	}
 }
 
-// Close 关闭,非线程安全,只能在消息里调用
+// Close 关闭,线程安全
 func (s *Session) Close(why pb.DisconnectReason) {
+	s.disConnReason.Store(int32(why))
+	close(s.ctrl)
+}
+
+// close 关闭,非线程安全,只能在消息里调用
+func (s *Session) close(why pb.DisconnectReason) {
 	s.disConnReason.Store(int32(why))
 	s.flag.Add(SesClose)
 }
@@ -105,7 +113,7 @@ func (s *Session) Post(msg gctx.Context) {
 	case s.events <- msg:
 	default:
 		zap.L().Error("[post] events channel full", zap.Inline(s))
-		// todo Close
+		s.Close(pb.DisconnectReason_SlowClient)
 	}
 }
 
@@ -119,13 +127,15 @@ func (s *Session) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 func (s *Session) start() {
 	s.in = make(chan []byte) // no active_role
 	s.ctrl = make(chan struct{})
-	s.out = make(chan *MsgSend, netCfg.OutChanSize)
+	s.out = make(chan MsgSend, netCfg.OutChanSize)
 	s.events = make(chan gctx.Context, netCfg.OutChanSize)
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
 
 	_ = s.Init([]byte(""), []byte(""))
 
-	go s.sendLoop()
-	go s.readLoop(netCfg)
+	go s.sendLoop(ctx)
+	go s.readLoop(ctx, netCfg)
 
 	waitGroup.Add(1)
 	s.mainLoop(netCfg)
@@ -148,7 +158,7 @@ func (s *Session) mainLoop(cfg *Config) {
 		if err != nil {
 			zap.L().Warn("close websocket err", zap.Inline(s), zap.Error(err))
 		}
-		close(s.ctrl)
+		s.cancel()
 		tick.Stop()
 	}()
 
@@ -171,7 +181,9 @@ func (s *Session) mainLoop(cfg *Config) {
 		case <-tick.C:
 			s.check1Min(cfg)
 		case <-shutDown:
-			s.Close(pb.DisconnectReason_ShutDown)
+			s.close(pb.DisconnectReason_ShutDown)
+		case <-s.ctrl:
+			s.flag.Add(SesClose)
 		}
 
 		if s.flag.Has(SesClose) { // 使用标志可以立即退出，避免一直处理s.in
@@ -183,7 +195,7 @@ func (s *Session) mainLoop(cfg *Config) {
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
 		zap.L().Warn("pkg cnt per min > limit", zap.Inline(s), zap.Int("cnt", s.pkgCnt1Min))
-		s.Close(pb.DisconnectReason_Limit)
+		s.close(pb.DisconnectReason_Limit)
 	}
 	s.pkgCnt1Min = 0
 }
@@ -193,21 +205,21 @@ func (s *Session) getSerID(ser pb.Server) int32 {
 }
 
 func (s *Session) onRecvClientMsg(src []byte) {
-	msgID, seq, data, err := Decode(src, s.deCyp)
+	msgID, seq, data, err := Decode(src)
 	if err != nil {
 		zap.L().Warn("read packet err", zap.Inline(s), zap.Error(err))
-		s.Close(pb.DisconnectReason_DecodeErr)
+		s.close(pb.DisconnectReason_DecodeErr)
 		return
 	}
 
 	if msgID != uint32(msgid.MsgIDC2S_C2SInit) && !s.flag.Has(SesInit) {
 		zap.L().Error("not init", zap.Inline(s))
-		s.Close(pb.DisconnectReason_InitErr)
+		s.close(pb.DisconnectReason_InitErr)
 		return
 	}
 	if seq != 0 && seq != s.pkgCnt {
 		zap.L().Error("seq num err:", zap.Inline(s), zap.Uint32("seq", seq), zap.Uint32("cur", s.pkgCnt))
-		s.Close(pb.DisconnectReason_PkgCntErr)
+		s.close(pb.DisconnectReason_PkgCntErr)
 		return
 	}
 

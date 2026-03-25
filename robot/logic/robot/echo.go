@@ -7,6 +7,7 @@ import (
 	"server/pkg/pb/msgid"
 	"server/pkg/util"
 	"server/robot/clinet"
+	"time"
 )
 
 func InitEcho(r *Robot) {
@@ -23,6 +24,8 @@ func onProto(msgBase proto.Message, ses *clinet.Session) {
 		msg.Level != uint32(r.Data.Level) {
 		zap.L().Warn("echo data not match", zap.Any("msg", msg), zap.Any("data", r.Data))
 	}
+	AddRecvCnt()
+	AddCostTime(time.Now().UnixMilli() - msg.CliTime)
 }
 
 func task(r *Robot) {
@@ -32,5 +35,7 @@ func task(r *Robot) {
 		Level: uint32(r.Data.Level),
 		Exp:   r.Data.Exp,
 		Data:  "echo message test",
+		Time:  time.Now().UnixMilli(),
 	})
+	AddSendCnt()
 }

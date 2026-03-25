@@ -46,7 +46,7 @@ func (r *Route) Handle(id uint32, data []byte, s *Session) bool {
 
 	msg, err := r.parseMsg(node, data)
 	if err != nil {
-		zap.S().Warnf("%s parser msg %d error:%v", s.String(), id, err)
+		zap.L().Warn("parser msg error ", zap.Error(err), zap.Uint32("id", id), zap.Any("data", data))
 		s.Close()
 		return false
 	}

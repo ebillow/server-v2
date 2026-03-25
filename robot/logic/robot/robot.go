@@ -7,6 +7,7 @@ import (
 	"server/pkg/crypt/dh"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+	"server/pkg/util"
 	"server/robot/clinet"
 	"slices"
 	"sync/atomic"
@@ -247,7 +248,7 @@ func (r *Robot) IsLoginSuccess() bool {
 }
 
 func (r *Robot) heartBeat(now time.Time) {
-	// r.SendPB(pb.MsgIDC2S_C2SHeartBeat, &pb.MsgHeartBeat{
-	//	CliTime: util.GetNowTimeM(),
-	// })
+	r.Send(msgid.MsgIDC2S_C2SHeartBeat, &pb.C2SHeartBeat{
+		CliTime: util.GetNowTimeM(),
+	})
 }

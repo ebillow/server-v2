@@ -1,4 +1,4 @@
-package session
+package v2
 
 import (
 	"github.com/gorilla/websocket"
@@ -14,10 +14,9 @@ import (
 // Config 网络配置
 type Config struct {
 	ReadDeadline        time.Duration // time.Second * 1500
-	OutChanSize         int           // 128
+	OutChanSize         int           //
 	ReadSocketBuffSize  int
 	WriteSocketBuffSize int //
-	RpmLimit            int
 	RecvPkgLenLimit     uint32
 }
 
@@ -72,38 +71,6 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 
 	s.start()
 }
-
-/*
-func handleClient(conn net.Conn, cfg *Config) {
-	defer func() {
-		if err := recover(); err != nil {
-			util.PrintStack(err)
-		}
-	}()
-
-	var s = &Session{}
-	s.conn = conn
-	defer s.conn.Close()
-
-	s.in = make(chan []byte) //no active_role
-	defer func() {
-		Close(s.in)
-		//zap.S().Debug("recv loop stop")
-	}()
-
-	host, port, err := net.SplitHostPort(conn.RemoteAddr().String())
-	if err != nil {
-		zap.S().Error("cannot get remote address:", err)
-		return
-	}
-	s.Ip = net.ParseIP(host)
-	zap.S().Debugf("new connection from:%v port:%v", host, port)
-
-	s.ctrl = make(chan struct{})
-
-	s.start(conn, cfg)
-}
-*/
 
 // Close 关闭，并等待所有goroutine退出
 func Close() {

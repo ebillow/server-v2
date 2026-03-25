@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"server/gateway/logic"
-	"server/gateway/session"
+	session "server/gateway/session/v2"
 	"server/pkg/flag"
+	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/util"
@@ -41,7 +43,6 @@ func main() {
 
 func Init(ctx context.Context) error {
 	logic.Init()
-
 	return nil
 }
 
@@ -55,7 +56,6 @@ func Action(ctx context.Context, wait *sync.WaitGroup) error {
 
 func UnInit(ctx context.Context) {
 	session.Close()
-	logic.UnInit()
 	zap.S().Info("server closed")
 }
 
@@ -67,13 +67,41 @@ func loadNetCfg() *session.Config {
 	}
 	cfg := &session.Config{
 		ReadDeadline:        d,
-		OutChanSize:         128,
+		OutChanSize:         16,
 		ReadSocketBuffSize:  1024,
 		WriteSocketBuffSize: 1024,
-		RpmLimit:            60 * 5,
 		RecvPkgLenLimit:     uint32(10240),
 	}
-	zap.S().Infof("read_dead_line=%v, out_chan_size=%d, read_sock_size=%d, write_sock_size=%d, rpm=%d, pkg_len_limit=%d",
-		cfg.ReadDeadline, cfg.OutChanSize, cfg.ReadSocketBuffSize, cfg.WriteSocketBuffSize, cfg.RpmLimit, cfg.RecvPkgLenLimit)
+	zap.S().Infof("read_dead_line=%v, out_chan_size=%d, read_sock_size=%d, write_sock_size=%d,  pkg_len_limit=%d",
+		cfg.ReadDeadline, cfg.OutChanSize, cfg.ReadSocketBuffSize, cfg.WriteSocketBuffSize, cfg.RecvPkgLenLimit)
 	return cfg
 }
+
+func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
+	if natsMsg.Forward {
+		ses := session.GetSession(natsMsg.SesID)
+		if ses == nil {
+			return
+		}
+		ses.SendBytes(natsMsg.MsgID, natsMsg.Data, natsMsg)
+		return
+	}
+
+	router.S().HandleG(natsMsg, raw)
+}
+
+//
+// func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
+// 	if natsMsg.SesID != 0 {
+// 		ses := session.GetSession(natsMsg.SesID)
+// 		if ses == nil {
+// 			return
+// 		}
+// 		ses.Post(gctx.Context{
+// 			U:   ses,
+// 			Raw: raw,
+// 			Msg: natsMsg,
+// 		})
+// 		return
+// 	}
+// }

@@ -71,7 +71,7 @@ func Watch() {
 	}
 }
 
-// UpdateLoad 核心接口：业务层定时调用此方法上报当前进程压力
+// UpdateLoad 核心接口：业务层定时调用此方法上报当前进程负载
 // 例如：UpdateLoad(int32(onlinePlayerCount))
 func UpdateLoad(load int32) {
 	if register != nil {

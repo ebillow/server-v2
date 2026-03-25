@@ -1,6 +1,7 @@
-package session
+package v1
 
 import (
+	"context"
 	"encoding/binary"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -11,21 +12,15 @@ import (
 	"server/pkg/pb/msgid"
 )
 
-// SendBytes 发送数据给客户端 todo 有必要改成select非阻塞？
+// SendBytes 发送数据给客户端 todo 是否改成队列
 func (s *Session) SendBytes(msgID uint32, data []byte) {
-	select {
-	case s.out <- &MsgSend{ID: msgID, Data: data}:
-		if trace.Rule.ShouldLog(msgID, 0, s.Id) {
-			zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
-				zap.Uint32("msgID", msgID),
-				zap.Inline(s),
-				logger.Magenta.Field(),
-			)
-		}
-	default:
-		// 客户端接收太慢，积压了，直接断开防雪崩
-		zap.L().Warn("send buffer full, kick slow client", zap.Inline(s))
-		// s.Close(pb.DisconnectReason_SlowClient) todo Close
+	s.out <- MsgSend{ID: msgID, Data: data}
+	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
+		zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
+			zap.Uint32("msgID", msgID),
+			zap.Inline(s),
+			logger.Magenta.Field(),
+		)
 	}
 }
 
@@ -59,7 +54,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 }
 
 // 看需求，可以合并发送
-func (s *Session) sendLoop() {
+func (s *Session) sendLoop(ctx context.Context) {
 	var headerBuf [4]byte
 
 	for {
@@ -89,7 +84,7 @@ func (s *Session) sendLoop() {
 				return
 			}
 
-		case <-s.ctrl:
+		case <-ctx.Done():
 			return
 		}
 	}

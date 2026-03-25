@@ -78,7 +78,7 @@ func (s *Session) sendWithCache(p *pkgWriter, cache []byte) {
 
 func (s *Session) rawSend(p *pkgWriter, cache []byte) {
 	s.pkgSend++
-	len := p.Write(cache, s.pkgSend, s.EnCpy)
+	len := p.Write(cache, s.EnCpy)
 	err := s.conn.WriteMessage(websocket.BinaryMessage, cache[:len])
 	if err != nil {
 		zap.S().Warnf("send data error, err:%v", err)

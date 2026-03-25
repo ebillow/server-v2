@@ -1,4 +1,4 @@
-package session
+package v1
 
 import (
 	"github.com/nats-io/nats.go"

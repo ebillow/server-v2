@@ -95,6 +95,7 @@ enum DisconnectReason{
 	InitErr = 6;
 	Kick = 7;
 	SlowClient = 8;
+	NetErr = 9;
 }
 
 message S2SGt2SDisconnect{

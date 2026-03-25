@@ -48,11 +48,10 @@ func newPkgWriter(msgId uint32, data []byte) *pkgWriter {
 	}
 }
 
-func (p *pkgWriter) Write(retCache []byte, seq uint32, enCyp cipher.BlockMode) int {
+func (p *pkgWriter) Write(retCache []byte, enCyp cipher.BlockMode) int {
 	binary.BigEndian.PutUint32(retCache[0:4], p.msgId)
-	binary.BigEndian.PutUint32(retCache[4:8], seq)
-	copy(retCache[8:], p.data)
-	endPos := len(p.data) + 8
+	copy(retCache[4:], p.data)
+	endPos := len(p.data) + 4
 
 	if enCyp != nil && p.msgId != uint32(msgid.MsgIDC2S_C2SInit) {
 		gaes.EnCrypt(retCache[0:endPos], enCyp)

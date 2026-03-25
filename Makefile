@@ -48,11 +48,14 @@ $(OUT):
 build: | $(OUT)
 	go build -ldflags="-s -w $(versionFlags)" -trimpath -v -o /dev/null $(foreach app,$(APPS),./$(app))
 
+.PHONY: FORCE
+FORCE:
+
 .PHONY: build-all
 build-all: $(OUT) $(BINARIES)
 
-$(OUT)/%:
-	@echo "Building $* ..."
+$(OUT)/%: FORCE
+	@echo "...Building $* ..."
 	go build -ldflags="-s -w $(versionFlags)" -trimpath -o $(OUT)/$* $(SOURCEDIR)/$*
 	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w $(versionFlags)" -tags=release -trimpath -o $(OUT)/$*.bin $(SOURCEDIR)/$*
 

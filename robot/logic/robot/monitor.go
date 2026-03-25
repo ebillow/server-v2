@@ -4,6 +4,7 @@ import (
 	"go.uber.org/zap"
 	"server/pkg/util"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -21,21 +22,16 @@ func TimeOut(id uint32) {
 	m.TimeOut(id)
 }
 
-//
-// func WorldTimeOut(id uint32) {
-//	world.TimeOut(id)
-// }
-//
-// func WorldSendCnt(id uint64) {
-//	world.SendCnt(id)
-// }
-//
-// func WorldRecvCnt(id uint64) {
-//	world.RecvCnt(id)
-// }
+func AddSendCnt() {
+	m.AddSendCnt()
+}
 
-func GateTimeOut(id uint32) {
-	// gate.TimeOut(id)
+func AddRecvCnt() {
+	m.AddRecvCnt()
+}
+
+func AddCostTime(cost int64) {
+	m.AddCostTime(cost)
 }
 
 type Monitor struct {
@@ -46,10 +42,10 @@ type Monitor struct {
 	timeOut map[uint32]uint32
 	name    string
 
-	msgSend map[uint64]int
-	cSend   chan uint64
-	msgRecv map[uint64]int
-	cRecv   chan uint64
+	sendCnt   atomic.Uint64
+	recvCnt   atomic.Uint64
+	totalCost atomic.Int64
+	msgCnt    atomic.Int64
 }
 
 func NewMonitor(name string) *Monitor {
@@ -59,10 +55,6 @@ func NewMonitor(name string) *Monitor {
 		name:    name,
 		toc:     make(chan uint32, 3000),
 		timeOut: make(map[uint32]uint32),
-		cSend:   make(chan uint64, 3000),
-		cRecv:   make(chan uint64, 3000),
-		msgRecv: make(map[uint64]int),
-		msgSend: make(map[uint64]int),
 	}
 
 	go m.run()
@@ -77,12 +69,17 @@ func (m *Monitor) Active(id uint64) {
 	m.c <- id
 }
 
-func (m *Monitor) SendCnt(id uint64) {
-	m.cSend <- id
+func (m *Monitor) AddSendCnt() {
+	m.sendCnt.Add(1)
 }
 
-func (m *Monitor) RecvCnt(id uint64) {
-	m.cRecv <- id
+func (m *Monitor) AddRecvCnt() {
+	m.recvCnt.Add(1)
+}
+
+func (m *Monitor) AddCostTime(cost int64) {
+	m.totalCost.Add(cost)
+	m.msgCnt.Add(1)
 }
 
 func (m *Monitor) run() {
@@ -100,10 +97,7 @@ func (m *Monitor) run() {
 			m.onLine[id] = now
 		case id := <-m.toc:
 			m.timeOut[id]++
-		case id := <-m.cRecv:
-			m.msgRecv[id]++
-		case id := <-m.cSend:
-			m.msgSend[id]++
+
 		case <-tLogin.C:
 			if Setup.LoginOnly {
 				success := 0
@@ -138,24 +132,13 @@ func (m *Monitor) run() {
 					}
 					m.timeOut[k] = 0
 				}
+				avgCost := int64(0)
+				msgCnt := m.msgCnt.Swap(0)
+				if msgCnt > 0 {
+					avgCost = m.totalCost.Swap(0) / msgCnt
+				}
 
-				sendCnt := 0
-				if len(m.msgSend) > 0 {
-					for _, v := range m.msgSend {
-						sendCnt += v
-					}
-					sendCnt = sendCnt / len(m.msgSend)
-				}
-				recvCnt := 0
-				if len(m.msgRecv) > 0 {
-					for _, v := range m.msgRecv {
-						recvCnt += v
-					}
-					recvCnt = recvCnt / len(m.msgRecv)
-				}
-				zap.S().Infof("%s active player cnt:%d time out cnt:%d SendPB:%d Recv:%d\n", m.name, len(m.onLine), cnt, sendCnt, recvCnt)
-				m.msgSend = make(map[uint64]int)
-				m.msgRecv = make(map[uint64]int)
+				zap.S().Infof("%s active:%d time out:%d send:%d recv:%d avg:%d", m.name, len(m.onLine), cnt, m.sendCnt.Swap(0), m.recvCnt.Swap(0), avgCost)
 				m.onLine = make(map[uint64]time.Time)
 			}
 		}

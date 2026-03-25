@@ -3,7 +3,7 @@ package logic
 import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	"server/gateway/session"
+	session "server/gateway/session/v1"
 	"server/pkg/pb/msgid"
 )
 

@@ -7,6 +7,7 @@ import (
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+	"time"
 )
 
 func init() {
@@ -20,11 +21,13 @@ func init() {
 func onEchoCli(_ gctx.Context, msgBase proto.Message, r *role.Role) {
 	msg := msgBase.(*pb.C2SEcho)
 	r.Send(&pb.S2CEcho{
-		ID:    msg.ID,
-		Name:  msg.Name,
-		Level: msg.Level,
-		Exp:   msg.Exp,
-		Data:  msg.Data,
+		ID:      msg.ID,
+		Name:    msg.Name,
+		Level:   msg.Level,
+		Exp:     msg.Exp,
+		Data:    msg.Data,
+		CliTime: msg.Time,
+		SrvTime: time.Now().UnixMilli(),
 	})
 }
 

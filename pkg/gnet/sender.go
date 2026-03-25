@@ -61,7 +61,7 @@ func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64,
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
 			zap.Uint32("msgID", msgID),
-			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
 			zap.Any("data", msg),
 			zap.Any("to", serType),
 			zap.Int32("idx", serID),

@@ -49,6 +49,7 @@ func (rt *ClientRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) 
 			zap.Int32("idx", natMsg.SerID),
 			zap.Uint64("sessID", natMsg.SesID),
 			zap.Uint64("roleID", natMsg.RoleID),
+			zap.Error(err),
 			zap.String("msgName", msgid.MsgIDC2S_name[int32(natMsg.MsgID)]))
 		return
 	}
@@ -84,6 +85,7 @@ func (rt *ClientRouter) HandleG(natMsg *pb.NatsMsg, raw *nats.Msg) {
 			zap.Int32("idx", natMsg.SerID),
 			zap.Uint64("sessID", natMsg.SesID),
 			zap.Uint64("roleID", natMsg.RoleID),
+			zap.Error(err),
 			zap.String("msgName", msgid.MsgIDC2S_name[int32(natMsg.MsgID)]))
 		return
 	}
