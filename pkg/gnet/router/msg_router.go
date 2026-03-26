@@ -4,7 +4,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/gctx"
-	"server/pkg/gnet/trace"
 	"server/pkg/logger"
 	"time"
 )
@@ -38,7 +37,7 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c g
 }
 
 // HandleMsg 处理消息
-func (rt *MsgRouter) HandleMsg(c gctx.Context) error {
+func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Message)) error {
 	node, err := rt.GetHandler(c.Msg.MsgID)
 	if err != nil {
 		return err
@@ -49,21 +48,15 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context) error {
 		return err
 	}
 
-	if trace.Rule.ShouldLog(c.Msg.MsgID, c.Msg.RoleID, c.Msg.SesID) {
-		zap.L().Info("<<< msg.recv:",
-			zap.Inline(c),
-			zap.Any("data", msgPB),
-			logger.Blue.Field(),
-		)
-	}
-
+	logFunc(msgPB)
 	begin := time.Now()
+
 	node.HandleFunc(c, msgPB)
+
 	span := time.Since(begin)
 	if span.Milliseconds() > 200 {
 		zap.L().Warn("handle msg timeout:",
 			zap.Inline(c),
-			zap.Any("data", msgPB),
 			logger.Yellow.Field(),
 			zap.Duration("cost", span),
 		)

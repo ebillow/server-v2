@@ -7,6 +7,8 @@ import (
 	"server/game/role"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/trace"
+	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 )
@@ -40,7 +42,20 @@ func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pro
 }
 
 func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) {
-	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: r, MsgName: msgid.MsgIDS2S_name})
+	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: r}, func(msgPB proto.Message) {
+		if trace.Rule.ShouldLog(natMsg.MsgID, natMsg.RoleID, natMsg.SesID) {
+			zap.L().Info("<<< msg.recv:",
+				zap.Uint32("msgID", natMsg.MsgID),
+				zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]),
+				zap.String("from", flag.SrvName(natMsg.SerType)),
+				zap.Int32("serID", natMsg.SerID),
+				zap.Any("data", msgPB),
+				zap.Uint64("roleID", natMsg.RoleID),
+				zap.Uint64("sesID", natMsg.SesID),
+				logger.Blue.Field(),
+			)
+		}
+	})
 	if err != nil {
 		zap.L().Warn("HandleWithRole failed",
 			zap.Uint32("msgID", natMsg.MsgID),
@@ -73,7 +88,20 @@ func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pr
 }
 
 func (rt *ServerRouter) HandleG(natMsg *pb.NatsMsg, raw *nats.Msg) {
-	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, MsgName: msgid.MsgIDS2S_name})
+	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw}, func(msgPB proto.Message) {
+		if trace.Rule.ShouldLog(natMsg.MsgID, natMsg.RoleID, natMsg.SesID) {
+			zap.L().Info("<<< msg.recv:",
+				zap.Uint32("msgID", natMsg.MsgID),
+				zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]),
+				zap.String("from", flag.SrvName(natMsg.SerType)),
+				zap.Int32("serID", natMsg.SerID),
+				zap.Any("data", msgPB),
+				zap.Uint64("roleID", natMsg.RoleID),
+				zap.Uint64("sesID", natMsg.SesID),
+				logger.Blue.Field(),
+			)
+		}
+	})
 	if err != nil {
 		zap.L().Warn("Handle failed",
 			zap.Uint32("msgID", natMsg.MsgID),

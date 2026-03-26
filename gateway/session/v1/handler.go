@@ -99,16 +99,29 @@ func (rt *SRouter) On(msgID msgid.MsgIDS2S, df func(msg proto.Message, s *Sessio
 	}
 }
 
-func (rt *SRouter) Handle(msg *pb.NatsMsg, raw *nats.Msg, s *Session) {
-	err := rt.HandleMsg(gctx.Context{Msg: msg, Raw: raw, U: s, MsgName: msgid.MsgIDS2S_name})
+func (rt *SRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, s *Session) {
+	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: s}, func(msgPB proto.Message) {
+		if trace.Rule.ShouldLog(natMsg.MsgID, natMsg.RoleID, natMsg.SesID) {
+			zap.L().Info("<<< msg.recv:",
+				zap.Uint32("msgID", natMsg.MsgID),
+				zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]),
+				zap.String("from", flag.SrvName(natMsg.SerType)),
+				zap.Int32("serID", natMsg.SerID),
+				zap.Any("data", msgPB),
+				zap.Uint64("roleID", natMsg.RoleID),
+				zap.Uint64("sesID", natMsg.SesID),
+				logger.Blue.Field(),
+			)
+		}
+	})
 	if err != nil {
 		zap.L().Warn("hand msg failed",
-			zap.Uint32("msgID", msg.MsgID),
-			zap.String("from", flag.SrvName(msg.SerType)),
-			zap.Int32("idx", msg.SerID),
-			zap.Uint64("sessID", msg.SesID),
-			zap.Uint64("roleID", msg.RoleID),
-			zap.String("msg name", msgid.MsgIDS2S_name[int32(msg.MsgID)]))
+			zap.Uint32("msgID", natMsg.MsgID),
+			zap.String("from", flag.SrvName(natMsg.SerType)),
+			zap.Int32("idx", natMsg.SerID),
+			zap.Uint64("sessID", natMsg.SesID),
+			zap.Uint64("roleID", natMsg.RoleID),
+			zap.String("msg name", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
 
 		return
 	}
