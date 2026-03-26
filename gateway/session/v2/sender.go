@@ -63,7 +63,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	return true
 }
 
-// 看需求，可以合并发送
+// 看需求，可以合并发送(最高优先)
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
 		s.Close(pb.DisconnectReason_NetErr)

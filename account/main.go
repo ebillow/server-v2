@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	_ "net/http/pprof"
 	"server/account/acc_db"
 	"server/account/logic"
 	"server/account/logic/login"
 	"server/pkg/db"
+	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
@@ -54,4 +56,12 @@ func Action(ctx context.Context, wait *sync.WaitGroup) error {
 
 func UnInit(ctx context.Context) {
 
+}
+
+func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
+	if natsMsg.SerType == pb.Server_Gateway {
+		router.C().HandleG(natsMsg, raw)
+	} else {
+		router.S().HandleG(natsMsg, raw)
+	}
 }

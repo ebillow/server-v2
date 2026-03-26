@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 	"server/game/component"
 	"server/game/game_db"
@@ -66,4 +67,25 @@ func inject() {
 	role.InjectSRouter(router.S())
 
 	role.CreateComps = component.CreateComps
+}
+
+func OnServerMsg(natMsg *pb.NatsMsg, raw *nats.Msg) {
+	if natMsg.RoleID != 0 {
+		role.RoleMgr().PostEvent(natMsg.RoleID, role.Event{
+			Raw:    raw,
+			NatMsg: natMsg,
+		})
+		return
+	}
+
+	if natMsg.SesID != 0 {
+		role.RoleMgr().PostEventBySesID(natMsg.SesID, role.Event{
+			Raw:    raw,
+			NatMsg: natMsg,
+			CliMsg: true,
+		})
+		return
+	}
+
+	router.S().HandleG(natMsg, raw)
 }

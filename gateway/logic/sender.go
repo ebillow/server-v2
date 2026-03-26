@@ -3,7 +3,7 @@ package logic
 import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-	session "server/gateway/session/v1"
+	session "server/gateway/session/v2"
 	"server/pkg/pb/msgid"
 )
 
@@ -24,7 +24,7 @@ func SendToAll(msgID msgid.MsgIDS2C, msg proto.Message) {
 
 	session.CliSess.Range(func(k, v interface{}) bool {
 		ses := v.(*session.Session)
-		ses.SendBytes(uint32(msgID), b)
+		ses.SendBytes(uint32(msgID), b, nil)
 		return true
 	})
 }
@@ -38,7 +38,7 @@ func SendToSomeOne(msgID msgid.MsgIDS2C, msg proto.Message, cliSess map[uint64]b
 	for k := range cliSess {
 		ses := session.GetSession(k)
 		if ses != nil {
-			ses.SendBytes(uint32(msgID), b)
+			ses.SendBytes(uint32(msgID), b, nil)
 		}
 	}
 }
