@@ -37,12 +37,11 @@ func newSaver() *saver {
 }
 
 func (s *saver) post(op *opSaveData) {
-	s.save <- op // 反压
-	// select {
-	// case s.save <- op:
-	// default:
-	// 	zap.L().Error("save chan full", zap.Uint64("id", op.ID))
-	// }
+	select {
+	case s.save <- op:
+	default:
+		zap.L().Error("save chan full", zap.Uint64("id", op.ID))
+	}
 }
 
 func (s *saver) close() {

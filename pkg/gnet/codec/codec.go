@@ -17,12 +17,13 @@ var bufPool = sync.Pool{
 }
 
 // FreeBuffer 发送完毕后，需要手动归还 []byte
-func FreeBuffer(b []byte) {
+func FreeBuffer(b *[]byte) {
 	//  容量过大的异常包直接丢弃，防止占用过多常驻内存
-	if cap(b) > 64*1024 {
+	if cap(*b) > 64*1024 {
 		return
 	}
-	bufPool.Put(&b)
+	*b = (*b)[:0] // 重置长度为 0，但保留 capacity
+	bufPool.Put(b)
 }
 
 // NatsMsgPool NatsMsg 对象池
@@ -45,19 +46,18 @@ func PutNatsMsg(msg *pb.NatsMsg) {
 	NatsMsgPool.Put(msg)
 }
 
-func Encode(msg *pb.NatsMsg) ([]byte, error) {
+func Encode(msg *pb.NatsMsg) ([]byte, *[]byte, error) {
 	bp := bufPool.Get().(*[]byte)
-	*bp = (*bp)[:0] // 重置长度为 0，但保留 capacity
 
 	// 使用 MarshalAppend 复用底层数组
 	mo := proto.MarshalOptions{}
 	b, err := mo.MarshalAppend(*bp, msg)
 	if err != nil {
-		bufPool.Put(bp) // 出错也要归还
-		return nil, err
+		FreeBuffer(bp) // 出错也要归还
+		return nil, bp, err
 	}
 
-	return b, nil
+	return b, bp, nil
 }
 
 func Decode(in []byte) (*pb.NatsMsg, error) {

@@ -104,7 +104,14 @@ func (m *RoleMgr) CloseAndWait() {
 	}
 	m.mtx.RUnlock()
 	for _, id := range ids {
-		m.KickRoleAndWait(id)
+		if r, ok := m.get(id); ok {
+			r.cancel() // Signal all immediately
+		}
+	}
+	for _, id := range ids {
+		if r, ok := m.get(id); ok {
+			r.wait.Wait() // Wait for them to finish concurrently
+		}
 	}
 }
 

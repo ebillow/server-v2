@@ -16,7 +16,7 @@ func RpcCall[T proto.Message](bs DataBus, msgID uint32, req proto.Message, toSer
 		return ack, errors.Wrapf(err, "rpc call:marshal err; msg[%d] to %s", msgID, toSub)
 	}
 
-	out, err := codec.Encode(&pb.NatsMsg{
+	out, bp, err := codec.Encode(&pb.NatsMsg{
 		MsgID:   msgID,
 		Data:    b,
 		SerID:   bs.serID,
@@ -27,9 +27,10 @@ func RpcCall[T proto.Message](bs DataBus, msgID uint32, req proto.Message, toSer
 	})
 	resMsg, err := bs.conn.Request(toSub, out, timeOut)
 	if err != nil {
+		codec.FreeBuffer(bp)
 		return ack, errors.Wrapf(err, "rpc call:request err; msg[%d]", msgID)
 	}
-	codec.FreeBuffer(out)
+	codec.FreeBuffer(bp)
 
 	nstMsg, err := codec.Decode(resMsg.Data)
 	if err != nil {
