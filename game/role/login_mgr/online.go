@@ -13,7 +13,7 @@ func (m *LoginMgr) run(ctx context.Context) {
 	tMinute := time.NewTicker(time.Minute)
 	defer func() {
 		tMinute.Stop()
-		m.save.close()
+		m.save.close() // 这里关完了，才关save
 		m.waitProducer.Done()
 	}()
 	for {
@@ -51,9 +51,9 @@ func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
 		case OpRepeatedLogin:
 			m.opLoginRepeated(ctx, p)
 		case OpOffline:
-			m.roleOffline(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
+			m.roleOffline(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
 		case OpSaveRole:
-			m.saveOne(&opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
+			m.saveOne(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
 		case OpSaveSuccess:
 			m.saveSuccess(p.IDs)
 		}

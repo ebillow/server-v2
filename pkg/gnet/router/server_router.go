@@ -23,7 +23,7 @@ func newServerRouter() *ServerRouter {
 
 // On 注册服务器间消息，并且是发给指定角色的消息处理函数
 func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *role.Role)) {
-	if netStart.Load() {
+	if flag.IsReady() {
 		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]),
@@ -69,7 +69,7 @@ func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) 
 
 // OnG 注册服务器间消息，不是角色消息处理函数
 func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message)) {
-	if netStart.Load() {
+	if flag.IsReady() {
 		zap.L().Error("注册消息失败，必须在监听前注册",
 			zap.Any("msgID", msgID),
 			zap.String("msg name", msgid.MsgIDS2S_name[int32(msgID)]),

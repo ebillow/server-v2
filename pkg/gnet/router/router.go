@@ -2,13 +2,11 @@ package router
 
 import (
 	"errors"
-	"sync/atomic"
 )
 
 var (
 	cliMsgRouter = newClientRouter()
 	serMsgRouter = newServerRouter()
-	netStart     atomic.Bool
 )
 
 var (
@@ -22,8 +20,4 @@ func S() *ServerRouter {
 
 func C() *ClientRouter {
 	return cliMsgRouter
-}
-
-func Start() {
-	netStart.Store(true)
 }

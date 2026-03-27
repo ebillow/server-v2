@@ -33,6 +33,7 @@ func (d *Data) ClearDirty() {
 
 func (d *Data) Online(r *role.Role) {
 	d.OnlineCnt++
+	d.dirty = true
 
 	// todo  test:检查,正式时删除
 	ctx := context.Background()

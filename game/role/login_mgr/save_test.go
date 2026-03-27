@@ -155,3 +155,17 @@ func TestBsonSave(t *testing.T) {
 // 	require.NoError(t, err)
 // 	t.Log(&d2)
 // }
+
+func TestBatchSave(t *testing.T) {
+	s := newSaver()
+	batch := make(map[uint64]opSaveData)
+	for i := 1; i < 10; i++ {
+		batch[uint64(i)] = opSaveData{
+			ID:   uint64(i),
+			Data: map[string]string{"TCDebug": "Test"},
+			Op:   OpOffline,
+		}
+	}
+	err := s.saveBatch(batch)
+	require.NoError(t, err)
+}

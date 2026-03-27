@@ -21,7 +21,7 @@ APPS := $(shell \
     if [ $$found -eq 1 ]; then basename "$$d"; fi; \
   done \
 )
-APPS := $(sort $(filter-out test bin pkg robot tool, $(APPS)))
+APPS := $(sort $(filter-out test bin pkg tool, $(APPS)))
 
 # 调试用：打印 APPS
 .PHONY: print-apps

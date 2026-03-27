@@ -38,6 +38,8 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c g
 
 // HandleMsg 处理消息
 func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Message)) error {
+	defer c.FreeNatsMsg()
+
 	node, err := rt.GetHandler(c.Msg.MsgID)
 	if err != nil {
 		return err
@@ -61,7 +63,6 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Messag
 			zap.Duration("cost", span),
 		)
 	}
-	c.FreeNatsMsg()
 
 	return nil
 }

@@ -156,7 +156,7 @@ func (m *LoginMgr) monitor() {
 		zap.Int("online", role_mgr.Mgr.Count()))
 }
 
-func (m *LoginMgr) roleOffline(p *opSaveData) {
+func (m *LoginMgr) roleOffline(p opSaveData) {
 	ld, ok := m.data[p.ID]
 	if ok {
 		ld.setState(stateOffline)
@@ -164,7 +164,7 @@ func (m *LoginMgr) roleOffline(p *opSaveData) {
 	m.saveOne(p, ld)
 }
 
-func (m *LoginMgr) saveOne(p *opSaveData, ld *loginData) {
+func (m *LoginMgr) saveOne(p opSaveData, ld *loginData) {
 	if ld != nil {
 		ld.Cache = p.Data
 	}
@@ -185,7 +185,7 @@ func (m *LoginMgr) checkClear() {
 
 	for k, v := range m.data {
 		if v.State == stateOffline && now-v.StateTime > Interval {
-			m.saveOne(&opSaveData{ID: k, Data: v.Cache, Op: OpOffline}, v)
+			m.saveOne(opSaveData{ID: k, Data: v.Cache, Op: OpOffline}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
 			gnet.SendToAccount(&pb.S2SRoleClear{

@@ -4,9 +4,11 @@ import (
 	"context"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
 	"server/pkg/db"
 	"server/pkg/model"
+	"server/pkg/queue"
 	"sync"
 	"time"
 )
@@ -26,28 +28,25 @@ func (d *opSaveData) Values() []interface{} {
 }
 
 type saver struct {
-	save chan *opSaveData
-	once sync.Once
+	save *queue.SwapQueue[opSaveData]
+	ctrl chan struct{}
 }
 
 func newSaver() *saver {
 	return &saver{
-		save: make(chan *opSaveData, OpChanSize),
-	}
-}
-
-func (s *saver) post(op *opSaveData) {
-	select {
-	case s.save <- op:
-	default:
-		zap.L().Error("save chan full", zap.Uint64("id", op.ID))
+		save: queue.NewSwapQueue[opSaveData](OpChanSize, OpChanSize*100),
+		ctrl: make(chan struct{}),
 	}
 }
 
 func (s *saver) close() {
-	s.once.Do(func() {
-		close(s.save)
-	})
+	close(s.ctrl)
+}
+
+func (s *saver) post(op opSaveData) {
+	if err := s.save.Push(op); err != nil {
+		zap.L().Error("save chan full", zap.Uint64("id", op.ID))
+	}
 }
 
 func (s *saver) run(wait *sync.WaitGroup) {
@@ -55,7 +54,7 @@ func (s *saver) run(wait *sync.WaitGroup) {
 		batchSize     = 500
 		flushInterval = time.Second
 	)
-	batch := make(map[uint64]*opSaveData, batchSize)
+	batch := make(map[uint64]opSaveData, batchSize)
 	ticker := time.NewTicker(flushInterval)
 	defer func() {
 		wait.Done()
@@ -66,35 +65,45 @@ func (s *saver) run(wait *sync.WaitGroup) {
 		if len(batch) > 0 {
 			err := s.saveBatch(batch)
 			if err == nil {
-				batch = make(map[uint64]*opSaveData, batchSize)
+				batch = make(map[uint64]opSaveData, batchSize)
 			}
 		}
 	}
 
 	for {
 		select {
-		case op, ok := <-s.save:
-			if !ok {
-				flush()
-				return
-			}
-			batch[op.ID] = op
-			if len(batch) >= batchSize {
-				flush()
-				ticker.Reset(flushInterval)
-			}
+		case <-s.save.Sig():
+			s.save.Range(func(op opSaveData) bool {
+				batch[op.ID] = op
+				if len(batch) >= batchSize {
+					flush()
+					ticker.Reset(flushInterval)
+				}
+				return true
+			})
+
 		case <-ticker.C:
 			flush()
+		case <-s.ctrl:
+			s.save.Range(func(op opSaveData) bool {
+				batch[op.ID] = op
+				if len(batch) >= batchSize {
+					flush()
+				}
+				return true
+			})
+			flush()
+			return
 		}
 	}
 }
 
-func (s *saver) saveBatch(batch map[uint64]*opSaveData) error {
+func (s *saver) saveBatch(batch map[uint64]opSaveData) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
 	pipe := db.Redis.Pipeline()
-	toDB := make([]*opSaveData, 0, len(batch))
+	toDB := make([]opSaveData, 0, len(batch))
 	for _, v := range batch {
 		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values()...)
 		pipe.Expire(ctx, model.KeyRole(v.ID), time.Hour*24*7)
@@ -112,20 +121,34 @@ func (s *saver) saveBatch(batch map[uint64]*opSaveData) error {
 	return s.saveToDB(ctx, toDB)
 }
 
-func (s *saver) saveToDB(ctx context.Context, toDB []*opSaveData) error {
+func (s *saver) saveToDB(ctx context.Context, toDB []opSaveData) error {
 	models := make([]mongo.WriteModel, 0, len(toDB))
 	for i := range toDB {
+		doc := bson.D{}
+		for k, v := range toDB[i].Data {
+			doc = append(doc, bson.E{Key: "data." + k, Value: v})
+		}
+		if len(doc) == 0 {
+			continue
+		}
+		update := bson.D{}
+		update = append(update, bson.E{Key: "$set", Value: doc})
+
 		mod := mongo.NewUpdateOneModel()
 		mod.SetFilter(bson.M{"id": toDB[i].ID})
 		mod.SetUpsert(true)
-		mod.SetUpdate(bson.D{{"$set", bson.D{
-			{"data", toDB[i].Data},
-		}}})
+		mod.SetUpdate(update)
+
 		models = append(models, mod)
 		zap.S().Debugf("[login] bulk write save role %d to acc_db", toDB[i].ID)
 	}
 
-	_, err := db.MongoDB().Collection("roles").BulkWrite(ctx, models)
+	if len(models) == 0 {
+		return nil
+	}
+
+	opts := options.BulkWrite().SetOrdered(false) // 到这tolDB里没有重复的
+	_, err := db.MongoDB().Collection("roles").BulkWrite(ctx, models, opts)
 	if err != nil {
 		zap.S().Errorf("[login] bulk write save role err:%v", err)
 		return err

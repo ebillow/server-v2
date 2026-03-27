@@ -116,6 +116,7 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 		}
 	}
 	flag.SetReady()
+
 	if err := discovery.Register(a.SrvType, int32(flag.SvcIndex)); err != nil {
 		return err
 	}

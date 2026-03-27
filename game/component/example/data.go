@@ -2,6 +2,7 @@ package example
 
 import (
 	"server/game/role"
+	"time"
 )
 
 type Data struct {
@@ -11,6 +12,7 @@ type Data struct {
 	Name       string
 	Award      map[int32]struct{}
 	Info       []int32
+	Cnt        int64
 
 	cur   int32
 	tmp   map[int32]bool
@@ -48,4 +50,9 @@ func (d *Data) Offline(r *role.Role) {
 	if d.OnlineCnt != d.OfflineCnt {
 		panic("d.OnlineCnt != d.OfflineCnt")
 	}
+}
+
+func (d *Data) SecLoop(now time.Time, r *role.Role) {
+	d.Cnt++
+	d.dirty = true
 }

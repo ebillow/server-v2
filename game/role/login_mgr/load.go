@@ -67,7 +67,7 @@ func (l *loader) run(ctx context.Context, wait *sync.WaitGroup) {
 }
 
 func (l *loader) loadBatch(batch []*Operator) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	pipe := db.Redis.Pipeline()
