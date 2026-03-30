@@ -2,7 +2,7 @@ package lock
 
 import (
 	"context"
-	"server/modules/db"
+	"server/pkg/db"
 	"sync"
 	"testing"
 	"time"

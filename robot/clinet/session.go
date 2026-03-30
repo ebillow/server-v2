@@ -66,7 +66,7 @@ type Session struct {
 }
 
 func (s *Session) String() string {
-	return util.Uint32ToString(s.ID()) + "_" + s.Ip.String()
+	return util.ToStr(s.Id) + "_" + s.Ip.String()
 }
 func (s *Session) ID() uint32 {
 	return s.Id
@@ -264,7 +264,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// //	zap.S().Debugf("%s new client", acc)
 // 	// cli := pb.NewSrvServiceClient(conn)
 // 	// // 开启到游戏服的流
-// 	// mtdata := metadata.New(map[string]string{"acc": util.ToString(acc)})
+// 	// mtdata := metadata.New(map[string]string{"acc": util.ToStr(acc)})
 // 	// ctx := metadata.NewOutgoingContext(context.Background(), mtdata)
 // 	// //	zap.S().Debugf("%s start srv", acc)
 // 	// stream, err := cli.SrvSrv(ctx)

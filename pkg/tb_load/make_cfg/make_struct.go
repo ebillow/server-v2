@@ -84,7 +84,7 @@ func writeOneProto(f *os.File, o *structDesc) (string, error) {
 		return name, err
 	}
 	for i, field := range o.field {
-		_, err = f.WriteString("\t" + field.typ + "\t" + strings.Title(field.name) + "\t\t\t = " + util.ToString(i+1) + ";\n")
+		_, err = f.WriteString("\t" + field.typ + "\t" + strings.Title(field.name) + "\t\t\t = " + util.ToStr(i+1) + ";\n")
 		if err != nil {
 			return name, err
 		}
@@ -125,7 +125,7 @@ func writeDataStruct(f *os.File, o *structDesc) (string, error) {
 		return name, err
 	}
 	for i, field := range o.field {
-		_, err = f.WriteString("\t" + field.typ + "\t" + strings.Title(field.name) + "\t\t\t = " + util.ToString(i+1) + ";\n")
+		_, err = f.WriteString("\t" + field.typ + "\t" + strings.Title(field.name) + "\t\t\t = " + util.ToStr(i+1) + ";\n")
 		if err != nil {
 			return name, err
 		}

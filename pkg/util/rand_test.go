@@ -1,38 +1,64 @@
 package util
 
-import "testing"
+import (
+	"github.com/stretchr/testify/require"
+	"testing"
+)
 
 func TestRandNotRepeated(t *testing.T) {
-	r := NewRandNotRepeated(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	r := NewRandUnique(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+	ret := make(map[int]struct{})
 	for i := 0; i != 20; i++ {
-		t.Log(r.Rand())
+		v, err := r.Get()
+		if i < 10 {
+			require.NoError(t, err)
+		} else {
+			require.EqualError(t, err, "RandUnique empty")
+		}
+		if err == nil {
+			if _, ok := ret[v]; ok {
+				t.Fatalf("RandNotRepeated duplicated")
+			}
+			ret[v] = struct{}{}
+		}
 	}
 }
 
-func TestRand(t *testing.T) {
-	r := NewRander()
-	for i := 1; i != 10; i++ {
+func TestRandByWeight(t *testing.T) {
+	r := NewRandByWeight[int]()
+	cnt := 10
+	for i := 1; i <= cnt; i++ {
 		r.Add(1000, i)
 	}
-	r.Add(20, 0)
-	ret := make([]int, 10)
+	ret := make(map[int]int)
 	randCnt := 1000000
 	for i := 0; i != randCnt; i++ {
-		ret[r.Get().(int)]++
+		v, err := r.Get()
+		require.NoError(t, err)
+		ret[v]++
 	}
 
-	for i := 0; i != 10; i++ {
-		t.Logf("%d, %d rate %f", i, ret[i], float64(ret[i])/float64(randCnt))
+	for k, v := range ret {
+		t.Logf("%d, %d rate %f", k, v, float64(v)/float64(randCnt))
 	}
 }
 
-func TestRandRangeIntCloseInterval(t *testing.T) {
-	min := 5
-	max := 10
+func TestRandRange(t *testing.T) {
+	v := RandRange(0, 1)
+	require.Equal(t, 0, v)
+
+	v = RandRange(0, 0)
+	require.Equal(t, 0, v)
+
 	for i := 0; i < 10000; i++ {
-		v := RandRangeIntCloseInterval(min, max)
-		if v < min || v > max {
-			t.Failed()
-		}
+		v = RandRange(0, 10)
+		require.True(t, v >= 0)
+		require.True(t, v < 10)
+	}
+
+	for i := 0; i < 10000; i++ {
+		v = RandRangeIntCloseInterval(0, 10)
+		require.True(t, v >= 0)
+		require.True(t, v <= 10)
 	}
 }

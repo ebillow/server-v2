@@ -5,38 +5,12 @@ import (
 	"errors"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"math/rand"
 	"time"
 )
 
-const maxRetries = 100
-
-// Do 乐观锁，保存时，需要用tx.TxPipeline(),并且返回error
-func Do(redisCli redis.UniversalClient, key string, fn func(ctx context.Context, tx *redis.Tx) error) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*8)
-	defer cancel()
-	txfTarget := func(tx *redis.Tx) error {
-		return fn(ctx, tx)
-	}
-
-	for i := 0; i < maxRetries; i++ {
-		err := redisCli.Watch(ctx, txfTarget, key)
-		if err == nil {
-			break
-		}
-		if errors.Is(err, redis.TxFailedErr) {
-			time.Sleep(time.Millisecond)
-			zap.L().Debug("lock tx failed", zap.String("key", key), zap.Error(err))
-			continue
-		}
-		return err
-	}
-	return nil
-}
-
-// DoWithSavePipe 乐观锁，保存时可以用save这个pipe
-func DoWithSavePipe(redisCli redis.UniversalClient, key string, fn func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*8)
-	defer cancel()
+// OptimisticLockedDo 乐观锁，保存时可以用save这个pipe
+func OptimisticLockedDo(ctx context.Context, redisCli redis.UniversalClient, key string, fn func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error) error {
 	txfTarget := func(tx *redis.Tx) error {
 		pipe := tx.TxPipeline()
 		err := fn(ctx, tx, pipe)
@@ -47,13 +21,15 @@ func DoWithSavePipe(redisCli redis.UniversalClient, key string, fn func(ctx cont
 		return err
 	}
 
+	const maxRetries = 5
+
 	for i := 0; i < maxRetries; i++ {
 		err := redisCli.Watch(ctx, txfTarget, key)
 		if err == nil {
 			break
 		}
 		if errors.Is(err, redis.TxFailedErr) {
-			time.Sleep(time.Millisecond * 10)
+			time.Sleep(time.Millisecond * time.Duration(rand.Intn(10)+5))
 			zap.L().Debug("lock tx failed", zap.String("key", key), zap.Error(err))
 			continue
 		}

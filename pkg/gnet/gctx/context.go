@@ -13,6 +13,15 @@ type Context struct {
 	U   Unity
 	Raw *nats.Msg
 	Msg *pb.NatsMsg
+
+	MsgID uint32
+	Data  []byte
+
+	SerID   int32
+	SerType pb.Server
+	RoleID  uint64
+	SesID   uint64
+	Forward uint8
 }
 
 func (s Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {

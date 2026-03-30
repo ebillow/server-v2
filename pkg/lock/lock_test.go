@@ -1,6 +1,8 @@
 package lock
 
 import (
+	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -20,13 +22,13 @@ func TestLock(t *testing.T) {
 func mockLock(t *testing.T) {
 	mtx := NewLock("lock1")
 	t.Log("start lock")
-	err := mtx.Lock()
+	err := mtx.Lock(context.Background())
 	t.Log("lock")
 	if err != nil {
 		t.Fatal(err)
 	}
 	time.Sleep(time.Second)
-	mtx.Unlock()
+	mtx.Unlock(context.Background())
 	t.Log("unlock")
 }
 
@@ -34,10 +36,31 @@ func mockLock(t *testing.T) {
 func BenchmarkLock(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		mtx := NewLock("lock1")
-		err := mtx.Lock()
+		err := mtx.Lock(context.Background())
 		if err != nil {
 			b.Fatal(err)
 		}
-		mtx.Unlock()
+		mtx.Unlock(context.Background())
 	}
+}
+
+func TestLockMulti(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mtx := NewLock("test" + strconv.Itoa(i))
+			err := mtx.Lock(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Log("lock success")
+			mtx.Unlock(ctx)
+		}()
+	}
+	wg.Wait()
 }

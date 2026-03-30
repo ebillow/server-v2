@@ -142,7 +142,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
 	rData := pb.RoleData{
 		ID:    roleID,
-		Name:  util.ToString(roleID),
+		Name:  util.ToStr(roleID),
 		Level: 1,
 	}
 

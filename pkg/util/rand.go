@@ -1,160 +1,141 @@
 package util
 
 import (
-	"math/rand"
+	"fmt"
+	"golang.org/x/exp/constraints"
+	"math/rand/v2"
 )
 
-const (
-	MAX_RATE = 10000
-)
-
-type RanderData struct {
-	Rate  uint32
-	Value interface{}
+type data[T any] struct {
+	Weight uint32
+	Value  T
 }
 
-// Rander add概率和interface，get会按概率随机返回interface
-type Rander struct {
-	Data []*RanderData
-	max  int
+// RandByWeight 按权重随机---------------------------
+type RandByWeight[T any] struct {
+	datas []*data[T]
+	max   int
 }
 
-func NewRander() *Rander {
-	r := &Rander{
-		Data: make([]*RanderData, 0),
+func NewRandByWeight[T any]() *RandByWeight[T] {
+	r := &RandByWeight[T]{
+		datas: make([]*data[T], 0),
 	}
 	return r
 }
 
-func (r *Rander) Valid() bool {
-	return len(r.Data) > 0 && r.max > 0
+func (r *RandByWeight[T]) Valid() bool {
+	return len(r.datas) > 0 && r.max > 0
 }
 
-func (r *Rander) Clone() *Rander {
-	other := &Rander{
-		Data: make([]*RanderData, len(r.Data)),
-		max:  r.max,
+func (r *RandByWeight[T]) Clone() *RandByWeight[T] {
+	other := &RandByWeight[T]{
+		datas: make([]*data[T], len(r.datas)),
+		max:   r.max,
 	}
-	for i, v := range r.Data {
-		other.Data[i] = &RanderData{
-			Rate:  v.Rate,
-			Value: v.Value,
+	for i, v := range r.datas {
+		other.datas[i] = &data[T]{
+			Weight: v.Weight,
+			Value:  v.Value,
 		}
 	}
 	return other
 }
 
-func (r *Rander) Add(rate uint32, v interface{}) {
-	d := &RanderData{
-		Rate:  rate,
-		Value: v,
-	}
-	r.Data = append(r.Data, d)
-	r.max += int(rate)
+func (r *RandByWeight[T]) Add(weight uint32, v T) {
+	r.datas = append(r.datas, &data[T]{
+		Weight: weight,
+		Value:  v,
+	})
+	r.max += int(weight)
 }
 
-func (r *Rander) Get() interface{} {
-	rate := uint32(rand.Intn(r.max))
+func (r *RandByWeight[T]) Get() (T, error) {
+	rate := uint32(rand.N(r.max))
 	cr := uint32(0)
-	var ret interface{}
-	for _, v := range r.Data {
-		cr += v.Rate
+	var ret T
+	err := fmt.Errorf("RandByWeight empty")
+	for _, v := range r.datas {
+		cr += v.Weight
 		ret = v.Value
 		if cr > rate {
-			return ret
+			return ret, nil
 		}
 	}
-	return ret
+	return ret, err
 }
 
-// GetAndDelete	获取并删除，保证只获取一次。注意会修改rander数据。一般先要clone
-func (r *Rander) GetAndDelete() interface{} {
-	rate := uint32(rand.Intn(r.max))
+// GetAndDelete	获取并删除，保证只获取一次。注意会修改RandByWeight数据。
+func (r *RandByWeight[T]) GetAndDelete() (T, error) {
+	rate := uint32(rand.N(r.max))
 	cr := uint32(0)
-	var ret interface{}
-	for i, v := range r.Data {
-		cr += v.Rate
+	var ret T
+	err := fmt.Errorf("RandByWeight empty")
+	for i, v := range r.datas {
+		cr += v.Weight
 		ret = v.Value
 		if cr > rate {
-			r.max -= int(r.Data[i].Rate)
-			r.Data[i] = r.Data[len(r.Data)-1]
-			r.Data = r.Data[:len(r.Data)-1]
-			return ret
+			r.max -= int(r.datas[i].Weight)
+			r.datas[i] = r.datas[len(r.datas)-1]
+			r.datas = r.datas[:len(r.datas)-1]
+			return ret, nil
 		}
 	}
-	return ret
+	return ret, err
 }
 
-/*------------------------------------------------
- */
-//Rand 万分率随机[0,n)
-func Rand(v int) bool {
+// RandUnique 在一组数中随机，每次结果不重复------------------------------
+type RandUnique[T any] struct {
+	data []T
+	cnt  int
+}
+
+func NewRandUnique[T any](values ...T) *RandUnique[T] {
+	r := &RandUnique[T]{data: values, cnt: len(values)}
+	return r
+}
+func (r *RandUnique[T]) Add(v T) {
+	r.data = append(r.data, v)
+	r.cnt++
+}
+func (r *RandUnique[T]) Get() (ret T, err error) {
+	if r.cnt == 0 {
+		return ret, fmt.Errorf("RandUnique empty")
+	}
+	cur := rand.N(r.cnt)
+	ret = r.data[cur]
+	r.data[cur] = r.data[r.cnt-1]
+	r.cnt--
+	return ret, nil
+}
+
+// Happen 万分率随机[0,n)
+func Happen(v int) bool {
+	const MaxRate = 10000
 	if v < 0 {
 		return false
-	} else if v >= 10000 {
+	} else if v >= MaxRate {
 		return true
 	} else {
-		return rand.Intn(10000) < v
+		return rand.N(MaxRate) < v
 	}
 }
 
-// RandRangeFloat 在[min, max)随机
-func RandRangeFloat(min float64, max float64) float64 {
+// RandRange 在[min, max)随机
+func RandRange[T constraints.Integer](min, max T) T {
 	if min == max {
 		return min
 	}
 	if min > max {
 		min, max = max, min
 	}
-	return min + (max-min)*rand.Float64()
-}
-
-// RandRangeInt 在[min, max)随机
-func RandRangeInt(min int, max int) int {
-	return rand.Intn(max-min) + min
+	return min + rand.N(max-min)
 }
 
 // RandRangeIntCloseInterval 在[min, max]随机
-func RandRangeIntCloseInterval(min int, max int) int {
-	return rand.Intn(max-min+1) + min
-}
-
-func RandInt(v int) int {
-	if v == 0 {
-		return 0
+func RandRangeIntCloseInterval[T constraints.Integer](min, max T) T {
+	if min > max {
+		min, max = max, min
 	}
-	return rand.Intn(v)
-}
-
-func RandToken() uint32 {
-	ret := uint32(0)
-	for ret == 0 {
-		ret = rand.Uint32()
-	}
-	return ret
-}
-
-// RandNotRepeated 在一组数中随机，每次结果不重复
-type RandNotRepeated struct {
-	data []uint64
-	cnt  int
-}
-
-func NewRandNotRepeated(values ...uint64) *RandNotRepeated {
-	r := &RandNotRepeated{data: values, cnt: len(values)}
-	return r
-}
-func (r *RandNotRepeated) Add(v uint64) {
-	r.data = append(r.data, v)
-	r.cnt++
-}
-func (r *RandNotRepeated) Rand() (ret uint64, ok bool) {
-	if r.cnt == 0 {
-		return 0, false
-	}
-	cur := rand.Intn(r.cnt)
-	ret = r.data[cur]
-	r.data[cur] = r.data[r.cnt-1]
-	r.cnt--
-	return ret, true
+	return rand.N(max-min+1) + min
 }

@@ -84,7 +84,7 @@ func BenchmarkHead(b *testing.B) {
 
 		msg.Header.Set("ser_name", "self name")
 		msg.Header.Set("ser_id", "self_id")
-		msg.Header.Set("msg_id", util.ToString(msgID))
+		msg.Header.Set("msg_id", util.ToStr(msgID))
 		msg.Header.Set("role_id", "3")
 
 		// ------------------

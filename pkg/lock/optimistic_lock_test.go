@@ -4,31 +4,19 @@ import (
 	"context"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
-	"server/modules/cfg"
-	"server/modules/db"
-	"server/modules/util"
+	"server/pkg/db"
+	"server/pkg/util"
+
 	"testing"
 	"time"
 )
 
-func TestMain(m *testing.M) {
-	err := db.InitRedis(cfg.Redis{
-		Address: "127.0.0.1:6379",
-		DB:      0,
-	}, 0, false)
-	if err != nil {
-		panic(err)
-	}
-
-	InitPool(db.Redis)
-	m.Run()
-}
-
 func TestOpLock(t *testing.T) {
+	ctx := context.Background()
 	go func() {
 		{
 			time.Sleep(time.Second * 2)
-			err := Do(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				// v := tx.Get(ctx, "s1").Val()
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 					t.Log("change s1")
@@ -41,12 +29,12 @@ func TestOpLock(t *testing.T) {
 	}()
 	go func() {
 		{
-			err := Do(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				v := tx.Get(ctx, "s1").Val()
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-					i := util.ParseInt32(v)
+					i := util.Parse[int](v)
 					return pipe.Set(ctx, "s1", i+1, 0).Err()
 				})
 				return err
@@ -59,10 +47,11 @@ func TestOpLock(t *testing.T) {
 }
 
 func TestLockWithSavePipe(t *testing.T) {
+	ctx := context.Background()
 	go func() {
 		{
 			time.Sleep(time.Second * 2)
-			err := DoWithSavePipe(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				// v := tx.Get(ctx, "s1").Val()
 				t.Log("change s1")
 				return save.Set(ctx, "s1", 3, 0).Err()
@@ -72,12 +61,12 @@ func TestLockWithSavePipe(t *testing.T) {
 	}()
 	go func() {
 		{
-			err := DoWithSavePipe(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				v := tx.Get(ctx, "s1").Val()
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 
-				i := util.ParseInt32(v)
+				i := util.Parse[int](v)
 				return save.Set(ctx, "s1", i+1, 0).Err()
 			})
 			require.NoError(t, err)
@@ -87,13 +76,14 @@ func TestLockWithSavePipe(t *testing.T) {
 }
 
 func TestLockWrite2(t *testing.T) {
-	err := Do(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx) error {
+	ctx := context.Background()
+	err := OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 		v := tx.Get(ctx, "s1").Val()
 		t.Log("get s1", v)
 
 		err := func() error {
 			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				i := util.ParseInt32(v)
+				i := util.Parse[int](v)
 				return pipe.Set(ctx, "s1", i+1, 0).Err()
 			})
 			return err
@@ -103,7 +93,7 @@ func TestLockWrite2(t *testing.T) {
 		}
 		err = func() error {
 			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				i := util.ParseInt32(v)
+				i := util.Parse[int](v)
 				return pipe.Set(ctx, "s1", i+1, 0).Err()
 			})
 			return err
@@ -117,10 +107,11 @@ func TestLockWrite2(t *testing.T) {
 }
 
 func TestLockHash(t *testing.T) {
+	ctx := context.Background()
 	go func() {
 		{
 			time.Sleep(time.Second * 2)
-			err := Do(db.Redis, "h1", func(ctx context.Context, tx *redis.Tx) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "h1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				// v := tx.Get(ctx, "s1").Val()
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 					t.Log("change h1")
@@ -133,12 +124,12 @@ func TestLockHash(t *testing.T) {
 	}()
 	go func() {
 		{
-			err := Do(db.Redis, "h1", func(ctx context.Context, tx *redis.Tx) error {
+			err := OptimisticLockedDo(ctx, db.Redis, "h1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 				v := tx.HGet(ctx, "h1", "f1").Val()
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-					i := util.ParseInt32(v) + 1
+					i := util.Parse[int](v) + 1
 					return pipe.HSet(ctx, "h1", "f1", i).Err()
 				})
 				return err
@@ -152,8 +143,9 @@ func TestLockHash(t *testing.T) {
 
 // BenchmarkDo-8   	    6055	    183543 ns/op
 func BenchmarkDo(b *testing.B) {
+	ctx := context.Background()
 	for i := 0; i < b.N; i++ {
-		_ = Do(db.Redis, "s1", func(ctx context.Context, tx *redis.Tx) error {
+		_ = OptimisticLockedDo(ctx, db.Redis, "s1", func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error {
 			v, _ := tx.Get(ctx, "s1").Int()
 			_, err := tx.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 				return pipe.Set(ctx, "s1", v+1, 0).Err()

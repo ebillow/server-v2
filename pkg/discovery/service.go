@@ -13,9 +13,7 @@ import (
 const Prefix = "/services/"
 
 /*
-etcd 是基于 Raft 协议的一致性 KV 存储，
-它的强项在于配置同步和节点发现，不擅长高频写操作。
-如果你有 100 个服务节点，每秒更新一次负载，etcd 的磁盘 I/O 和网络同步会吃不消。
+etcd 是基于 Raft 协议的一致性 KV 存储，它的强项在于配置同步和节点发现，不擅长高频写操作。不用它更新负载
 */
 type Meta struct {
 	SerID int32

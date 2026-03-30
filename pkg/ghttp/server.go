@@ -24,14 +24,14 @@ func EG() *gin.Engine {
 }
 
 func Start(ctx context.Context, wait *sync.WaitGroup, port int) {
-	eg = NewEngine()
+	eg = NewEngine(true)
 	thread.GoSafe(func() {
 		Serve(ctx, wait, eg, port)
 	})
 }
 
 // NewEngine 创建 gin.Engine
-func NewEngine() *gin.Engine {
+func NewEngine(usePprof bool) *gin.Engine {
 	r := gin.New()
 	r.HandleMethodNotAllowed = true
 	r.RemoveExtraSlash = true
@@ -59,7 +59,9 @@ func NewEngine() *gin.Engine {
 	})
 
 	// 注入 pprof; 访问 http//host:port/debug/pprof
-	pprof.Register(r)
+	if usePprof {
+		pprof.Register(r)
+	}
 
 	return r
 }
@@ -74,7 +76,9 @@ func Serve(ctx context.Context, wait *sync.WaitGroup, r *gin.Engine, port int) {
 	go func() {
 		select {
 		case <-ctx.Done():
-			err := srv.Shutdown(context.Background())
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			err := srv.Shutdown(ctxTimeout)
 			if err != nil {
 				zap.S().Warnf("http server shutdown error: %s", err.Error())
 			}

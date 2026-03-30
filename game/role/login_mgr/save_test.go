@@ -162,7 +162,7 @@ func TestBatchSave(t *testing.T) {
 	for i := 1; i < 10; i++ {
 		batch[uint64(i)] = opSaveData{
 			ID:   uint64(i),
-			Data: map[string]string{"TCDebug": "Test"},
+			Data: map[string]string{"TCDebug": `{"Test":1}`},
 			Op:   OpOffline,
 		}
 	}
