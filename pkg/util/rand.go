@@ -54,7 +54,6 @@ func (r *RandByWeight[T]) Get() (T, error) {
 	rate := uint32(rand.N(r.max))
 	cr := uint32(0)
 	var ret T
-	err := fmt.Errorf("RandByWeight empty")
 	for _, v := range r.datas {
 		cr += v.Weight
 		ret = v.Value
@@ -62,7 +61,7 @@ func (r *RandByWeight[T]) Get() (T, error) {
 			return ret, nil
 		}
 	}
-	return ret, err
+	return ret, fmt.Errorf("RandByWeight empty")
 }
 
 // GetAndDelete	获取并删除，保证只获取一次。注意会修改RandByWeight数据。
@@ -70,7 +69,6 @@ func (r *RandByWeight[T]) GetAndDelete() (T, error) {
 	rate := uint32(rand.N(r.max))
 	cr := uint32(0)
 	var ret T
-	err := fmt.Errorf("RandByWeight empty")
 	for i, v := range r.datas {
 		cr += v.Weight
 		ret = v.Value
@@ -81,7 +79,7 @@ func (r *RandByWeight[T]) GetAndDelete() (T, error) {
 			return ret, nil
 		}
 	}
-	return ret, err
+	return ret, fmt.Errorf("RandByWeight empty")
 }
 
 // RandUnique 在一组数中随机，每次结果不重复------------------------------
