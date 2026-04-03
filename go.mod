@@ -3,7 +3,7 @@ module server
 go 1.26
 
 require (
-	github.com/bwmarrin/snowflake v0.3.0
+	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/pprof v1.5.3
 	github.com/gin-gonic/gin v1.12.0
@@ -39,6 +39,8 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/firestore v1.21.0 // indirect
 	cloud.google.com/go/longrunning v0.8.0 // indirect
+	github.com/ClickHouse/ch-go v0.71.0 // indirect
+	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
@@ -54,6 +56,8 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
+	github.com/go-faster/city v1.0.1 // indirect
+	github.com/go-faster/errors v0.7.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
@@ -65,6 +69,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.18.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
@@ -89,7 +94,9 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/nats-io/nkeys v0.4.15 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/pierrec/lz4/v4 v4.1.25 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
@@ -97,6 +104,8 @@ require (
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/sagikazarmark/crypt v0.31.0 // indirect
 	github.com/sagikazarmark/locafero v0.12.0 // indirect
+	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
