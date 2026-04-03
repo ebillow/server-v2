@@ -3,23 +3,24 @@ package util
 import (
 	"fmt"
 	"golang.org/x/exp/constraints"
+	"math"
 	"math/rand/v2"
 )
 
 type data[T any] struct {
-	Weight uint32
+	Weight int32
 	Value  T
 }
 
 // RandByWeight 按权重随机---------------------------
 type RandByWeight[T any] struct {
-	datas []*data[T]
-	max   int
+	datas []data[T]
+	max   int64
 }
 
 func NewRandByWeight[T any]() *RandByWeight[T] {
 	r := &RandByWeight[T]{
-		datas: make([]*data[T], 0),
+		datas: make([]data[T], 0),
 	}
 	return r
 }
@@ -30,96 +31,127 @@ func (r *RandByWeight[T]) Valid() bool {
 
 func (r *RandByWeight[T]) Clone() *RandByWeight[T] {
 	other := &RandByWeight[T]{
-		datas: make([]*data[T], len(r.datas)),
+		datas: make([]data[T], len(r.datas)),
 		max:   r.max,
 	}
-	for i, v := range r.datas {
-		other.datas[i] = &data[T]{
-			Weight: v.Weight,
-			Value:  v.Value,
-		}
-	}
+	copy(other.datas, r.datas)
 	return other
 }
 
-func (r *RandByWeight[T]) Add(weight uint32, v T) {
-	r.datas = append(r.datas, &data[T]{
+func (r *RandByWeight[T]) Add(weight int32, v T) {
+	if weight <= 0 {
+		return
+	}
+	r.datas = append(r.datas, data[T]{
 		Weight: weight,
 		Value:  v,
 	})
-	r.max += int(weight)
+	r.max += int64(weight)
 }
 
 func (r *RandByWeight[T]) Get() (T, error) {
-	rate := uint32(rand.N(r.max))
-	cr := uint32(0)
-	var ret T
+	var zero T
+	if !r.Valid() {
+		return zero, fmt.Errorf("randByWeight: not valid")
+	}
+	rate := rand.Int64N(r.max)
+	cr := int64(0)
+
 	for _, v := range r.datas {
-		cr += v.Weight
-		ret = v.Value
+		cr += int64(v.Weight)
 		if cr > rate {
-			return ret, nil
+			return v.Value, nil
 		}
 	}
-	return ret, fmt.Errorf("RandByWeight empty")
+	return zero, fmt.Errorf("RandByWeight empty")
 }
 
 // GetAndDelete	获取并删除，保证只获取一次。注意会修改RandByWeight数据。
 func (r *RandByWeight[T]) GetAndDelete() (T, error) {
-	rate := uint32(rand.N(r.max))
-	cr := uint32(0)
-	var ret T
+	var zero T
+	if !r.Valid() {
+		var zero T
+		return zero, fmt.Errorf("randByWeight: not valid")
+	}
+
+	rate := rand.Int64N(r.max)
+	cr := int64(0)
+
 	for i, v := range r.datas {
-		cr += v.Weight
-		ret = v.Value
+		cr += int64(v.Weight)
 		if cr > rate {
-			r.max -= int(r.datas[i].Weight)
-			r.datas[i] = r.datas[len(r.datas)-1]
-			r.datas = r.datas[:len(r.datas)-1]
-			return ret, nil
+			r.max -= int64(r.datas[i].Weight)
+			lastIdx := len(r.datas) - 1
+			r.datas[i] = r.datas[lastIdx]
+			r.datas[lastIdx] = data[T]{}
+			r.datas = r.datas[:lastIdx]
+			return v.Value, nil
 		}
 	}
-	return ret, fmt.Errorf("RandByWeight empty")
+	return zero, fmt.Errorf("RandByWeight empty")
 }
 
 // RandUnique 在一组数中随机，每次结果不重复------------------------------
 type RandUnique[T any] struct {
 	data []T
-	cnt  int
 }
 
 func NewRandUnique[T any](values ...T) *RandUnique[T] {
-	r := &RandUnique[T]{data: values, cnt: len(values)}
-	return r
+	clone := make([]T, len(values))
+	copy(clone, values)
+
+	return &RandUnique[T]{
+		data: clone,
+	}
 }
 func (r *RandUnique[T]) Add(v T) {
 	r.data = append(r.data, v)
-	r.cnt++
 }
 func (r *RandUnique[T]) Get() (ret T, err error) {
-	if r.cnt == 0 {
-		return ret, fmt.Errorf("RandUnique empty")
+	var zero T
+	n := len(r.data)
+
+	if n == 0 {
+		return zero, fmt.Errorf("RandUnique empty")
 	}
-	cur := rand.N(r.cnt)
+	cur := rand.IntN(n)
 	ret = r.data[cur]
-	r.data[cur] = r.data[r.cnt-1]
-	r.cnt--
+
+	lastIdx := n - 1
+	r.data[cur] = r.data[lastIdx]
+	r.data[lastIdx] = zero
+	r.data = r.data[:lastIdx]
+
 	return ret, nil
 }
-
-// Happen 万分率随机[0,n)
-func Happen(v int) bool {
-	const MaxRate = 10000
-	if v < 0 {
-		return false
-	} else if v >= MaxRate {
-		return true
-	} else {
-		return rand.N(MaxRate) < v
-	}
+func (r *RandUnique[T]) Reset(values ...T) {
+	r.data = append(r.data[:0], values...)
 }
 
-// RandRange 在[min, max)随机
+// Remain 返回剩余可选数量
+func (r *RandUnique[T]) Remain() int {
+	return len(r.data)
+}
+
+// ------------------------------随机函数------------------------------------
+
+// Happen 万分率随机[0,n)
+func Happen[T constraints.Integer](v T) bool {
+	if v <= 0 {
+		return false
+	}
+
+	val := uint64(v)
+	const MaxRate = 10000
+
+	if val >= MaxRate {
+		return true
+	}
+
+	return rand.N(uint64(MaxRate)) < val
+}
+
+// RandRange 在[min, max)，右开区间随机
 func RandRange[T constraints.Integer](min, max T) T {
 	if min == max {
 		return min
@@ -127,13 +159,22 @@ func RandRange[T constraints.Integer](min, max T) T {
 	if min > max {
 		min, max = max, min
 	}
-	return min + rand.N(max-min)
+	diff := uint64(max) - uint64(min)
+	return T(uint64(min) + rand.N(diff))
 }
 
-// RandRangeIntCloseInterval 在[min, max]随机
-func RandRangeIntCloseInterval[T constraints.Integer](min, max T) T {
+// RandRangeInc 在[min, max],闭区间随机
+func RandRangeInc[T constraints.Integer](min, max T) T {
+	if min == max {
+		return min
+	}
 	if min > max {
 		min, max = max, min
 	}
-	return rand.N(max-min+1) + min
+	diff := uint64(max) - uint64(min)
+	if diff == math.MaxUint64 {
+		return T(rand.Uint64()) // 直接随机整个 uint64 空间即可
+	}
+
+	return T(uint64(min) + rand.N(diff+1))
 }

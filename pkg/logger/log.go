@@ -1,37 +1,39 @@
 package logger
 
 import (
+	"os"
+	"time"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"os"
-	"strconv"
-	"time"
 )
 
 // Config 日志配置
 type Config struct {
-	Level                int               `yaml:"Level"`                // 日志级别
-	Console              bool              `yaml:"Console"`              // 是否输出到控制台 (stdout)
-	ConsoleColor         bool              `yaml:"ConsoleColor"`         // 是否打印颜色
-	MaxSize              int               `yaml:"MaxSize"`              // 单个文件大小 单位（M）
-	MaxBackups           int               `yaml:"MaxBackups"`           // 最大备份
-	MaxAge               int               `yaml:"MaxAge"`               // 最大保存天数
-	Compress             bool              `yaml:"Compress"`             // 是否压缩
-	NoticeUrl            string            `yaml:"NoticeUrl"`            // 通知url
-	CfgNoticeUrl         string            `yaml:"CfgNoticeUrl"`         // 启动时配置报错或者热更配置报错 到打包群url
-	PayWanUrl            string            `yaml:"PayWanUrl"`            // 启动时配置报错或者热更配置报错 到url
-	ExtraWhiteListMsgIds map[int32][]int64 `yaml:"ExtraWhiteListMsgIds"` // 消息白名单额外规则; msgId => userIds; read-only
+	Level                int               `yaml:"Level"`
+	Console              bool              `yaml:"Console"`
+	ConsoleColor         bool              `yaml:"ConsoleColor"`
+	MaxSize              int               `yaml:"MaxSize"`
+	MaxBackups           int               `yaml:"MaxBackups"`
+	MaxAge               int               `yaml:"MaxAge"`
+	Compress             bool              `yaml:"Compress"`
+	NoticeUrl            string            `yaml:"NoticeUrl"`
+	CfgNoticeUrl         string            `yaml:"CfgNoticeUrl"`
+	PayWanUrl            string            `yaml:"PayWanUrl"`
+	ExtraWhiteListMsgIds map[int32][]int64 `yaml:"ExtraWhiteListMsgIds"`
 	IId                  string            `yaml:"-"`
 }
 
+var globalLogger *zap.Logger
+
 func NewZapLog(pathAndName string, conf Config) {
 	hook := lumberjack.Logger{
-		Filename:   pathAndName,     // 日志文件路径
-		MaxSize:    conf.MaxSize,    // 每个日志文件保存的最大尺寸 单位：M
-		MaxBackups: conf.MaxBackups, // 日志文件最多保存多少个备份
-		MaxAge:     conf.MaxAge,     // 文件最多保存多少天
-		Compress:   conf.Compress,   // 是否压缩
+		Filename:   pathAndName,
+		MaxSize:    conf.MaxSize,
+		MaxBackups: conf.MaxBackups,
+		MaxAge:     conf.MaxAge,
+		Compress:   conf.Compress,
 	}
 
 	encoderConfig := zapcore.EncoderConfig{
@@ -42,80 +44,60 @@ func NewZapLog(pathAndName string, conf Config) {
 		CallerKey:      "@line",
 		StacktraceKey:  "@stacktrace",
 		LineEnding:     zapcore.DefaultLineEnding,
-		EncodeLevel:    zapcore.LowercaseLevelEncoder, // 小写编码器
-		EncodeTime:     zapcore.ISO8601TimeEncoder,    // ISO8601 UTC 时间格式
-		EncodeDuration: zapcore.MillisDurationEncoder, // 将 duration 显示为毫秒
-		EncodeCaller:   zapcore.FullCallerEncoder,     // 全路径编码器
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.MillisDurationEncoder,
+		EncodeCaller:   zapcore.FullCallerEncoder,
 		EncodeName:     zapcore.FullNameEncoder,
 	}
 
-	// 设置日志级别
 	atomicLevel := zap.NewAtomicLevel()
 	atomicLevel.SetLevel(zapcore.Level(conf.Level))
 
-	var cores = []zapcore.Core{
-		zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), zapcore.AddSync(&hook), atomicLevel),
-	}
+	var cores []zapcore.Core
+
+	// 文件输出 Core (纯 JSON)
+	fileCore := zapcore.NewCore(zapcore.NewJSONEncoder(encoderConfig), zapcore.AddSync(&hook), atomicLevel)
+	cores = append(cores, fileCore)
+
+	// 控制台输出 Core (如果开启)
 	if conf.Console {
-		// 如果开了 console, 则往控制台输出人类可读的日志
-		cfg := encoderConfig
-		cfg.EncodeCaller = zapcore.ShortCallerEncoder
-		cfg.EncodeDuration = zapcore.StringDurationEncoder
-		encoder := NewConsoleEncoder(cfg, conf.ConsoleColor)
-		core := zapcore.NewCore(encoder, zapcore.AddSync(os.Stdout), atomicLevel)
+		consoleCfg := encoderConfig
+		consoleCfg.EncodeCaller = zapcore.ShortCallerEncoder
+		consoleCfg.EncodeDuration = zapcore.StringDurationEncoder
 
-		// 添加日志采样:
-		// 如果一次 tick 内出现相同等级内容的日志，则打印前 N 条.
-		// 如果当前 tick 内后续还有日志, 则每 M 条打印一次.
-		// core = zapcore.NewSamplerWithOptions(core, time.Second, 10, 5)
-		cores = append(cores, core)
+		// 使用原生高亮替代自定义 ConsoleEncoder，避免 JSON 反序列化损耗
+		if conf.ConsoleColor {
+			consoleCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		} else {
+			consoleCfg.EncodeLevel = zapcore.CapitalLevelEncoder
+		}
+
+		consoleCore := zapcore.NewCore(zapcore.NewConsoleEncoder(consoleCfg), zapcore.AddSync(os.Stdout), atomicLevel)
+		cores = append(cores, consoleCore)
 	}
+
+	// 错误报警 Core (如果配置了 URL)
 	if len(conf.NoticeUrl) > 0 {
-		errorOnlyCore := zapcore.NewCore(
-			zapcore.NewJSONEncoder(encoderConfig),
-			// zapcore.AddSync(&errorHook{}), // 你的自定义hook
-			zapcore.AddSync(&ErrorNotifierV1{IId: conf.IId, NotifyUrl: conf.NoticeUrl}),
-			zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
-				return lvl >= zapcore.ErrorLevel // 只处理Error及以上级别
-			}),
-		)
+		noticeEnabler := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.ErrorLevel // 只处理 Error 及以上
+		})
 
-		// 添加日志采样:
-		// 如果一次 tick 内出现相同等级内容的日志，则打印前 N 条.
-		// 如果当前 tick 内后续还有日志, 则每 M 条打印一次.
-		errorOnlyCore = zapcore.NewSamplerWithOptions(errorOnlyCore, time.Second, 10, 5)
-		cores = append(cores, errorOnlyCore)
+		noticeCore := &ErrorNotifierCore{
+			LevelEnabler: noticeEnabler,
+			IId:          conf.IId,
+			NotifyUrl:    conf.NoticeUrl,
+		}
+
+		// 采样机制，防止连环报错时产生报警风暴打挂外部接口
+		sampledNoticeCore := zapcore.NewSamplerWithOptions(noticeCore, time.Second, 10, 5)
+		cores = append(cores, sampledNoticeCore)
 	}
 
+	// 合并所有 Core
 	core := zapcore.NewTee(cores...)
 
-	// 开启开发模式，堆栈跟踪
-	log := zap.New(core, zap.AddCaller())
-	zap.ReplaceGlobals(log)
-}
-
-const (
-	FieldColor = "_color"
-)
-
-func quoteIfNeeded(s string) string {
-	if needsQuote(s) {
-		return strconv.Quote(s)
-	}
-	return s
-}
-
-func needsQuote(s string) bool {
-	for i := range s {
-		if s[i] < 0x20 || s[i] > 0x7e || s[i] == ' ' || s[i] == '\\' || s[i] == '"' {
-			return true
-		}
-	}
-	return false
-}
-
-// 兼容
-// Debug logs a message at level Debug on the standard logger.
-func Debug(args ...interface{}) {
-	zap.S().Debug(args...)
+	// 限制 AddStacktrace 只在 Error 级别触发
+	globalLogger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
+	zap.ReplaceGlobals(globalLogger)
 }

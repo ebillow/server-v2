@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 )
 
 func NewEncrypter(key []byte, iv []byte) (cipher.BlockMode, error) {
@@ -34,7 +35,7 @@ func EnCrypt(src []byte, blockMode cipher.BlockMode) []byte {
 	return paddingText
 }
 
-func DeCrypt(src []byte, blockMode cipher.BlockMode) []byte {
+func DeCrypt(src []byte, blockMode cipher.BlockMode) ([]byte, error) {
 	// 解密
 	// dst := make([]byte, len(src))
 	blockMode.CryptBlocks(src, src)
@@ -42,23 +43,34 @@ func DeCrypt(src []byte, blockMode cipher.BlockMode) []byte {
 	return PKCS7UnPadding(src)
 }
 
-// PKCS7Padding 填充
+// PKCS7Padding 填充 (这里 append 会分配新内存，不会污染源数据，是安全的)
 func PKCS7Padding(ciphertext []byte, blockSize int) []byte {
 	padding := blockSize - len(ciphertext)%blockSize
 	padtext := bytes.Repeat([]byte{byte(padding)}, padding)
 	return append(ciphertext, padtext...)
 }
 
-func PKCS7UnPadding(plaintext []byte) []byte {
-	if len(plaintext) == 0 {
-		return nil
-	}
+// PKCS7UnPadding 移除填充 (增加严格的安全校验)
+func PKCS7UnPadding(plaintext []byte) ([]byte, error) {
 	length := len(plaintext)
-	unpadding := int(plaintext[length-1])
-	// return plaintext[:length-unpadding]
-	leftLen := length - unpadding
-	if leftLen < 0 {
-		return []byte{}
+	if length == 0 {
+		return nil, errors.New("plaintext is empty")
 	}
-	return plaintext[:leftLen]
+
+	unpadding := int(plaintext[length-1])
+
+	// 校验 1：填充长度不能大于数据总长度，也不能为 0
+	if unpadding > length || unpadding == 0 {
+		return nil, errors.New("invalid padding length")
+	}
+
+	// 校验 2：严格校验所有填充字节是否一致 (防止恶意篡改导致的逻辑漏洞)
+	padStart := length - unpadding
+	for i := padStart; i < length; i++ {
+		if plaintext[i] != byte(unpadding) {
+			return nil, errors.New("invalid padding bytes")
+		}
+	}
+
+	return plaintext[:padStart], nil
 }

@@ -1,19 +1,19 @@
 package util
 
 import (
-	"log"
+	"github.com/jinzhu/now"
 	"testing"
 	"time"
 )
 
+func TestNow(t *testing.T) {
+	tb := now.BeginningOfDay()
+	t.Log(tb)
+	tmrb := now.BeginningOfDay().Add(time.Hour * 24)
+	t.Log("下一天", tmrb)
+}
+
 func TestTime(t *testing.T) {
-	s2 := UnixTimeString2(time.Now().Unix())
-	t.Log(s2)
-	s := GetNowTimeS() - 18*3600
-	for i := 1; i <= 30; i++ {
-		r := GetResetTime(s, 3, 5, int64(i))
-		log.Println(UnixTimeString(r))
-	}
 	month := []int64{31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
 	for i := 0; i < 11; i++ {
 		month[i+1] = month[i] + month[i+1]
@@ -22,10 +22,10 @@ func TestTime(t *testing.T) {
 	bd := GetZeroDay(bt.Unix(), 7200)
 	bw := GetZeroWeek(bt.Unix(), 7200)
 	bm := GetZeroMonth(bt.Unix(), 7200)
-	for i := int64(0); i < 1000; i++ { //1000天
+	for i := int64(0); i < 1000; i++ { // 1000天
 		abt := bt.AddDate(0, 0, int(i))
 		abtU := abt.Unix()
-		for j := int64(0); j < 82800; j++ { //每天24*3600秒
+		for j := int64(0); j < 82800; j++ { // 每天24*3600秒
 			abd := GetZeroDay(abtU+j, 7200)
 			if abd != bd+i {
 				t.Fail()

@@ -9,7 +9,6 @@ import (
 	"io"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"sync"
@@ -110,7 +109,6 @@ func (s *Session) forwardToSrv(src []byte) {
 			zap.String("to", serType.String()),
 			zap.Int32("idx", serID),
 			zap.Inline(s),
-			logger.Magenta.Field(),
 		)
 	}
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
@@ -119,7 +117,6 @@ func (s *Session) forwardToSrv(src []byte) {
 			zap.String("to", serType.String()),
 			zap.Int32("idx", serID),
 			zap.Inline(s),
-			logger.Magenta.Field(),
 		)
 	}
 }

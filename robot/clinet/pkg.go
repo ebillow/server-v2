@@ -16,7 +16,11 @@ func newReader(data []byte, deCyp cipher.BlockMode) (*pkgReader, error) {
 	}
 
 	if deCyp != nil {
-		data = gaes.DeCrypt(data, deCyp)
+		var err error
+		data, err = gaes.DeCrypt(data, deCyp)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &pkgReader{data: data}, nil

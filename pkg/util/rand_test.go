@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestRandNotRepeated(t *testing.T) {
+func TestRandUnique(t *testing.T) {
 	r := NewRandUnique(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 	ret := make(map[int]struct{})
 	for i := 0; i != 20; i++ {
@@ -57,7 +57,7 @@ func TestRandRange(t *testing.T) {
 	}
 
 	for i := 0; i < 10000; i++ {
-		v = RandRangeIntCloseInterval(0, 10)
+		v = RandRangeInc(0, 10)
 		require.True(t, v >= 0)
 		require.True(t, v <= 10)
 	}

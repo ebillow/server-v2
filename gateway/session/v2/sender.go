@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/codec"
 	"server/pkg/gnet/trace"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"time"
@@ -28,7 +27,6 @@ func (s *Session) SendBytes(msgID uint32, data []byte, msg *pb.NatsMsg) {
 			zap.L().Info(">>> to client: "+msgid.MsgIDS2C_name[int32(msgID)],
 				zap.Uint32("msgID", msgID),
 				zap.Inline(s),
-				logger.Magenta.Field(),
 			)
 		}
 	}

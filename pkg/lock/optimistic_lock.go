@@ -35,5 +35,6 @@ func OptimisticLockedDo(ctx context.Context, redisCli redis.UniversalClient, key
 		}
 		return err
 	}
+
 	return nil
 }

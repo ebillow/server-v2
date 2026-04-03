@@ -244,7 +244,7 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	// if data.Freeze { // 封号了
 	// 	if data.FreezeEndTime == 0 || (data.FreezeEndTime > 0 && data.FreezeEndTime >= util.GetNowTimeS()) {
-	// 		network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCFreeze, Login: loginReq, RetDesc: util.ToStr(data.FreezeEndTime)})
+	// 		network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCFreeze, Login: loginReq, RetDesc: util.ToString(data.FreezeEndTime)})
 	// 		return
 	// 	}
 	// }

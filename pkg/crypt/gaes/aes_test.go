@@ -23,7 +23,7 @@ func BenchmarkAES(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		ret := EnCrypt(aseData, encoder)
 		/*d := */ DeCrypt(ret, decoder)
-		//require.Equal(b, aseData, d)
+		// require.Equal(b, aseData, d)
 	}
 }
 
@@ -37,6 +37,7 @@ func TestEnCrypt(t *testing.T) {
 		t.Fatal(err)
 	}
 	ret := EnCrypt(aseData, encoder)
-	d := DeCrypt(ret, decoder)
+	d, err := DeCrypt(ret, decoder)
+	require.NoError(t, err)
 	require.Equal(t, aseData, d)
 }

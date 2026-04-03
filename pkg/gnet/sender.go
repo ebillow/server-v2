@@ -5,7 +5,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 )
@@ -37,7 +36,6 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 			zap.Int32("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),
-			logger.Magenta.Field(),
 		)
 	}
 }
@@ -67,7 +65,6 @@ func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64,
 			zap.Int32("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),
-			logger.Magenta.Field(),
 		)
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/trace"
-	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 )
@@ -52,7 +51,6 @@ func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) 
 				zap.Any("data", msgPB),
 				zap.Uint64("roleID", natMsg.RoleID),
 				zap.Uint64("sesID", natMsg.SesID),
-				logger.Blue.Field(),
 			)
 		}
 	})
@@ -98,7 +96,6 @@ func (rt *ServerRouter) HandleG(natMsg *pb.NatsMsg, raw *nats.Msg) {
 				zap.Any("data", msgPB),
 				zap.Uint64("roleID", natMsg.RoleID),
 				zap.Uint64("sesID", natMsg.SesID),
-				logger.Blue.Field(),
 			)
 		}
 	})
