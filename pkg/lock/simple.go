@@ -16,10 +16,11 @@ type SimpleLock struct {
 
 // NewSimpleLock 简单分布式锁，锁失败不等待，立即返回false
 func NewSimpleLock(client redis.UniversalClient, lockKey string, expiration time.Duration) *SimpleLock {
+	id, _ := idgen.Gen()
 	return &SimpleLock{
 		client:     client,
 		lockKey:    lockKey,
-		lockValue:  idgen.Gen(),
+		lockValue:  id,
 		expiration: expiration,
 	}
 }

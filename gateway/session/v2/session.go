@@ -73,7 +73,8 @@ func (s *Session) start() {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
 
-	s.Id = uint64(idgen.Gen())
+	id, _ := idgen.Gen()
+	s.Id = uint64(id)
 	AddSession(s.Id, s)
 
 	waitGroup.Add(2)
