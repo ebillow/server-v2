@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/nats-io/nats.go"
-	"github.com/spf13/cobra"
 	"server/game/component"
 	"server/game/game_db"
 	"server/game/role"
@@ -11,11 +9,15 @@ import (
 	_ "server/game/role/msg"
 	"server/game/role/role_mgr"
 	"server/pkg/db"
+	"server/pkg/flag"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
 	"sync"
+
+	"github.com/nats-io/nats.go"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -45,7 +47,7 @@ func main() {
 func Init(ctx context.Context) error {
 	inject()
 
-	db.MongoUse("game")
+	db.MongoUse(flag.IID + "_game")
 	game_db.CreateIndex()
 
 	return nil

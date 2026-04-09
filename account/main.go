@@ -2,18 +2,20 @@ package main
 
 import (
 	"context"
-	"github.com/nats-io/nats.go"
-	"github.com/spf13/cobra"
 	_ "net/http/pprof"
 	"server/account/acc_db"
 	"server/account/logic"
 	"server/account/logic/login"
 	"server/pkg/db"
+	"server/pkg/flag"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
 	"sync"
+
+	"github.com/nats-io/nats.go"
+	"github.com/spf13/cobra"
 )
 
 func main() {
@@ -43,7 +45,7 @@ func main() {
 func Init(ctx context.Context) error {
 	logic.Init()
 
-	db.MongoUse("account")
+	db.MongoUse(flag.IID + "_account")
 	acc_db.CreateIndex()
 
 	return nil

@@ -61,6 +61,7 @@ echo ${OUTDIR}
 function gen_proto() {
   # proto 列表, 一行一个, 可以写注释
   protoList=(
+    msg_code.proto
     msg_common.proto
     msg.proto
     msg_base.proto

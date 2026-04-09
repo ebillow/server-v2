@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+option optimize_for = LITE_RUNTIME;
+option go_package = "./pb";
+//---------------说明---------------------------
+//公用结构,
+//----------------------------------------------
+
+package pb;
+
+enum ErrorCode{
+  Success = 0;
+
+  //通用
+  Internal = 10000;
+  BadRequest = 10001;
+  Timeout = 10002;
+
+  //业务
+}

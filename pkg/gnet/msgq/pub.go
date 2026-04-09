@@ -1,7 +1,7 @@
 package msgq
 
 import (
-	"github.com/pkg/errors"
+	"server/pkg/gerror"
 	"server/pkg/gnet/codec"
 	"server/pkg/pb"
 )
@@ -18,12 +18,12 @@ func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byt
 		Forward: false,
 	})
 	if err != nil {
-		return errors.Wrap(err, "encode err:")
+		return gerror.Wrap(err, "encode err:")
 	}
 	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
 	if err != nil {
 		codec.FreeBuffer(bp)
-		return errors.Wrap(err, "publish err:")
+		return gerror.Wrap(err, "publish err:")
 	}
 	codec.FreeBuffer(bp)
 	return nil
@@ -40,12 +40,12 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, d
 		Forward: true,
 	})
 	if err != nil {
-		return errors.Wrap(err, "encode err:")
+		return gerror.Wrap(err, "encode err:")
 	}
 	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
 	if err != nil {
 		codec.FreeBuffer(bp)
-		return errors.Wrap(err, "publish err:")
+		return gerror.Wrap(err, "publish err:")
 	}
 	codec.FreeBuffer(bp)
 	return nil
@@ -63,12 +63,12 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 		Forward: false,
 	})
 	if err != nil {
-		return errors.Wrap(err, "encode err:")
+		return gerror.Wrap(err, "encode err:")
 	}
 	err = bs.conn.Publish(getGroupSubject(serType), out)
 	if err != nil {
 		codec.FreeBuffer(bp)
-		return errors.Wrap(err, "publish err:")
+		return gerror.Wrap(err, "publish err:")
 	}
 	codec.FreeBuffer(bp)
 	return nil
@@ -86,12 +86,12 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID 
 		Forward: false,
 	})
 	if err != nil {
-		return errors.Wrap(err, "encode err:")
+		return gerror.Wrap(err, "encode err:")
 	}
 	err = bs.conn.Publish(getAllSubject(serType), out)
 	if err != nil {
 		codec.FreeBuffer(bp)
-		return errors.Wrap(err, "publish err:")
+		return gerror.Wrap(err, "publish err:")
 	}
 	codec.FreeBuffer(bp)
 	return nil

@@ -3,9 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"github.com/nats-io/nats.go"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"path/filepath"
 	"server/pkg/cfg"
 	"server/pkg/db"
@@ -21,6 +18,10 @@ import (
 	"server/pkg/util"
 	"server/pkg/version"
 	"sync"
+
+	"github.com/nats-io/nats.go"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 type App struct {
@@ -51,29 +52,29 @@ func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
 }
 
 func (a *App) init(ctx context.Context) error {
-	idgen.Init(flag.SvcIndex)
+	if err := idgen.Init(flag.SvcIndex); err != nil {
+		return err
+	}
 	cfg.Load(flag.EtcdAddr[0], flag.IID)
 	conf := cfg.Get()
 
 	a.initLog(conf)
 	version.LogVersion()
 
-	err := a.initDB(conf)
-	if err != nil {
+	if err := a.initDB(conf); err != nil {
 		return err
 	}
 	lock.InitPool(db.Redis)
-	err = discovery.Init(flag.EtcdAddr, db.Redis)
-	if err != nil {
+	if err := discovery.Init(flag.EtcdAddr, db.Redis); err != nil {
 		return err
 	}
 	discovery.Watch()
 
-	if err = msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
+	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
 		return err
 	}
 
-	if err = a.Init(ctx); err != nil {
+	if err := a.Init(ctx); err != nil {
 		return err
 	}
 	// 这之前不能访问mongoDB，因为还未设置dbName

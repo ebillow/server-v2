@@ -2,10 +2,11 @@ package db
 
 import (
 	"context"
-	"github.com/pkg/errors"
+	"server/pkg/gerror"
+	"time"
+
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"time"
 )
 
 /*
@@ -74,7 +75,7 @@ func NewRedis(conf RedisCfg, poolSize int) (redis.UniversalClient, error) {
 	defer cancel()
 
 	if err := cli.Ping(ctx).Err(); err != nil {
-		return nil, errors.Wrap(err, "redis ping failed")
+		return nil, gerror.Wrap(err, "redis ping failed")
 	}
 
 	return cli, nil
