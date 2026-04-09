@@ -1,12 +1,13 @@
 package logic
 
 import (
-	"google.golang.org/protobuf/proto"
 	session "server/gateway/session/v2"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {

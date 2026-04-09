@@ -2,11 +2,12 @@ package lock
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"time"
 )
 
 var (
@@ -26,8 +27,8 @@ type Locker struct {
 func NewLock(key string, opts ...redsync.Option) *Locker {
 	defaultOps := []redsync.Option{
 		redsync.WithExpiry(10 * time.Second),
-		redsync.WithTries(3),
-		redsync.WithRetryDelay(100 * time.Millisecond),
+		// redsync.WithTries(3),
+		redsync.WithRetryDelay(10 * time.Millisecond),
 	}
 	options := append(defaultOps, opts...)
 	return &Locker{mtx: rs.NewMutex(key, options...)}

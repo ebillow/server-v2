@@ -2,10 +2,11 @@ package lock
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/require"
 	"server/pkg/db"
 	"server/pkg/util"
+
+	"github.com/redis/go-redis/v9"
+	"github.com/stretchr/testify/require"
 
 	"testing"
 	"time"
@@ -34,7 +35,8 @@ func TestOpLock(t *testing.T) {
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-					i := util.Parse[int](v)
+					i, err := util.ParseInt[int](v)
+					require.NoError(t, err)
 					return pipe.Set(ctx, "s1", i+1, 0).Err()
 				})
 				return err
@@ -66,7 +68,8 @@ func TestLockWithSavePipe(t *testing.T) {
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 
-				i := util.Parse[int](v)
+				i, err := util.ParseInt[int](v)
+				require.NoError(t, err)
 				return save.Set(ctx, "s1", i+1, 0).Err()
 			})
 			require.NoError(t, err)
@@ -83,7 +86,8 @@ func TestLockWrite2(t *testing.T) {
 
 		err := func() error {
 			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				i := util.Parse[int](v)
+				i, err := util.ParseInt[int](v)
+				require.NoError(t, err)
 				return pipe.Set(ctx, "s1", i+1, 0).Err()
 			})
 			return err
@@ -93,7 +97,8 @@ func TestLockWrite2(t *testing.T) {
 		}
 		err = func() error {
 			_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-				i := util.Parse[int](v)
+				i, err := util.ParseInt[int](v)
+				require.NoError(t, err)
 				return pipe.Set(ctx, "s1", i+1, 0).Err()
 			})
 			return err
@@ -129,7 +134,9 @@ func TestLockHash(t *testing.T) {
 				t.Log("get s1", v)
 				time.Sleep(time.Second * 4)
 				_, err := tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-					i := util.Parse[int](v) + 1
+					i, err := util.ParseInt[int](v)
+					require.NoError(t, err)
+					i++
 					return pipe.HSet(ctx, "h1", "f1", i).Err()
 				})
 				return err

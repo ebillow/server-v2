@@ -78,15 +78,12 @@ func (a *App) init(ctx context.Context) error {
 		return err
 	}
 	// 这之前不能访问mongoDB，因为还未设置dbName
+	zap.L().Info("初始化完成")
 	return nil
 }
 
-func (a *App) SrvName() string {
-	return flag.SrvName(flag.SrvType)
-}
-
 func (a *App) initLog(conf *cfg.Config) {
-	filePath := filepath.Join("./bin/logs", fmt.Sprintf("%s_%d.logger", a.SrvName(), flag.SvcIndex))
+	filePath := filepath.Join("./bin/logs", fmt.Sprintf("%s_%d.logger", flag.SrvName(flag.SrvType), flag.SvcIndex))
 	logger.NewZapLog(filePath, conf.LogInfo)
 }
 
@@ -135,6 +132,7 @@ func (a *App) unInit(ctx context.Context) error {
 	a.UnInit(ctx)
 	// zap.L().Info("closing...")
 	_ = db.CloseMongo()
-	zap.L().Info("server exit")
+	db.CloseRedis()
+	zap.L().Info("服务器关闭")
 	return nil
 }

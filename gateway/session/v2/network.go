@@ -1,14 +1,15 @@
 package v2
 
 import (
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"net"
 	"net/http"
 	"server/pkg/thread"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 // Config 网络配置
@@ -84,7 +85,6 @@ var (
 	CliCnt  int32
 )
 
-/**************************************************************/
 func AddSession(cliSesID uint64, c *Session) {
 	CliSess.Store(cliSesID, c)
 	atomic.AddInt32(&CliCnt, 1)

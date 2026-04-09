@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"io"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
@@ -13,6 +11,9 @@ import (
 	"server/pkg/pb/msgid"
 	"sync"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 var recvBufPool = sync.Pool{
@@ -61,7 +62,7 @@ func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 				return
 			}
 			if total == len(data) {
-				zap.L().Warn("message length exceeds maxRecvMsgSize", zap.Inline(s), zap.Int("limit", len(data)))
+				zap.L().Warn("message length >= MaxMsgSize", zap.Inline(s), zap.Int("limit", len(data)))
 				recvBufPool.Put(bufPtr)
 				return
 			}

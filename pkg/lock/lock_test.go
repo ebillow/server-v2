@@ -6,6 +6,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestLock(t *testing.T) {
@@ -59,6 +61,26 @@ func TestLockMulti(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Log("lock success")
+			mtx.Unlock(ctx)
+		}()
+	}
+	wg.Wait()
+}
+
+func TestLockMulti2(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	wg := sync.WaitGroup{}
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			mtx := NewLock("test" + "1")
+			err := mtx.Lock(ctx)
+			require.NoError(t, err)
+
+			// t.Log("lock success")
 			mtx.Unlock(ctx)
 		}()
 	}

@@ -1,10 +1,11 @@
 package logic
 
 import (
-	"go.uber.org/zap"
 	session "server/gateway/session/v2"
 	"server/pkg/thread"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 func Init() {

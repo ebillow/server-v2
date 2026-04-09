@@ -2,9 +2,6 @@ package v2
 
 import (
 	"context"
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"server/pkg/gnet"
 	"server/pkg/idgen"
 	"server/pkg/pb"
@@ -12,6 +9,10 @@ import (
 	"server/pkg/thread"
 	"sync"
 	"sync/atomic"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (

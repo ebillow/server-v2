@@ -3,14 +3,15 @@ package v2
 import (
 	"context"
 	"encoding/binary"
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/codec"
 	"server/pkg/gnet/trace"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 // SendBytes 发送数据给客户端
