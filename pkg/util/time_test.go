@@ -1,16 +1,16 @@
 package util
 
 import (
-	"github.com/jinzhu/now"
+	// "github.com/jinzhu/now"
 	"testing"
 	"time"
 )
 
 func TestNow(t *testing.T) {
-	tb := now.BeginningOfDay()
-	t.Log(tb)
-	tmrb := now.BeginningOfDay().Add(time.Hour * 24)
-	t.Log("下一天", tmrb)
+	// tb := now.BeginningOfDay()
+	// t.Log(tb)
+	// tmrb := now.BeginningOfDay().Add(time.Hour * 24)
+	// t.Log("下一天", tmrb)
 }
 
 func TestTime(t *testing.T) {

@@ -1,21 +1,23 @@
 package robot
 
 import (
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"server/pkg/util"
 	"server/robot/clinet"
+	"server/robot/logic/monitor"
 	"time"
+
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 func InitEcho(r *Robot) {
-	clinet.RegistryMsg(msgid.MsgIDS2C_S2CEcho, func() proto.Message { return &pb.S2CEcho{} }, onProto)
+	clinet.RegistryMsg(msgid.MsgIDS2C_S2CEcho, func() proto.Message { return &pb.S2CEcho{} }, onEcho)
 	r.AddTask(int64(util.RandRange(1, 1)), task)
 }
 
-func onProto(msgBase proto.Message, ses *clinet.Session) {
+func onEcho(msgBase proto.Message, ses *clinet.Session) {
 	msg := msgBase.(*pb.S2CEcho)
 	r := ses.U.(*Robot)
 	if msg.ID != r.Data.ID ||
@@ -25,7 +27,7 @@ func onProto(msgBase proto.Message, ses *clinet.Session) {
 		zap.L().Warn("echo data not match", zap.Any("msg", msg), zap.Any("data", r.Data))
 	}
 	AddRecvCnt()
-	AddCostTime(time.Now().UnixMilli() - msg.CliTime)
+	monitor.Add(time.Since(time.Unix(0, msg.CliTime)))
 }
 
 func task(r *Robot) {
@@ -35,7 +37,7 @@ func task(r *Robot) {
 		Level: uint32(r.Data.Level),
 		Exp:   r.Data.Exp,
 		Data:  "echo message test",
-		Time:  time.Now().UnixMilli(),
+		Time:  time.Now().UnixNano(),
 	})
 	AddSendCnt()
 }

@@ -1,11 +1,12 @@
 package gctx
 
 import (
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap/zapcore"
 	"server/pkg/flag"
 	"server/pkg/gnet/codec"
 	"server/pkg/pb"
+
+	"github.com/nats-io/nats.go"
+	"go.uber.org/zap/zapcore"
 )
 
 type Unity interface{}
@@ -13,15 +14,6 @@ type Context struct {
 	U   Unity
 	Raw *nats.Msg
 	Msg *pb.NatsMsg
-
-	MsgID uint32
-	Data  []byte
-
-	SerID   int32
-	SerType pb.Server
-	RoleID  uint64
-	SesID   uint64
-	Forward uint8
 }
 
 func (s Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {

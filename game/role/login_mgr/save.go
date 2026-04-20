@@ -2,15 +2,15 @@ package login_mgr
 
 import (
 	"context"
+	"server/pkg/db"
+	"server/pkg/model"
+	"sync"
+	"time"
+
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.uber.org/zap"
-	"server/pkg/db"
-	"server/pkg/model"
-	"server/pkg/queue"
-	"sync"
-	"time"
 )
 
 type opSaveData struct {
@@ -28,25 +28,21 @@ func (d *opSaveData) Values() []interface{} {
 }
 
 type saver struct {
-	save *queue.SwapQueue[opSaveData]
-	ctrl chan struct{}
+	save chan opSaveData
 }
 
 func newSaver() *saver {
 	return &saver{
-		save: queue.NewSwapQueue[opSaveData](OpChanSize, OpChanSize*100),
-		ctrl: make(chan struct{}),
+		save: make(chan opSaveData, OpChanSize),
 	}
 }
 
 func (s *saver) close() {
-	close(s.ctrl)
+	close(s.save)
 }
 
-func (s *saver) post(op opSaveData) {
-	if err := s.save.Push(op); err != nil {
-		zap.L().Error("save chan full", zap.Uint64("id", op.ID))
-	}
+func (s *saver) post(op opSaveData) { // 这里不能丢数据,写不进去就背压
+	s.save <- op
 }
 
 func (s *saver) run(wait *sync.WaitGroup) {
@@ -72,28 +68,19 @@ func (s *saver) run(wait *sync.WaitGroup) {
 
 	for {
 		select {
-		case <-s.save.Sig():
-			s.save.Range(func(op opSaveData) bool {
-				batch[op.ID] = op
-				if len(batch) >= batchSize {
-					flush()
-					ticker.Reset(flushInterval)
-				}
-				return true
-			})
+		case op, ok := <-s.save:
+			if !ok {
+				flush()
+				return
+			}
+			batch[op.ID] = op
+			if len(batch) >= batchSize {
+				flush()
+				ticker.Reset(flushInterval)
+			}
 
 		case <-ticker.C:
 			flush()
-		case <-s.ctrl:
-			s.save.Range(func(op opSaveData) bool {
-				batch[op.ID] = op
-				if len(batch) >= batchSize {
-					flush()
-				}
-				return true
-			})
-			flush()
-			return
 		}
 	}
 }

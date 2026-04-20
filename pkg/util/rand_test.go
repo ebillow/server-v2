@@ -1,8 +1,9 @@
 package util
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestRandUnique(t *testing.T) {
@@ -31,7 +32,7 @@ func TestRandByWeight(t *testing.T) {
 		r.Add(1000, i)
 	}
 	ret := make(map[int]int)
-	randCnt := 1000000
+	randCnt := 10000000
 	for i := 0; i != randCnt; i++ {
 		v, err := r.Get()
 		require.NoError(t, err)

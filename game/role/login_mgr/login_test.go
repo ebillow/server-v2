@@ -2,10 +2,6 @@ package login_mgr
 
 import (
 	"context"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
-	"go.uber.org/zap"
 	"server/game/component"
 	"server/game/role"
 	"server/game/role/role_mgr"
@@ -18,6 +14,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
+	"go.uber.org/zap"
 )
 
 func TestMain(m *testing.M) {
@@ -222,7 +223,7 @@ func TestLoginOtherDev(t *testing.T) {
 			Seq:         1,
 		})
 
-		time.Sleep(time.Millisecond * time.Duration(util.RandInt(5)))
+		time.Sleep(time.Millisecond * time.Duration(util.RandRange(0, 5)))
 		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 		},
@@ -231,7 +232,7 @@ func TestLoginOtherDev(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		time.Sleep(time.Millisecond * time.Duration(util.RandInt(10)))
+		time.Sleep(time.Millisecond * time.Duration(util.RandRange(0, 10)))
 	}
 
 	role.RoleMgr().CloseAndWait()

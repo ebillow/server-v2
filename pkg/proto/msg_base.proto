@@ -204,3 +204,10 @@ enum LoginCode {
 	LCAccountEmpty = 15;  //请求中的账号非法
 	LCSDKErr = 16;		//登录sdk类型错误
 }
+
+message EvtOffline{
+	string MsgName = 1;
+	uint32 MsgID = 2;
+	bytes Data = 3;
+	uint64 RoleID = 4;
+}

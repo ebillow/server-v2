@@ -1,11 +1,12 @@
 package robot
 
 import (
-	"go.uber.org/zap"
 	"server/pkg/util"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -30,10 +31,6 @@ func AddRecvCnt() {
 	m.AddRecvCnt()
 }
 
-func AddCostTime(cost int64) {
-	m.AddCostTime(cost)
-}
-
 type Monitor struct {
 	c      chan uint64
 	onLine map[uint64]time.Time
@@ -42,10 +39,8 @@ type Monitor struct {
 	timeOut map[uint32]uint32
 	name    string
 
-	sendCnt   atomic.Uint64
-	recvCnt   atomic.Uint64
-	totalCost atomic.Int64
-	msgCnt    atomic.Int64
+	sendCnt atomic.Uint64
+	recvCnt atomic.Uint64
 }
 
 func NewMonitor(name string) *Monitor {
@@ -75,11 +70,6 @@ func (m *Monitor) AddSendCnt() {
 
 func (m *Monitor) AddRecvCnt() {
 	m.recvCnt.Add(1)
-}
-
-func (m *Monitor) AddCostTime(cost int64) {
-	m.totalCost.Add(cost)
-	m.msgCnt.Add(1)
 }
 
 func (m *Monitor) run() {
@@ -132,13 +122,7 @@ func (m *Monitor) run() {
 					}
 					m.timeOut[k] = 0
 				}
-				avgCost := int64(0)
-				msgCnt := m.msgCnt.Swap(0)
-				if msgCnt > 0 {
-					avgCost = m.totalCost.Swap(0) / msgCnt
-				}
-
-				zap.S().Infof("%s active:%d time out:%d send:%d recv:%d avg:%d", m.name, len(m.onLine), cnt, m.sendCnt.Swap(0), m.recvCnt.Swap(0), avgCost)
+				zap.S().Infof("%s active:%d time out:%d send:%d recv:%d avg:%d", m.name, len(m.onLine), cnt, m.sendCnt.Swap(0), m.recvCnt.Swap(0))
 				m.onLine = make(map[uint64]time.Time)
 			}
 		}

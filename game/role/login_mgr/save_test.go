@@ -3,15 +3,16 @@ package login_mgr
 import (
 	"context"
 	"encoding/json"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/stretchr/testify/require"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/db"
 	"server/pkg/pb"
 	"server/pkg/util"
 	"testing"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"google.golang.org/protobuf/proto"
 )
 
 func mock() *pb.S2CLogin {
@@ -23,7 +24,7 @@ func mock() *pb.S2CLogin {
 		ServerBeginTime: time.Now().Unix(),
 		Dev:             "adfadsfadsf",
 		RetDesc:         "adsfadsfadsf",
-		Token:           util.RandToken(),
+		Token:           util.RandRange(uint32(10000), 99999),
 		CliVersion:      "1.1.0",
 		Player: &pb.RoleData{
 			ID:             1111,
