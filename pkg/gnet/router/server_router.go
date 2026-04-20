@@ -1,15 +1,15 @@
 package router
 
 import (
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"server/game/role"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/trace"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 type ServerRouter struct {
@@ -40,27 +40,17 @@ func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pro
 	}
 }
 
-func (rt *ServerRouter) Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *role.Role) {
-	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw, U: r}, func(msgPB proto.Message) {
-		if trace.Rule.ShouldLog(natMsg.MsgID, natMsg.RoleID, natMsg.SesID) {
+func (rt *ServerRouter) Handle(ctx gctx.Context, r *role.Role) {
+	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
+		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
-				zap.Uint32("msgID", natMsg.MsgID),
-				zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]),
-				zap.String("from", flag.SrvName(natMsg.SerType)),
-				zap.Int32("serID", natMsg.SerID),
-				zap.Any("data", msgPB),
-				zap.Uint64("roleID", natMsg.RoleID),
-				zap.Uint64("sesID", natMsg.SesID),
+				zap.String("msgName", msgid.MsgIDS2S_name[int32(ctx.MsgID)]),
+				zap.Inline(ctx),
 			)
 		}
 	})
 	if err != nil {
-		zap.L().Warn("HandleWithRole failed",
-			zap.Uint32("msgID", natMsg.MsgID),
-			zap.String("from", flag.SrvName(natMsg.SerType)),
-			zap.Int32("idx", natMsg.SerID),
-			zap.Uint64("roleID", natMsg.RoleID),
-			zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
+		zap.L().Warn("HandleWithRole failed", zap.Inline(ctx), zap.Error(err))
 		return
 	}
 }
@@ -85,26 +75,17 @@ func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pr
 	}
 }
 
-func (rt *ServerRouter) HandleG(natMsg *pb.NatsMsg, raw *nats.Msg) {
-	err := rt.HandleMsg(gctx.Context{Msg: natMsg, Raw: raw}, func(msgPB proto.Message) {
-		if trace.Rule.ShouldLog(natMsg.MsgID, natMsg.RoleID, natMsg.SesID) {
+func (rt *ServerRouter) HandleG(ctx gctx.Context) {
+	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
+		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
-				zap.Uint32("msgID", natMsg.MsgID),
-				zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]),
-				zap.String("from", flag.SrvName(natMsg.SerType)),
-				zap.Int32("serID", natMsg.SerID),
-				zap.Any("data", msgPB),
-				zap.Uint64("roleID", natMsg.RoleID),
-				zap.Uint64("sesID", natMsg.SesID),
+				zap.String("msgName", msgid.MsgIDS2S_name[int32(ctx.MsgID)]),
+				zap.Inline(ctx),
 			)
 		}
 	})
 	if err != nil {
-		zap.L().Warn("Handle failed",
-			zap.Uint32("msgID", natMsg.MsgID),
-			zap.String("from", flag.SrvName(natMsg.SerType)),
-			zap.Int32("idx", natMsg.SerID),
-			zap.String("msgName", msgid.MsgIDS2S_name[int32(natMsg.MsgID)]))
+		zap.L().Warn("Handle failed", zap.Inline(ctx), zap.Error(err))
 		return
 	}
 }

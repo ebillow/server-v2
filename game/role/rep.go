@@ -1,11 +1,11 @@
 package role
 
 import (
-	"github.com/nats-io/nats.go"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+
+	"google.golang.org/protobuf/proto"
 )
 
 type IRoleMgr interface {
@@ -25,13 +25,13 @@ type ILoginMgr interface {
 
 type ICRouter interface {
 	On(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(natMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
+	Handle(ctx gctx.Context, r *Role)
 }
 
 type ISRouter interface {
 	OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message))
 	On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(natsMsg *pb.NatsMsg, raw *nats.Msg, r *Role)
+	Handle(ctx gctx.Context, r *Role)
 }
 
 // ---------------------------------------------------------

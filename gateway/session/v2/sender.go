@@ -3,7 +3,6 @@ package v2
 import (
 	"context"
 	"encoding/binary"
-	"server/pkg/gnet/codec"
 	"server/pkg/gnet/trace"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
@@ -15,11 +14,10 @@ import (
 )
 
 // SendBytes 发送数据给客户端
-func (s *Session) SendBytes(msgID uint32, data []byte, msg *pb.NatsMsg) {
+func (s *Session) SendBytes(msgID uint32, data []byte) {
 	err := s.out.Push(MsgSend{
 		ID:   msgID,
 		Data: data,
-		Msg:  msg,
 	})
 	if err != nil {
 		zap.L().Warn("send to client err", zap.Uint32("msgID", msgID), zap.Error(err))
@@ -58,11 +56,11 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 		return false
 	}
 
-	s.SendBytes(uint32(msgID), b, nil)
+	s.SendBytes(uint32(msgID), b)
 	return true
 }
 
-// 看需求，可以合并发送(最高优先)
+// 看需求，可以合并发送
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
 		s.Close(pb.DisconnectReason_NetErr)
@@ -78,9 +76,6 @@ func (s *Session) sendLoop(ctx context.Context) {
 				w, err := s.conn.NextWriter(websocket.BinaryMessage)
 				if err != nil {
 					zap.L().Warn("NextWriter error", zap.Error(err))
-					if v.Msg != nil {
-						codec.PutNatsMsg(v.Msg)
-					}
 					s.Close(pb.DisconnectReason_NetErr)
 					return false // 发生致命网络错误，退出循环并断开
 				}
@@ -94,9 +89,6 @@ func (s *Session) sendLoop(ctx context.Context) {
 				// 立刻关闭 Writer 刷入网络
 				_ = w.Close()
 
-				if v.Msg != nil {
-					codec.PutNatsMsg(v.Msg)
-				}
 				if err != nil {
 					return false
 				}

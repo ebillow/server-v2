@@ -2,19 +2,20 @@ package role
 
 import (
 	"context"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/cfg"
 	"server/pkg/flag"
 	"server/pkg/gnet"
+	"server/pkg/gnet/gctx"
 	"server/pkg/model"
 	"server/pkg/queue"
 	"server/pkg/thread"
 	"server/pkg/util"
 	"sync"
+
+	jsoniter "github.com/json-iterator/go"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"google.golang.org/protobuf/proto"
 
 	"server/pkg/pb"
 	"time"
@@ -40,8 +41,7 @@ func (d *DataToSave) IsEmpty() bool {
 const EventChanSize = 16
 
 type Event struct {
-	Raw    *nats.Msg
-	NatMsg *pb.NatsMsg
+	Ctx gctx.Context
 
 	CliMsg bool
 	Func   func(r *Role)
@@ -339,18 +339,14 @@ func (r *Role) MinuteLoop(now time.Time) {
 }
 
 func (r *Role) onEvent(evt Event) {
-	if evt.NatMsg == nil {
+	if evt.Ctx.MsgID == 0 {
 		evt.Func(r)
 	} else {
-		r.onProto(evt.NatMsg, evt.Raw, evt.CliMsg)
-	}
-}
-
-func (r *Role) onProto(natsMsg *pb.NatsMsg, raw *nats.Msg, isCli bool) {
-	if isCli {
-		cRouter().Handle(natsMsg, raw, r)
-	} else {
-		sRouter().Handle(natsMsg, raw, r)
+		if evt.CliMsg {
+			cRouter().Handle(evt.Ctx, r)
+		} else {
+			sRouter().Handle(evt.Ctx, r)
+		}
 	}
 }
 

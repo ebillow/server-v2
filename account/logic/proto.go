@@ -1,12 +1,13 @@
 package logic
 
 import (
-	"google.golang.org/protobuf/proto"
 	"server/account/logic/login"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -23,7 +24,7 @@ func onLogin(c gctx.Context, msgBase proto.Message) {
 
 	msgS := &pb.S2SReqLogin{
 		Req:   msg,
-		SesID: c.Msg.SesID,
+		SesID: c.SesID,
 	}
 	login.Login(msgS)
 }

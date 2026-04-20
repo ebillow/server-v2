@@ -25,7 +25,7 @@ func SendToAll(msgID msgid.MsgIDS2C, msg proto.Message) {
 
 	session.CliSess.Range(func(k, v interface{}) bool {
 		ses := v.(*session.Session)
-		ses.SendBytes(uint32(msgID), b, nil)
+		ses.SendBytes(uint32(msgID), b)
 		return true
 	})
 }
@@ -39,7 +39,7 @@ func SendToSomeOne(msgID msgid.MsgIDS2C, msg proto.Message, cliSess map[uint64]b
 	for k := range cliSess {
 		ses := session.GetSession(k)
 		if ses != nil {
-			ses.SendBytes(uint32(msgID), b, nil)
+			ses.SendBytes(uint32(msgID), b)
 		}
 	}
 }

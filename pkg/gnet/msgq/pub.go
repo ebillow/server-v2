@@ -3,19 +3,20 @@ package msgq
 import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/codec"
+	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 )
 
 // Send 指定发送
 func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, bp, err := codec.Encode(&pb.NatsMsg{ // 可以考虑不用proto，直接写[]byte
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   bs.serID,
 		SerType: bs.serType,
 		RoleID:  roleID,
 		SesID:   sesID,
-		Forward: false,
+		Forward: 0,
 	})
 	if err != nil {
 		return gerror.Wrap(err, "encode err:")
@@ -30,14 +31,14 @@ func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byt
 }
 
 func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, bp, err := codec.Encode(&pb.NatsMsg{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   bs.serID,
 		SerType: bs.serType,
 		RoleID:  roleID,
 		SesID:   sesID,
-		Forward: true,
+		Forward: 1,
 	})
 	if err != nil {
 		return gerror.Wrap(err, "encode err:")
@@ -53,14 +54,14 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, d
 
 // SendAny 组发送. 随机一个能收到
 func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, bp, err := codec.Encode(&pb.NatsMsg{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
 		SerID:   bs.serID,
 		RoleID:  roleID,
 		SesID:   sesID,
-		Forward: false,
+		Forward: 0,
 	})
 	if err != nil {
 		return gerror.Wrap(err, "encode err:")
@@ -76,14 +77,14 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 
 // SendAll 所有的 serName 服节点都能收到
 func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, bp, err := codec.Encode(&pb.NatsMsg{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
 		SerID:   bs.serID,
 		RoleID:  roleID,
 		SesID:   sesID,
-		Forward: false,
+		Forward: 0,
 	})
 	if err != nil {
 		return gerror.Wrap(err, "encode err:")

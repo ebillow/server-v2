@@ -91,6 +91,11 @@ proto:
 tidy:
 	go mod tidy -go=1.26 -v
 
+field:
+	fieldalignment ./...
+field-fix:
+	fieldalignment -fix ./...
+
 # 生成 model 的 helper 方法
 model:
 	bash ./tools/generate_model.sh <<< 'done'
@@ -110,4 +115,4 @@ table:
 
 
 # Phony targets
-.PHONY: test view-coverage lint lint-fix check clean proto tidy model mock table
+.PHONY: test view-coverage lint lint-fix check clean proto tidy model mock table field field-fix

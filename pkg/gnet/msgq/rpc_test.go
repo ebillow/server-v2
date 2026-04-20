@@ -2,6 +2,9 @@ package msgq
 
 import (
 	"os"
+	"server/pkg/cfg"
+	"server/pkg/gnet/gctx"
+	"server/pkg/logger"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"testing"
@@ -13,16 +16,23 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	cfg.Load("127.0.0.1:2379", "local")
+
+	logger.NewZapLog("../../../bin/logger/test.logger", logger.Config{
+		Level:   0,
+		Console: true,
+	})
+
 	err := Q.Init("nats://localhost:4222,nats://localhost:4222", pb.Server_Game, 1, nats.UserInfo("123456", "123456"))
 	if err != nil {
 		panic(err)
 	}
 
 	data := pb.S2SReqLogin{}
-	err = Q.Serve(func(natMsg *pb.NatsMsg, msg *nats.Msg) {
-		err = proto.Unmarshal(natMsg.Data, &data)
+	err = Q.Serve(func(ctx gctx.Context) {
+		err = proto.Unmarshal(ctx.Data, &data)
 		// zap.L().Info("msg recv", zap.Any("msg", &data))
-		err = RpcRespond(msg, &pb.S2SResLogin{
+		err = RpcRespond(ctx.Raw, &pb.S2SResLogin{
 			GameID: 111,
 			Res: &pb.S2CLogin{
 				Token: data.Seq,

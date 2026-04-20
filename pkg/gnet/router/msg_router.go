@@ -1,10 +1,11 @@
 package router
 
 import (
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/gctx"
 	"time"
+
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 type MsgHandler struct {
@@ -37,14 +38,12 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c g
 
 // HandleMsg 处理消息
 func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Message)) error {
-	defer c.FreeNatsMsg()
-
-	node, err := rt.GetHandler(c.Msg.MsgID)
+	node, err := rt.GetHandler(c.MsgID)
 	if err != nil {
 		return err
 	}
 
-	msgPB, err := rt.ParseMsg(node, c.Msg.Data)
+	msgPB, err := rt.ParseMsg(node, c.Data)
 	if err != nil {
 		return err
 	}

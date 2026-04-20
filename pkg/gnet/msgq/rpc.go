@@ -3,6 +3,7 @@ package msgq
 import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/codec"
+	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 	"time"
 
@@ -22,14 +23,14 @@ func RpcCall[T any, PT interface {
 		return ack, gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %s", msgID, toSub)
 	}
 
-	out, bp, err := codec.Encode(&pb.NatsMsg{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    b,
 		SerID:   bs.serID,
 		SerType: bs.serType,
 		RoleID:  roleID,
 		SesID:   sesID,
-		Forward: false,
+		Forward: 0,
 	})
 	resMsg, err := bs.conn.Request(toSub, out, timeOut)
 	if err != nil {

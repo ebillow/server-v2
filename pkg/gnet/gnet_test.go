@@ -1,15 +1,17 @@
 package gnet
 
 import (
-	"github.com/nats-io/nats.go"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/cfg"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
 	"server/pkg/logger"
 	"server/pkg/pb"
 	"sync"
 	"testing"
+
+	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestMain(m *testing.M) {
@@ -29,8 +31,9 @@ func TestSendAndServe(t *testing.T) {
 
 	wait := sync.WaitGroup{}
 	data := pb.S2SReqLogin{}
-	err = msgq.Q.Serve(func(natMsg *pb.NatsMsg, msg *nats.Msg) {
-		err = proto.Unmarshal(natMsg.Data, &data)
+	cnt := 0
+	err = msgq.Q.Serve(func(ctx gctx.Context) {
+		err = proto.Unmarshal(ctx.Data, &data)
 		require.NoError(t, err)
 		require.Equal(t, data.SesID, data.RoleID*2)
 		require.Equal(t, data.ReConnToken, data.RoleID*3)
@@ -39,6 +42,7 @@ func TestSendAndServe(t *testing.T) {
 		// zap.L().Info("msg recv", zap.Any("msg", &data))
 		data.Reset()
 		wait.Done()
+		cnt++
 	})
 	require.NoError(t, err)
 
@@ -52,4 +56,5 @@ func TestSendAndServe(t *testing.T) {
 		}, 0, 0)
 	}
 	wait.Wait()
+	t.Log("run ", cnt)
 }

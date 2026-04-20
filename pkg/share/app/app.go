@@ -9,6 +9,7 @@ import (
 	"server/pkg/discovery"
 	"server/pkg/flag"
 	"server/pkg/ghttp"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
 	"server/pkg/idgen"
 	"server/pkg/lock"
@@ -28,7 +29,7 @@ type App struct {
 	Init    func(ctx context.Context) error
 	Action  func(ctx context.Context, wait *sync.WaitGroup) error
 	UnInit  func(ctx context.Context)
-	OnMsg   func(*pb.NatsMsg, *nats.Msg)
+	OnMsg   func(ctx gctx.Context)
 	SrvType pb.Server
 }
 

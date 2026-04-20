@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"github.com/nats-io/nats.go"
-	"github.com/spf13/cobra"
-	"go.uber.org/zap"
 	"server/gateway/logic"
 	session "server/gateway/session/v2"
 	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
@@ -15,6 +13,9 @@ import (
 	"server/pkg/version"
 	"sync"
 	"time"
+
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -77,15 +78,15 @@ func loadNetCfg() *session.Config {
 	return cfg
 }
 
-func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
-	if natsMsg.Forward {
-		ses := session.GetSession(natsMsg.SesID)
+func OnServerMsg(ctx gctx.Context) {
+	if ctx.Forward == 1 {
+		ses := session.GetSession(ctx.SesID)
 		if ses == nil {
 			return
 		}
-		ses.SendBytes(natsMsg.MsgID, natsMsg.Data, natsMsg)
+		ses.SendBytes(ctx.MsgID, ctx.Data)
 		return
 	}
 
-	router.S().HandleG(natsMsg, raw)
+	router.S().HandleG(ctx)
 }

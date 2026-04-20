@@ -2,9 +2,11 @@ package js
 
 import (
 	"context"
+
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
-	"server/pkg/gnet/codec"
+	"google.golang.org/protobuf/proto"
+
 	"server/pkg/pb"
 	"strings"
 	"time"
@@ -56,7 +58,8 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg *pb.Na
 
 	// 2. 开始消费消息 (Iterator / Consume 方法)
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		msg, err := codec.Decode(msgRaw.Data())
+		msg := &pb.NatsMsg{}
+		err = proto.Unmarshal(msgRaw.Data(), msg)
 		if err != nil {
 			zap.L().Error("Error unmarshalling log", zap.Error(err))
 			return

@@ -8,13 +8,13 @@ import (
 	"server/account/logic/login"
 	"server/pkg/db"
 	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
 	"sync"
 
-	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 )
 
@@ -60,10 +60,10 @@ func UnInit(ctx context.Context) {
 
 }
 
-func OnServerMsg(natsMsg *pb.NatsMsg, raw *nats.Msg) {
-	if natsMsg.SerType == pb.Server_Gateway {
-		router.C().HandleG(natsMsg, raw)
+func OnServerMsg(ctx gctx.Context) {
+	if ctx.SerType == pb.Server_Gateway {
+		router.C().HandleG(ctx)
 	} else {
-		router.S().HandleG(natsMsg, raw)
+		router.S().HandleG(ctx)
 	}
 }

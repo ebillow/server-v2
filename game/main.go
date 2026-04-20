@@ -10,13 +10,13 @@ import (
 	"server/game/role/role_mgr"
 	"server/pkg/db"
 	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 	"server/pkg/version"
 	"sync"
 
-	"github.com/nats-io/nats.go"
 	"github.com/spf13/cobra"
 )
 
@@ -71,23 +71,21 @@ func inject() {
 	role.CreateComps = component.CreateComps
 }
 
-func OnServerMsg(natMsg *pb.NatsMsg, raw *nats.Msg) {
-	if natMsg.RoleID != 0 {
-		role.RoleMgr().PostEvent(natMsg.RoleID, role.Event{
-			Raw:    raw,
-			NatMsg: natMsg,
+func OnServerMsg(ctx gctx.Context) {
+	if ctx.RoleID != 0 {
+		role.RoleMgr().PostEvent(ctx.RoleID, role.Event{
+			Ctx: ctx,
 		})
 		return
 	}
 
-	if natMsg.SesID != 0 {
-		role.RoleMgr().PostEventBySesID(natMsg.SesID, role.Event{
-			Raw:    raw,
-			NatMsg: natMsg,
+	if ctx.SesID != 0 {
+		role.RoleMgr().PostEventBySesID(ctx.SesID, role.Event{
+			Ctx:    ctx,
 			CliMsg: true,
 		})
 		return
 	}
 
-	router.S().HandleG(natMsg, raw)
+	router.S().HandleG(ctx)
 }

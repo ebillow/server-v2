@@ -22,7 +22,6 @@ const (
 type MsgSend struct {
 	ID   uint32
 	Data []byte
-	Msg  *pb.NatsMsg
 }
 
 // Session 客户端和gate的网络会话

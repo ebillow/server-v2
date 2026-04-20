@@ -1,21 +1,23 @@
 package msgq
 
 import (
+	"server/pkg/gnet/codec"
+	"server/pkg/gnet/gctx"
+	"server/pkg/pb"
+
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
-	"server/pkg/gnet/codec"
-	"server/pkg/pb"
 )
 
-func (bs *DataBus) Serve(callback func(wrapper *pb.NatsMsg, msg *nats.Msg)) error {
+func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
 	err := bs.subscribe(bs.getSubjects(bs.serType, bs.serID), func(msg *nats.Msg) {
-		wp, err := codec.Decode(msg.Data)
+		ctx, err := codec.Decode(msg.Data)
 		if err != nil {
 			zap.L().Warn("decode error", zap.Error(err))
 			return
 		}
-
-		callback(wp, msg)
+		ctx.Raw = msg
+		callback(ctx)
 	})
 	if err != nil {
 		return err

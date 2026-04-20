@@ -17,7 +17,7 @@ func init() {
 
 func onLoginSuccess(c gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SResLogin)
-	ses := session.GetSession(c.Msg.SesID)
+	ses := session.GetSession(c.SesID)
 	if ses == nil {
 		return
 	}
@@ -26,7 +26,7 @@ func onLoginSuccess(c gctx.Context, msgBase proto.Message) {
 }
 
 func onDisconnect(c gctx.Context, msgBase proto.Message) {
-	ses := session.GetSession(c.Msg.SesID)
+	ses := session.GetSession(c.SesID)
 	if ses == nil {
 		return
 	}
