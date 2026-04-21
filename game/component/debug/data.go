@@ -3,13 +3,14 @@ package debug
 import (
 	"context"
 	"errors"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"server/game/role"
 	"server/pkg/db"
 	"server/pkg/model"
 	"server/pkg/pb"
+
+	"github.com/bytedance/sonic"
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 // Data 做单元测试用，后续删除
@@ -44,7 +45,7 @@ func (d *Data) Online(r *role.Role) {
 	}
 	if err == nil {
 		data := pb.RoleData{}
-		err = jsoniter.UnmarshalFromString(ret, &data)
+		err = sonic.UnmarshalString(ret, &data)
 		if err != nil {
 			zap.L().Error("json unmarshal", zap.Error(err))
 			return

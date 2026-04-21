@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"google.golang.org/protobuf/proto"
@@ -78,17 +78,29 @@ func BenchmarkJson(b *testing.B) {
 	}
 }
 
-// BenchmarkJsoniter-10    	  565819	      2169 ns/op
-func BenchmarkJsoniter(b *testing.B) {
+// BenchmarkSonic-10    	  688830	      1666 ns/op
+func BenchmarkSonic(b *testing.B) {
 	d := mock()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		bts, err := jsoniter.Marshal(d)
+		bts, err := sonic.Marshal(d)
 		require.NoError(b, err)
-		err = jsoniter.Unmarshal(bts, d)
+		err = sonic.Unmarshal(bts, d)
 		require.NoError(b, err)
 	}
 }
+
+// // BenchmarkJsoniter-10    	  565819	      2169 ns/op
+// func BenchmarkJsoniter(b *testing.B) {
+// 	d := mock()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		bts, err := jsoniter.Marshal(d)
+// 		require.NoError(b, err)
+// 		err = jsoniter.Unmarshal(bts, d)
+// 		require.NoError(b, err)
+// 	}
+// }
 
 // // BenchmarkMsgPack-10    	  659154	      1767 ns/op
 // func BenchmarkMsgPack(b *testing.B) {

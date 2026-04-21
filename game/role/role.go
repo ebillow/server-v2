@@ -12,7 +12,7 @@ import (
 	"server/pkg/util"
 	"sync"
 
-	jsoniter "github.com/json-iterator/go"
+	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/proto"
@@ -76,7 +76,7 @@ var CreateComps func(r *Role)
 func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	dataBase := &pb.RoleData{}
 
-	err := jsoniter.UnmarshalFromString(data.Get(pb.TypeComp_TCBase), dataBase)
+	err := sonic.UnmarshalString(data.Get(pb.TypeComp_TCBase), dataBase)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 		if len(compData) == 0 {
 			continue
 		}
-		err = jsoniter.UnmarshalFromString(compData, comp)
+		err = sonic.UnmarshalString(compData, comp)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 	}
 
 	if force || r.dirty {
-		str, err := jsoniter.MarshalToString(r.Data)
+		str, err := sonic.MarshalString(r.Data)
 		if err != nil {
 			zap.S().Errorf("marshal role data err:%v", err)
 			return nil, err
@@ -234,7 +234,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 		if !force && !v.IsDirty() {
 			continue
 		}
-		str, err := jsoniter.MarshalToString(v)
+		str, err := sonic.MarshalString(v)
 		if err != nil {
 			zap.L().Error("marshal role comp data err", zap.Error(err), zap.Inline(r))
 			continue

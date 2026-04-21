@@ -15,6 +15,11 @@ import (
 func InitEcho(r *Robot) {
 	clinet.RegistryMsg(msgid.MsgIDS2C_S2CEcho, func() proto.Message { return &pb.S2CEcho{} }, onEcho)
 	r.AddTask(int64(util.RandRange(1, 1)), task)
+	r.AddTask(int64(util.RandRange(1, 1)), task)
+	r.AddTask(int64(util.RandRange(1, 1)), task)
+	r.AddTask(int64(util.RandRange(1, 1)), task)
+	r.AddTask(int64(util.RandRange(1, 1)), task)
+
 }
 
 func onEcho(msgBase proto.Message, ses *clinet.Session) {

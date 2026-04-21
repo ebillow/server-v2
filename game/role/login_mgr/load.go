@@ -3,10 +3,6 @@ package login_mgr
 import (
 	"context"
 	"errors"
-	jsoniter "github.com/json-iterator/go"
-	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.uber.org/zap"
 	"server/game/role"
 	"server/pkg/db"
 	"server/pkg/model"
@@ -14,6 +10,11 @@ import (
 	"server/pkg/util"
 	"sync"
 	"time"
+
+	"github.com/bytedance/sonic"
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/zap"
 )
 
 type loader struct {
@@ -151,7 +152,7 @@ func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
 		Data: make(map[string]string),
 	}
 
-	str, err := jsoniter.MarshalToString(&rData)
+	str, err := sonic.MarshalString(&rData)
 	if err != nil {
 		zap.L().Error("[login] marshal role data", zap.Error(err))
 		return nil, err

@@ -4,7 +4,6 @@ import (
 	"server/pkg/gnet/gctx"
 	"time"
 
-	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -55,10 +54,10 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Messag
 
 	span := time.Since(begin)
 	if span.Milliseconds() > 200 {
-		zap.L().Warn("handle msg timeout:",
-			zap.Inline(c),
-			zap.Duration("cost", span),
-		)
+		// zap.L().Warn("handle msg timeout:",
+		// 	zap.Inline(c),
+		// 	zap.Duration("cost", span),
+		// )
 	}
 
 	return nil
