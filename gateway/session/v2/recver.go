@@ -111,6 +111,7 @@ func (s *Session) forwardToSrv(src []byte) {
 			zap.Int32("idx", serID),
 			zap.Inline(s),
 		)
+		return
 	}
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],

@@ -6,6 +6,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/VictoriaMetrics/metrics v1.43.1
 	github.com/cockroachdb/errors v1.12.0
+	github.com/emicklei/proto v1.14.3
 	github.com/gin-contrib/cors v1.7.6
 	github.com/gin-contrib/pprof v1.5.3
 	github.com/gin-gonic/gin v1.12.0

@@ -3,7 +3,6 @@ syntax = "proto3";
 option optimize_for = LITE_RUNTIME;
 option go_package = "./pb";
 
-import "msg_code.proto";
 //---------------说明---------------------------
 //公用结构,
 //----------------------------------------------

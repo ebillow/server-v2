@@ -13,6 +13,7 @@ message C2SGameHandle{}
 
 message S2CNone{}
 message S2SNone{}
+
 message S2CGateHandle{}
 
 message C2SInit{

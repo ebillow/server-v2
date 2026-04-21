@@ -174,4 +174,9 @@ func registerAllS2SMsg() {
 		NewMessage:  func() proto.Message { return &S2SRoleClear{} },
 	})
 
+	registerS2SMsg(msgid.MsgIDS2S_S2SMax, &messageMeta{
+		MessageType: reflect.TypeOf(S2SMax{}),
+		NewMessage:  func() proto.Message { return &S2SMax{} },
+	})
+
 }

@@ -72,13 +72,15 @@ function gen_proto() {
 }
 
 function gen_msg_id() {
-     # 生成 msg id
-      msgIds=(
-        msg_id_c2s.proto
-        msg_id_s2c.proto
-        msg_id_s2s.proto
-      )
-      protoc --go_out=${OUTDIR}/pb -I ${OUTDIR}/proto "${msgIds[@]}"
+  go generate ./generate_msgid.go
+  echo "🎉 msg id generated!"
+
+   msgIds=(
+    msg_id_c2s.proto
+    msg_id_s2c.proto
+    msg_id_s2s.proto
+  )
+  protoc --go_out=${OUTDIR}/pb -I ${OUTDIR}/proto "${msgIds[@]}"
 }
 
 # 生成grpc
@@ -92,12 +94,6 @@ function gen_grpc() {
 
 # 生成注册消息
 function gen_register() {
-  go generate ./generate_msgid.go
-  #mv ./msg_id_c2s.proto "${OUTDIR}/proto/"
-  mv ./msg_id_s2c.proto "${OUTDIR}/proto/"
-  mv ./msg_id_s2s.proto "${OUTDIR}/proto/"
-  echo "🎉 msg id generated!"
-
   go generate ./generate_proto.go
   mv ./msg_helper.go "${OUTDIR}/pb/"
   echo "🎉 msg helper generated!"
@@ -108,13 +104,13 @@ echo -e "${GREEN}开始生成协议代码${NC}"
 
 rm -rf ${OUTDIR}/pb/*.pb.go # 先删除原有的
 echo "🎉 删除 .pb.go"
+gen_msg_id
+echo "🎉 生成msg id"
 gen_proto
 echo "🎉 生成proto"
 gen_grpc
 echo "🎉 生成grpc"
 gen_register
 echo "🎉 生成helper"
-gen_msg_id
-echo "🎉 生成msg id"
 
 echo -e "${GREEN}生成协议完成${NC}"
