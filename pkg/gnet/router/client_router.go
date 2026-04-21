@@ -41,22 +41,6 @@ func (rt *ClientRouter) On(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pro
 	}
 }
 
-func (rt *ClientRouter) Handle(ctx gctx.Context, r *role.Role) {
-	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
-		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
-			zap.L().Info("<<< msg.recv:",
-				zap.String("msgName", msgid.MsgIDC2S_name[int32(ctx.MsgID)]),
-				zap.Any("data", msgPB),
-				zap.Inline(ctx),
-			)
-		}
-	})
-	if err != nil {
-		zap.L().Warn("HandleMsg failed", zap.Inline(ctx), zap.Error(err))
-		return
-	}
-}
-
 // OnG 注册客户端发来的消息处理函数,不带role
 func (rt *ClientRouter) OnG(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg proto.Message)) {
 	if flag.IsReady() {
@@ -78,7 +62,7 @@ func (rt *ClientRouter) OnG(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pr
 	}
 }
 
-func (rt *ClientRouter) HandleG(ctx gctx.Context) {
+func (rt *ClientRouter) Handle(ctx gctx.Context) {
 	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
 		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",

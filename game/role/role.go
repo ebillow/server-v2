@@ -342,10 +342,11 @@ func (r *Role) onEvent(evt Event) {
 	if evt.Ctx.MsgID == 0 {
 		evt.Func(r)
 	} else {
+		evt.Ctx.U = r
 		if evt.CliMsg {
-			cRouter().Handle(evt.Ctx, r)
+			cRouter().Handle(evt.Ctx)
 		} else {
-			sRouter().Handle(evt.Ctx, r)
+			sRouter().Handle(evt.Ctx)
 		}
 	}
 }

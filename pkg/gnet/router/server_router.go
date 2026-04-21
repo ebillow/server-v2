@@ -40,21 +40,6 @@ func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pro
 	}
 }
 
-func (rt *ServerRouter) Handle(ctx gctx.Context, r *role.Role) {
-	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
-		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
-			zap.L().Info("<<< msg.recv:",
-				zap.String("msgName", msgid.MsgIDS2S_name[int32(ctx.MsgID)]),
-				zap.Inline(ctx),
-			)
-		}
-	})
-	if err != nil {
-		zap.L().Warn("HandleWithRole failed", zap.Inline(ctx), zap.Error(err))
-		return
-	}
-}
-
 // OnG 注册服务器间消息，不是角色消息处理函数
 func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message)) {
 	if flag.IsReady() {
@@ -75,7 +60,7 @@ func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pr
 	}
 }
 
-func (rt *ServerRouter) HandleG(ctx gctx.Context) {
+func (rt *ServerRouter) Handle(ctx gctx.Context) {
 	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
 		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
@@ -85,7 +70,7 @@ func (rt *ServerRouter) HandleG(ctx gctx.Context) {
 		}
 	})
 	if err != nil {
-		zap.L().Warn("Handle failed", zap.Inline(ctx), zap.Error(err))
+		zap.L().Warn("HandleWithRole failed", zap.Inline(ctx), zap.Error(err))
 		return
 	}
 }

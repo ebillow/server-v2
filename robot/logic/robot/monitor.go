@@ -122,7 +122,7 @@ func (m *Monitor) run() {
 					}
 					m.timeOut[k] = 0
 				}
-				zap.S().Infof("%s active:%d time out:%d send:%d recv:%d avg:%d", m.name, len(m.onLine), cnt, m.sendCnt.Swap(0), m.recvCnt.Swap(0))
+				zap.S().Infof("%s active:%d time out:%d send:%d recv:%d", m.name, len(m.onLine), cnt, m.sendCnt.Swap(0), m.recvCnt.Swap(0))
 				m.onLine = make(map[uint64]time.Time)
 			}
 		}

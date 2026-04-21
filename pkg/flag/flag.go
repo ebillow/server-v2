@@ -29,7 +29,7 @@ func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
 	fs.IntVar(&SvcIndex, "index", 0, "服务索引")
 	fs.IntVar(&RpcPort, "rpc-port", 0, "rpc 监听端口")
 	fs.IntVar(&HttpPort, "http-port", 0, "http 监听端口")
-	fs.IntVar(&TcpPort, "tcp-port", 3001, "tcp 监听端口")
+	fs.IntVar(&TcpPort, "tcp-port", 30001, "tcp 监听端口")
 	fs.SortFlags = false
 
 	if manualParse {

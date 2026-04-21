@@ -25,13 +25,13 @@ type ILoginMgr interface {
 
 type ICRouter interface {
 	On(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(ctx gctx.Context, r *Role)
+	Handle(ctx gctx.Context)
 }
 
 type ISRouter interface {
 	OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message))
 	On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(ctx gctx.Context, r *Role)
+	Handle(ctx gctx.Context)
 }
 
 // ---------------------------------------------------------

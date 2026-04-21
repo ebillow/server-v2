@@ -87,5 +87,5 @@ func OnServerMsg(ctx gctx.Context) {
 		return
 	}
 
-	router.S().HandleG(ctx)
+	router.S().Handle(ctx)
 }

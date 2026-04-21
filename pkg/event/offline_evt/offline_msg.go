@@ -6,6 +6,7 @@ import (
 	"server/game/role"
 	"server/pkg/db"
 	"server/pkg/flag"
+	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"time"
@@ -59,7 +60,12 @@ func HandleMsg(r *role.Role) {
 			continue
 		}
 
-		router.S().Handle(msg, nil, r)
+		router.S().Handle(gctx.Context{
+			Data:   msg.Data,
+			U:      r,
+			RoleID: r.ID,
+			MsgID:  msg.MsgID,
+		})
 	}
 	if len(ss) > 0 {
 		db.Redis.LTrim(ctx, key, int64(len(ss)), -1)
