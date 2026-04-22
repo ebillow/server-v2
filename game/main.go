@@ -35,6 +35,9 @@ func main() {
 		Version: version.String(),
 	}
 
+	rootCmd.Flags().SortFlags = false
+	flag.Init(a.SrvType, rootCmd.PersistentFlags())
+
 	rootCmd.AddCommand(
 		version.CobraCmd(), // 打印version
 	)

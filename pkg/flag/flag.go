@@ -23,7 +23,7 @@ var (
 )
 
 // Init 解析flags
-func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
+func Init(serverType pb.Server, fs *pflag.FlagSet) {
 	fs.StringSliceVar(&EtcdAddr, "etcd-addr", []string{"127.0.0.1:2379"}, "etcd address")
 	fs.StringVar(&IID, "iid", "local", "商户号")
 	fs.IntVar(&SvcIndex, "index", 0, "服务索引")
@@ -32,10 +32,8 @@ func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
 	fs.IntVar(&TcpPort, "tcp-port", 30001, "tcp 监听端口")
 	fs.SortFlags = false
 
-	if manualParse {
-		pflag.Parse()
-	}
-
+	// pflag.Parse()
+	Debug(fs)
 	if hostName := os.Getenv("HOSTNAME"); hostName != "" {
 		if hostIdx := SplitHostName(hostName); hostIdx >= 0 {
 			SvcIndex = hostIdx
@@ -60,7 +58,7 @@ func Init(serverType pb.Server, fs *pflag.FlagSet, manualParse bool) {
 // Debug 打印输入的flags, 需要在初始化日志后调用.
 func Debug(fs *pflag.FlagSet) {
 	fs.VisitAll(func(f *pflag.Flag) {
-		zap.S().Debugf("FLAG: --%s=%s", f.Name, f.Value)
+		zap.S().Infof("FLAG: --%s=%s", f.Name, f.Value)
 	})
 }
 

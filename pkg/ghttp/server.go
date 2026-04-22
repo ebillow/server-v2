@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"server/pkg/util"
+	"sync"
+	"time"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"net/http"
-	"server/pkg/thread"
-	"server/pkg/util"
-	"sync"
-	"time"
 )
 
 var (
@@ -23,11 +23,8 @@ func EG() *gin.Engine {
 	return eg
 }
 
-func Start(ctx context.Context, wait *sync.WaitGroup, port int) {
-	eg = NewEngine(true)
-	thread.GoSafe(func() {
-		Serve(ctx, wait, eg, port)
-	})
+func Init(usePprof bool) {
+	eg = NewEngine(usePprof)
 }
 
 // NewEngine 创建 gin.Engine

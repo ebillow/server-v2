@@ -26,12 +26,16 @@ func main() {
 		UnInit:  UnInit,
 		OnMsg:   OnServerMsg,
 	}
+
 	var rootCmd = &cobra.Command{
 		Use:     "", // 默认直接启动，不需要子命令
 		Short:   "start account server",
 		Run:     a.RootCmdRun,
 		Version: version.String(),
 	}
+
+	rootCmd.Flags().SortFlags = false
+	flag.Init(a.SrvType, rootCmd.PersistentFlags())
 
 	rootCmd.AddCommand(
 		version.CobraCmd(), // 打印version

@@ -34,10 +34,6 @@ type App struct {
 }
 
 func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
-	cmd.Flags().SortFlags = false
-	flag.Init(a.SrvType, cmd.PersistentFlags(), false)
-	flag.Debug(cmd.PersistentFlags())
-
 	ctx, cancel := context.WithCancel(context.Background())
 	var wait sync.WaitGroup
 
@@ -61,6 +57,8 @@ func (a *App) init(ctx context.Context) error {
 
 	a.initLog(conf)
 	version.LogVersion()
+
+	ghttp.Init(true)
 
 	if err := a.initDB(conf); err != nil {
 		return err
@@ -108,7 +106,10 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 		return err
 	}
 
-	ghttp.Start(ctx, wait, flag.HttpPort)
+	thread.GoSafe(func() {
+		ghttp.Serve(ctx, wait, ghttp.EG(), flag.HttpPort)
+	})
+
 	if a.OnMsg != nil {
 		if err := msgq.Q.Serve(a.OnMsg); err != nil {
 			return err

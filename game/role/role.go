@@ -315,7 +315,7 @@ func (r *Role) SecLoop(now time.Time) {
 	}
 	if dayChange {
 		begin := util.CurDayBegin()
-		r.Data.DayChange = begin.Add(time.Duration(24) * time.Hour).Unix()
+		r.Data.DayChange = begin.Add(24 * time.Hour).Unix()
 		// zap.S().Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
 		// r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
 	}

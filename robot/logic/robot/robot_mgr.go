@@ -1,6 +1,7 @@
 package robot
 
 import (
+	"server/pkg/util"
 	"sync"
 	"time"
 )
@@ -21,10 +22,11 @@ func InitRobots(cnt int, bg int) {
 	for i := 0; i != cnt; i++ {
 		id := bg + i
 		go NewUnitRobot(id, Setup.WorldBegin)
-		if id%1000 == 0 {
-			time.Sleep(time.Millisecond * 200)
+		if id%100 == 0 {
+			time.Sleep(time.Microsecond * time.Duration(util.RandRange(10000, 20000)))
 		}
 	}
+	Start()
 }
 
 func LoadCfg() {

@@ -52,8 +52,11 @@ func NewMonitor(name string) *Monitor {
 		timeOut: make(map[uint32]uint32),
 	}
 
-	go m.run()
 	return m
+}
+
+func Start() {
+	go m.run()
 }
 
 func (m *Monitor) TimeOut(id uint32) {

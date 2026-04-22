@@ -1,11 +1,11 @@
 package monitor
 
 import (
-	"fmt"
-	"net/http"
+	"server/pkg/ghttp"
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
+	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -32,16 +32,9 @@ func Fail() {
 	errTotal.Inc()
 }
 
-// Start 启动监控接口
-func Start() {
-	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
-		metrics.WritePrometheus(w, true)
+// Register 启动监控接口
+func Register() {
+	ghttp.EG().GET("/metrics", func(context *gin.Context) {
+		metrics.WritePrometheus(context.Writer, true)
 	})
-
-	go func() {
-		fmt.Println("监控服务启动，访问 http://localhost:8080/metrics 查看指标")
-		if err := http.ListenAndServe(":8080", nil); err != nil {
-			panic(err)
-		}
-	}()
 }
