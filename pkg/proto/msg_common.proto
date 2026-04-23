@@ -16,6 +16,7 @@ enum Server{
 	Center = 3;
 	GM = 20;
 	Robot = 21;
+	Max = 22;
 }
 
 enum EPlatType {

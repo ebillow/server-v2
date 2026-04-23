@@ -7,6 +7,8 @@ import (
 	"server/pkg/pb"
 )
 
+// todo 同一subject打包发送
+
 // Send 指定发送
 func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
 	out, bp, err := codec.Encode(gctx.Context{

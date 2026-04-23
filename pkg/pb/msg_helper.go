@@ -50,7 +50,7 @@ func registerAllC2SMsg() {
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SEcho, &messageMeta{
 		MessageType: reflect.TypeOf(C2SEcho{}),
-		NewMessage:  func() proto.Message { return &C2SEcho{} },
+		NewMessage:  func() proto.Message { return GetC2SEcho() },
 	})
 
 }
@@ -172,11 +172,6 @@ func registerAllS2SMsg() {
 	registerS2SMsg(msgid.MsgIDS2S_S2SRoleClear, &messageMeta{
 		MessageType: reflect.TypeOf(S2SRoleClear{}),
 		NewMessage:  func() proto.Message { return &S2SRoleClear{} },
-	})
-
-	registerS2SMsg(msgid.MsgIDS2S_S2SMax, &messageMeta{
-		MessageType: reflect.TypeOf(S2SMax{}),
-		NewMessage:  func() proto.Message { return &S2SMax{} },
 	})
 
 }

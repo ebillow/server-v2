@@ -41,10 +41,9 @@ func (d *DataToSave) IsEmpty() bool {
 const EventChanSize = 16
 
 type Event struct {
-	Ctx gctx.Context
-
-	CliMsg bool
+	Ctx    gctx.Context
 	Func   func(r *Role)
+	CliMsg bool
 }
 
 // Role	角色数据
@@ -287,7 +286,6 @@ func (r *Role) SecLoop(now time.Time) {
 		}
 
 		if reset { // 每日数据重置
-			// zap.S().Debugf("%d data reset %v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 			if comp, ok := r.Comps[i].(ICompDataReset); ok {
 				comp.OnDataReset(r)
 			}
@@ -318,7 +316,6 @@ func (r *Role) SecLoop(now time.Time) {
 	if dayChange {
 		begin := util.CurDayBegin()
 		r.Data.DayChange = begin.Add(24 * time.Hour).Unix()
-		// zap.S().Debugf("%d day change time=%v", r.Guid, time.Unix(r.Data.DayChange, 0))
 		// r.Send(pb.MsgIDS2C_S2CDayChange, nil) // 告知客户端这一天过去了
 	}
 	if reset {

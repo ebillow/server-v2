@@ -1,13 +1,14 @@
 package example
 
 import (
-	"google.golang.org/protobuf/proto"
 	"server/game/role"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -29,6 +30,7 @@ func onEchoCli(_ gctx.Context, msgBase proto.Message, r *role.Role) {
 		CliTime: msg.Time,
 		SrvTime: time.Now().UnixMilli(),
 	})
+	pb.PutC2SEcho(msg)
 }
 
 func onEchoSer(_ gctx.Context, msg proto.Message, r *role.Role) {

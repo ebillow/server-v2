@@ -110,11 +110,13 @@ func (m *RoleMgr) Delete(roleID uint64, sesID uint64) {
 
 func (m *RoleMgr) tick(now time.Time) {
 	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	var err error
+	metas := make([]meta, 0, len(m.roles))
 	for _, v := range m.roles {
-		err = v.events.Push(role.Event{Func: func(r *role.Role) {
+		metas = append(metas, v)
+	}
+	m.mtx.RUnlock() //  尽早释放读锁
+	for _, v := range metas {
+		err := v.events.Push(role.Event{Func: func(r *role.Role) {
 			r.SecLoop(now)
 		}})
 		if err != nil {
@@ -122,7 +124,6 @@ func (m *RoleMgr) tick(now time.Time) {
 		}
 	}
 }
-
 func (m *RoleMgr) KickRoleAndWait(roleID uint64) {
 	r, ok := m.get(roleID)
 	if !ok {
