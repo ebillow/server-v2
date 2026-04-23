@@ -16,7 +16,7 @@ func InitTask(r *Robot) {
 
 func TaskRun(r *Robot) {
 	now := time.Now()
-	if now.Sub(r.lastActTime).Seconds() > (time.Second * 5).Seconds() {
+	if now.Sub(r.lastActTime).Seconds() > 15 {
 		r.lastActTime = now
 		r.heartBeat(now)
 	}

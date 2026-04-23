@@ -3,13 +3,15 @@ package ghttp
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"os"
 	"server/pkg/logger"
+	"server/pkg/thread"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -24,9 +26,12 @@ func TestMain(m *testing.M) {
 func TestStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
-	Start(ctx, wg, 8080)
-	EG().POST("/user/authenticate", func(c *gin.Context) {
+	g := NewEngine(false)
+	g.POST("/user/authenticate", func(c *gin.Context) {
 		c.JSON(200, gin.H{"test": "test"})
+	})
+	thread.GoSafe(func() {
+		Serve(ctx, wg, g, 8080)
 	})
 	time.Sleep(time.Second)
 

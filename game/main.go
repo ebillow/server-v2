@@ -14,6 +14,7 @@ import (
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
+	"server/pkg/thread"
 	"server/pkg/version"
 	"sync"
 
@@ -58,6 +59,9 @@ func Init(ctx context.Context) error {
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	login_mgr.Mgr.Start()
+	thread.GoSafe(func() {
+		role_mgr.Run(ctx)
+	})
 	return nil
 }
 

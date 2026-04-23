@@ -2,10 +2,13 @@ package role_mgr
 
 import (
 	"context"
-	"go.uber.org/zap"
 	"server/game/role"
+	"server/pkg/discovery"
 	"server/pkg/queue"
 	"sync"
+	"time"
+
+	"go.uber.org/zap"
 )
 
 type meta struct {
@@ -13,6 +16,11 @@ type meta struct {
 	wait   *sync.WaitGroup
 	cancel context.CancelFunc
 	ctx    context.Context
+}
+
+func (m meta) Kick() {
+	m.cancel()
+	m.events.Wake()
 }
 
 type RoleMgr struct {
@@ -24,9 +32,30 @@ type RoleMgr struct {
 var Mgr = NewRoleMgr()
 
 func NewRoleMgr() *RoleMgr {
-	return &RoleMgr{
+	m := &RoleMgr{
 		roles: make(map[uint64]meta),
 		ses:   make(map[uint64]uint64),
+	}
+
+	return m
+}
+
+func Run(ctx context.Context) {
+	t := time.NewTicker(time.Second * 3)
+	t10 := time.NewTicker(time.Second * 10)
+	defer func() {
+		t.Stop()
+		t10.Stop()
+	}()
+	for {
+		select {
+		case now := <-t.C:
+			Mgr.tick(now)
+		case <-t10.C:
+			discovery.UpdateLoad(int32(Mgr.Count()))
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 
@@ -79,12 +108,27 @@ func (m *RoleMgr) Delete(roleID uint64, sesID uint64) {
 	}
 }
 
+func (m *RoleMgr) tick(now time.Time) {
+	m.mtx.RLock()
+	defer m.mtx.RUnlock()
+
+	var err error
+	for _, v := range m.roles {
+		err = v.events.Push(role.Event{Func: func(r *role.Role) {
+			r.SecLoop(now)
+		}})
+		if err != nil {
+			zap.L().Error("role secLoop err", zap.Error(err))
+		}
+	}
+}
+
 func (m *RoleMgr) KickRoleAndWait(roleID uint64) {
 	r, ok := m.get(roleID)
 	if !ok {
 		return
 	}
-	r.cancel()
+	r.Kick()
 	r.wait.Wait()
 }
 
@@ -93,7 +137,7 @@ func (m *RoleMgr) Kick(sesID uint64) {
 	if !ok {
 		return
 	}
-	r.cancel()
+	r.Kick()
 }
 
 func (m *RoleMgr) CloseAndWait() {
@@ -105,7 +149,7 @@ func (m *RoleMgr) CloseAndWait() {
 	m.mtx.RUnlock()
 	for _, id := range ids {
 		if r, ok := m.get(id); ok {
-			r.cancel() // Signal all immediately
+			r.Kick() // Signal all immediately
 		}
 	}
 	for _, id := range ids {

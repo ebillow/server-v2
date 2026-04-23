@@ -2,12 +2,13 @@ package msgq
 
 import (
 	"errors"
-	"fmt"
-	"github.com/nats-io/nats.go"
-	"go.uber.org/zap"
 	"server/pkg/flag"
 	"server/pkg/pb"
+	"strconv"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 var Q DataBus
@@ -67,13 +68,13 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 }
 
 func getIndexSubject(serType pb.Server, serID int32) string {
-	return fmt.Sprintf("msg.%s.idx.%d", flag.SrvName(serType), serID)
+	return "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
 }
 
 func getGroupSubject(serType pb.Server) string {
-	return fmt.Sprintf("msg.%s.group", flag.SrvName(serType))
+	return "msg." + flag.SrvName(serType) + ".group"
 }
 
 func getAllSubject(serType pb.Server) string {
-	return fmt.Sprintf("msg.%s.all", flag.SrvName(serType))
+	return "msg." + flag.SrvName(serType) + ".all"
 }

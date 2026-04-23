@@ -65,9 +65,11 @@ type Role struct {
 	// 注意：临时属性，重连后就丢了
 	NowSec int64
 
-	dirty      bool
-	lastSave   time.Time
-	LastMinute time.Time
+	dirty            bool
+	lastSave         time.Time
+	LastMinute       time.Time
+	LastHeartbeat    time.Time
+	HeartbeatTimeOut int
 }
 
 var CreateComps func(r *Role)
@@ -115,34 +117,31 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	return r, nil
 }
 
-func (r *Role) CloseAndWait() {
-	r.Cancel()
-	r.Wait.Wait()
-}
-
-func (r *Role) Loop(ctx context.Context) {
+func (r *Role) Loop() {
 	r.Wait.Add(1)
 	thread.GoSafe(func() {
-		t := time.NewTicker(time.Second)
 		defer func() {
 			r.Offline()
-			t.Stop()
 			r.Wait.Done() // 最后Done
 		}()
 		r.Online()
 		for {
-			select {
-			case <-r.Events.Sig():
-				r.Events.Range(func(evt Event) bool {
-					r.onEvent(evt)
-					return true
-				})
-			case now := <-t.C:
-				r.SecLoop(now)
-			case <-r.Ctx.Done():
+			<-r.Events.Sig()
+			r.Events.Range(func(evt Event) bool {
+				if evt.Func != nil {
+					evt.Func(r)
+				} else {
+					evt.Ctx.U = r
+					if evt.CliMsg {
+						cRouter().Handle(evt.Ctx)
+					} else {
+						sRouter().Handle(evt.Ctx)
+					}
+				}
+				return true
+			})
+			if r.Ctx.Err() != nil {
 				return // 自己退出
-			case <-ctx.Done():
-				return // 进程退出
 			}
 		}
 	})
@@ -155,8 +154,11 @@ func (r *Role) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 }
 
 func (r *Role) Online() {
-	r.Data.OnlineTime = time.Now().Unix()
-	r.lastSave = time.Now()
+	now := time.Now()
+	r.Data.OnlineTime = now.Unix()
+	r.lastSave = now
+	r.LastHeartbeat = now
+	r.HeartbeatTimeOut = 0
 
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
 	r.SecLoop(r.lastSave)
@@ -328,25 +330,20 @@ func (r *Role) SecLoop(now time.Time) {
 		r.save()
 		r.lastSave = now
 	}
+
+	const HeartbeatTime = 15 * 2
+	if now.Sub(r.LastHeartbeat).Seconds() > float64(HeartbeatTime) {
+		r.HeartbeatTimeOut++
+		if r.HeartbeatTimeOut > 2 {
+			r.Cancel()
+		}
+	}
 }
 
 func (r *Role) MinuteLoop(now time.Time) {
 	for i := range r.Comps {
 		if iSec, ok := r.Comps[i].(ICompMinuteLoop); ok {
 			iSec.MinuteLoop(now, r)
-		}
-	}
-}
-
-func (r *Role) onEvent(evt Event) {
-	if evt.Ctx.MsgID == 0 {
-		evt.Func(r)
-	} else {
-		evt.Ctx.U = r
-		if evt.CliMsg {
-			cRouter().Handle(evt.Ctx)
-		} else {
-			sRouter().Handle(evt.Ctx)
 		}
 	}
 }

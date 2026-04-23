@@ -1,8 +1,6 @@
 package msgq
 
 import (
-	"github.com/nats-io/nats.go"
-	"github.com/stretchr/testify/require"
 	"log"
 	"server/pkg/pb"
 	"server/pkg/util"
@@ -11,6 +9,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/require"
 )
 
 func connect() *nats.Conn {
@@ -202,5 +203,19 @@ func TestDiffSub(t *testing.T) {
 		case <-time.After(time.Second * 10):
 			return
 		}
+	}
+}
+
+// BenchmarkGetSubName-10    	14597458	        92.66 ns/op
+func BenchmarkGetSubName(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		getIndexSubject(pb.Server_Game, 1)
+	}
+}
+
+// BenchmarkGetSubNameV2-10    	43688590	        32.27 ns/op
+func BenchmarkGetSubNameV2(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		getIndexSubjectV2(pb.Server_Game, 1)
 	}
 }

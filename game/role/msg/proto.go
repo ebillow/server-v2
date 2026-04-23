@@ -1,7 +1,6 @@
 package msg
 
 import (
-	"google.golang.org/protobuf/proto"
 	"server/game/role"
 	"server/game/role/login_mgr"
 	"server/game/role/role_mgr"
@@ -10,6 +9,8 @@ import (
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"time"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -22,10 +23,13 @@ func init() {
 /*-------------------角色消息-----------------*/
 func onHeartBeat(_ gctx.Context, msgIn proto.Message, r *role.Role) {
 	msg := msgIn.(*pb.C2SHeartBeat)
+	now := time.Now()
 	r.Send(&pb.S2CHeartBeat{
 		CliTime: msg.CliTime,
-		SerTime: time.Now().Unix(),
+		SerTime: now.Unix(),
 	})
+	r.HeartbeatTimeOut = 0
+	r.LastHeartbeat = now
 }
 
 /*-------------------非角色消息-----------------*/

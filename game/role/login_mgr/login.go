@@ -235,11 +235,11 @@ func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
 	thread.RunSafe(func() {
 		switch p.Op {
 		case OpOnline:
-			m.opOnline(ctx, p)
+			m.opOnline(p)
 		case OpUnmarshal:
-			m.unmarshal(ctx, p.Data, p.Login)
+			m.unmarshal(p.Data, p.Login)
 		case OpRepeatedLogin:
-			m.opLoginRepeated(ctx, p)
+			m.opLoginRepeated(p)
 		case OpOffline:
 			m.roleOffline(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
 		case OpSaveRole:
@@ -250,7 +250,7 @@ func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
 	})
 }
 
-func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
+func (m *LoginMgr) opOnline(op *Operator) {
 	zap.L().Debug("[login] opOnline", zap.Uint64("id", op.Login.RoleID))
 	const StateTimeOut = 10
 	v := m.data[op.Login.RoleID]
@@ -262,7 +262,7 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 	case stateOnline: // 重复登录
 		m.onLoginRepeated(v, op)
 	case stateOffline, stateCanDel:
-		m.unmarshal(ctx, &role.DataToSave{ID: op.Login.RoleID, Data: v.Cache}, op.Login)
+		m.unmarshal(&role.DataToSave{ID: op.Login.RoleID, Data: v.Cache}, op.Login)
 	case statePending:
 		now := time.Now()
 		if now.Unix()-v.StateTime < StateTimeOut {
@@ -279,7 +279,7 @@ func (m *LoginMgr) opOnline(ctx context.Context, op *Operator) {
 	}
 }
 
-func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *pb.S2SReqLogin) {
+func (m *LoginMgr) unmarshal(data *role.DataToSave, login *pb.S2SReqLogin) {
 	r, err := role.NewRole(data, login)
 	if err != nil {
 		zap.S().Errorf("new role err:%v", err)
@@ -297,7 +297,7 @@ func (m *LoginMgr) unmarshal(ctx context.Context, data *role.DataToSave, login *
 	v.setState(stateOnline)
 	role.RoleMgr().Add(r.ID, r.SesID, r)
 
-	r.Loop(ctx)
+	r.Loop()
 
 	DebugLoginOk(r.ID)
 }
@@ -316,7 +316,7 @@ func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
 	})
 }
 
-func (m *LoginMgr) opLoginRepeated(ctx context.Context, p *Operator) {
+func (m *LoginMgr) opLoginRepeated(p *Operator) {
 	v := m.data[p.Login.RoleID]
 	if v == nil {
 		zap.L().Warn("[login] can not find login data")
@@ -324,5 +324,5 @@ func (m *LoginMgr) opLoginRepeated(ctx context.Context, p *Operator) {
 	}
 
 	zap.L().Debug("[login] opLoginRepeated", zap.Uint64("id", p.Login.RoleID), zap.Any("data", v.Cache))
-	m.unmarshal(ctx, &role.DataToSave{ID: p.Login.RoleID, Data: v.Cache}, p.Login)
+	m.unmarshal(&role.DataToSave{ID: p.Login.RoleID, Data: v.Cache}, p.Login)
 }

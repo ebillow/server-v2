@@ -1,0 +1,52 @@
+iid: "si-local-zt" # 整合商ID (改成自己的)
+
+Mongo:
+  URL: "mongodb://localhost:27017"
+
+Redis:
+  Address:
+    - "127.0.0.1:6380"
+    - "127.0.0.1:6381"
+    - "127.0.0.1:6382"
+  DB: 0
+  Password: ""
+
+ClickHouse:
+  Addr:
+    - "172.21.10.195:9100"
+  DBName: "game_log_201"
+  Account: "admin"
+  Pwd: "clickhouse1.0"
+
+# 全局消息队列，所有的进程都需要关注
+MsgQueue:
+  SAddr: "nats://localhost:4222,nats://localhost:4222"
+  Timeout: 20
+  MaxTryConn: 1000
+  User: "123456"
+  Pwd: "123456"
+
+# 日志服消息队列
+LogQueue:
+  SAddr: "nats://localhost:4223,nats://localhost:4223"
+  Timeout: 20
+  MaxTryConn: 1000
+  User: "123456"
+  Pwd: "123456"
+
+# 日志配置
+LogInfo:
+  Level: 0          # 日志级别; -1=debug 0=info 1=warn 2=error
+  Console: true      # 输出到控制台 (stdout)
+  ConsoleColor: true # 是否打印颜色
+  MaxSize: 100       # 滚动阈值 (MiB)
+  MaxBackups: 30     # 最大备份数
+  MaxAge: 7          # 最大保存天数
+  Compress: false    # 是否压缩
+
+Aes:
+  Key:  "1239876541987615"
+  IV:   "9992345678123456"
+
+Flag:
+  TraceMsg: false
