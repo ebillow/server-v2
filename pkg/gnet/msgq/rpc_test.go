@@ -49,12 +49,13 @@ func TestMain(m *testing.M) {
 func TestRpcCall(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		token := uint32(i * 10)
-		ack, err := RpcCall[pb.S2SResLogin](Q, uint32(msgid.MsgIDS2S_S2SReqLogin), &pb.S2SReqLogin{
+		ack := pb.S2SResLogin{}
+		err := RpcCall(&Q, uint32(msgid.MsgIDS2S_S2SReqLogin), &pb.S2SReqLogin{
 			SesID:       1,
 			RoleID:      1,
 			ReConnToken: 1231231,
 			Seq:         token,
-		}, pb.Server_Game, 1, 1, 0, time.Second*3)
+		}, &ack, pb.Server_Game, 1, 1, 0, time.Millisecond*500)
 		require.NoError(t, err)
 		require.Equal(t, ack.Res.Token, token)
 		// t.Log(ack)

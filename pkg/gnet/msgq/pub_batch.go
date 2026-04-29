@@ -12,7 +12,7 @@ import (
 
 const (
 	headerSize = 4 + 8 + 8 + 4 + 4 + 1
-	batchCount = 100
+	batchCount = 500
 	buffSize   = 1024 * batchCount
 )
 
@@ -103,19 +103,7 @@ func (tb *PubBatcher) startTicker() {
 		defer ticker.Stop()
 
 		for range ticker.C {
-			var flushData []byte
-			var flushBp *[]byte
-
-			tb.mtx.Lock()
-			if tb.count > 0 && tb.buf != nil {
-				flushData = *tb.buf
-				flushBp = tb.buf
-				tb.buf = nil
-				tb.count = 0
-			}
-			tb.mtx.Unlock()
-
-			tb.flush(flushData, flushBp)
+			tb.flushAll()
 		}
 	}()
 }
@@ -128,4 +116,20 @@ func (tb *PubBatcher) flush(data []byte, p *[]byte) {
 		}
 		FreeBuffer(p)
 	}
+}
+
+func (tb *PubBatcher) flushAll() {
+	var flushData []byte
+	var flushBp *[]byte
+
+	tb.mtx.Lock()
+	if tb.count > 0 && tb.buf != nil {
+		flushData = *tb.buf
+		flushBp = tb.buf
+		tb.buf = nil
+		tb.count = 0
+	}
+	tb.mtx.Unlock()
+
+	tb.flush(flushData, flushBp)
 }

@@ -16,6 +16,7 @@ var Q DataBus
 
 type DataBus struct {
 	conn        *nats.Conn
+	rpcConn     *nats.Conn
 	serType     pb.Server
 	serID       int32
 	pubBatchers sync.Map
@@ -28,6 +29,11 @@ func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options 
 		return err
 	}
 	bs.conn = conn
+	conn, err = setupNatsConn(connStr, options...)
+	if err != nil {
+		return err
+	}
+	bs.rpcConn = conn
 	bs.serType = serType
 	bs.serID = serID
 	return nil
@@ -71,6 +77,7 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 }
 
 var subjectCache sync.Map
+var rpcSubCache sync.Map
 var (
 	groupSubject = make([]string, pb.Server_Max)
 	allSubject   = make([]string, pb.Server_Max)
@@ -84,6 +91,17 @@ func getIndexSubject(serType pb.Server, serID int32) string {
 
 	str := "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
 	subjectCache.Store(key, str)
+	return str
+}
+
+func getRpcIdxSubject(serType pb.Server, serID int32) string {
+	key := (uint64(serType) << 32) | uint64(uint32(serID))
+	if val, ok := rpcSubCache.Load(key); ok {
+		return val.(string)
+	}
+
+	str := "rpc." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
+	rpcSubCache.Store(key, str)
 	return str
 }
 

@@ -60,6 +60,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	return true
 }
 
+// sendLoop todo 合并发送，应对波峰
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
 		s.Close(pb.DisconnectReason_NetErr)

@@ -1,8 +1,6 @@
 package msgq
 
 import (
-	"server/pkg/gerror"
-	"server/pkg/gnet/codec"
 	"server/pkg/gnet/gctx"
 	"server/pkg/pb"
 )
@@ -87,7 +85,7 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 
 // SendAll 所有的 serName 服节点都能收到
 func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	out, bp, err := codec.Encode(gctx.Context{
+	bs.getAllPubBatcher(serType).Add(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
@@ -96,14 +94,6 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID 
 		SesID:   sesID,
 		Forward: 0,
 	})
-	if err != nil {
-		return gerror.Wrap(err, "encode err:")
-	}
-	err = bs.conn.Publish(getAllSubject(serType), out)
-	if err != nil {
-		codec.FreeBuffer(bp)
-		return gerror.Wrap(err, "publish err:")
-	}
-	codec.FreeBuffer(bp)
+
 	return nil
 }

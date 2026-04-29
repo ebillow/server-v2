@@ -95,13 +95,15 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 }
 
 func (bs *DataBus) getSubjects(serType pb.Server, serID int32) map[string]string {
-	subs := make(map[string]string)
+	subs := make(map[string]string) // [subject,queue]
 	// all
 	subs[getAllSubject(serType)] = ""
 	// index
 	subs[getIndexSubject(serType, serID)] = ""
 	// group
 	subs[getGroupSubject(serType)] = "msg.group"
+	// rpc idx
+	subs[getRpcIdxSubject(serType, serID)] = ""
 
 	return subs
 }

@@ -212,10 +212,3 @@ func BenchmarkGetSubName(b *testing.B) {
 		getIndexSubject(pb.Server_Game, 1)
 	}
 }
-
-// BenchmarkGetSubNameV2-10    	43688590	        32.27 ns/op
-func BenchmarkGetSubNameV2(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		getIndexSubjectV2(pb.Server_Game, 1)
-	}
-}
