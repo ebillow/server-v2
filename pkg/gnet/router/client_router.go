@@ -16,8 +16,8 @@ type ClientRouter struct {
 	*MsgRouter
 }
 
-func newClientRouter() *ClientRouter {
-	return &ClientRouter{MsgRouter: NewMsgRouter()}
+func newClientRouter(max int32) *ClientRouter {
+	return &ClientRouter{MsgRouter: NewMsgRouter(max)}
 }
 
 // On 注册客户端发来的消息处理函数，处理函数带role

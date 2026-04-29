@@ -48,6 +48,10 @@ $(OUT):
 build: | $(OUT)
 	go build -ldflags="-s -w $(versionFlags)" -trimpath -v -o /dev/null $(foreach app,$(APPS),./$(app))
 
+.PHONY: escape
+escape: | $(OUT)
+	go build -gcflags="-m" -o /dev/null $(foreach app,$(APPS),./$(app))
+
 .PHONY: FORCE
 FORCE:
 

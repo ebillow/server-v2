@@ -42,7 +42,7 @@ var S2CEchoPool = sync.Pool{
 }
 
 func GetS2CEcho() *S2CEcho {
-	return C2SEchoPool.Get().(*S2CEcho)
+	return S2CEchoPool.Get().(*S2CEcho)
 }
 
 func PutS2CEcho(msg *S2CEcho) {
@@ -50,5 +50,5 @@ func PutS2CEcho(msg *S2CEcho) {
 		return
 	}
 	proto.Reset(msg)
-	C2SEchoPool.Put(msg)
+	S2CEchoPool.Put(msg)
 }

@@ -38,4 +38,6 @@ enum TypeComp{
 	TCExample = 1;
 	TCEmptyExample = 2;
 	TCDebug = 3;
+
+	TCMax = 5; //保持最大
 }

@@ -66,7 +66,7 @@ func UnInit(ctx context.Context) {
 func loadNetCfg() *session.Config {
 	d, err := time.ParseDuration("60s")
 	if err != nil {
-		zap.S().Error("parse read_dead_line err:%v", err)
+		zap.L().Error("parse read_dead_line err", zap.Error(err))
 		return nil
 	}
 	cfg := &session.Config{

@@ -50,7 +50,7 @@ type Event struct {
 type Role struct {
 	ID         uint64 // role_mgr需要访问
 	SesID      uint64
-	Comps      map[pb.TypeComp]IComp
+	Comps      []IComp
 	Data       *pb.RoleData // 入库数据
 	CliInfo    *pb.ClientInfo
 	ConnectAcc []string
@@ -86,19 +86,21 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 		ID:         data.ID,
 		Data:       dataBase,
 		SesID:      login.SesID,
-		Comps:      make(map[pb.TypeComp]IComp),
+		Comps:      make([]IComp, pb.TypeComp_TCMax),
 		CliInfo:    login.Req.CliInfo,
 		ConnectAcc: login.ConnectedAcc,
 	}
 
-	// r.Events = make(chan Event, EventChanSize)
 	r.Events = queue.NewSwapQueue[Event](EventChanSize, EventChanSize*100)
 	r.Ctx, r.Cancel = context.WithCancel(context.Background())
 
 	CreateComps(r)
 
 	for i, comp := range r.Comps {
-		compData := data.Get(i)
+		if comp == nil {
+			continue
+		}
+		compData := data.Get(pb.TypeComp(i))
 		if len(compData) == 0 {
 			continue
 		}
@@ -167,8 +169,8 @@ func (r *Role) Online() {
 	// 	Value: setup.Setup.ID,
 	// })
 	//
-	for i := range r.Comps {
-		if comp, ok := r.Comps[i].(ICompOnline); ok {
+	for _, v := range r.Comps {
+		if comp, ok := v.(ICompOnline); ok {
 			comp.Online(r)
 		}
 	}
@@ -187,8 +189,8 @@ func (r *Role) Online() {
 func (r *Role) Offline() {
 	r.Data.OfflineTime = time.Now().Unix()
 
-	for i := range r.Comps {
-		if comp, ok := r.Comps[i].(ICompOffline); ok {
+	for _, v := range r.Comps {
+		if comp, ok := v.(ICompOffline); ok {
 			comp.Offline(r)
 		}
 	}
@@ -232,6 +234,9 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 	}
 
 	for i, v := range r.Comps {
+		if v == nil {
+			continue
+		}
 		if !force && !v.IsDirty() {
 			continue
 		}
@@ -241,7 +246,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 			continue
 		}
 
-		rd.Set(i, str)
+		rd.Set(pb.TypeComp(i), str)
 		v.ClearDirty()
 	}
 
@@ -274,24 +279,24 @@ func (r *Role) SecLoop(now time.Time) {
 		r.MinuteLoop(now)
 	}
 
-	for i := range r.Comps {
-		if comp, ok := r.Comps[i].(ICompSecLoop); ok {
+	for _, v := range r.Comps {
+		if comp, ok := v.(ICompSecLoop); ok {
 			comp.SecLoop(now, r)
 		}
 
 		if dayChange {
-			if comp, ok := r.Comps[i].(ICompDayChange); ok {
+			if comp, ok := v.(ICompDayChange); ok {
 				comp.OnDayChange(r)
 			}
 		}
 
 		if reset { // 每日数据重置
-			if comp, ok := r.Comps[i].(ICompDataReset); ok {
+			if comp, ok := v.(ICompDataReset); ok {
 				comp.OnDataReset(r)
 			}
 
 			if monthChange {
-				if comp, ok := r.Comps[i].(ICompMonthChange); ok {
+				if comp, ok := v.(ICompMonthChange); ok {
 					comp.OnMonthChange(r)
 				}
 			}
@@ -338,8 +343,8 @@ func (r *Role) SecLoop(now time.Time) {
 }
 
 func (r *Role) MinuteLoop(now time.Time) {
-	for i := range r.Comps {
-		if iSec, ok := r.Comps[i].(ICompMinuteLoop); ok {
+	for _, v := range r.Comps {
+		if iSec, ok := v.(ICompMinuteLoop); ok {
 			iSec.MinuteLoop(now, r)
 		}
 	}

@@ -50,7 +50,7 @@ func registerAllC2SMsg() {
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SEcho, &messageMeta{
 		MessageType: reflect.TypeOf(C2SEcho{}),
-		NewMessage:  func() proto.Message { return GetC2SEcho() },
+		NewMessage:  func() proto.Message { return &C2SEcho{} },
 	})
 
 }

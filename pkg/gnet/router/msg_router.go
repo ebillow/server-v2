@@ -1,6 +1,7 @@
 package router
 
 import (
+	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
 	"time"
 
@@ -14,19 +15,27 @@ type MsgHandler struct {
 
 // MsgRouter 消息处理器
 type MsgRouter struct {
-	handlers map[uint32]*MsgHandler
+	handlers []*MsgHandler
 }
 
 // NewMsgRouter createRoute
-func NewMsgRouter() *MsgRouter {
+func NewMsgRouter(max int32) *MsgRouter {
 	r := &MsgRouter{
-		make(map[uint32]*MsgHandler),
+		make([]*MsgHandler, max),
 	}
 	return r
 }
 
 // Register 注册消息
 func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c gctx.Context, msg proto.Message)) error {
+	if msgID >= uint32(len(rt.handlers)) {
+		return gerror.New("msg id out of range")
+	}
+
+	if rt.handlers[msgID] != nil {
+		return gerror.New("msg id already register")
+	}
+
 	rt.handlers[msgID] = &MsgHandler{
 		createFunc: cf,
 		HandleFunc: df,
@@ -64,9 +73,13 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Messag
 }
 
 func (rt *MsgRouter) GetHandler(id uint32) (n *MsgHandler, err error) {
+	if id >= uint32(len(rt.handlers)) {
+		err = gerror.New("msg id out of range")
+		return
+	}
 	n = rt.handlers[id]
 	if nil == n || nil == n.createFunc {
-		err = errAPINotFind
+		err = gerror.New("msg handler not found")
 		return
 	}
 	return

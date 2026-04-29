@@ -116,7 +116,7 @@ func (m *RoleMgr) tick(now time.Time) {
 	}
 	m.mtx.RUnlock() //  尽早释放读锁
 	for _, v := range metas {
-		err := v.events.Push(role.Event{Func: func(r *role.Role) {
+		err := v.events.PushAndWake(role.Event{Func: func(r *role.Role) {
 			r.SecLoop(now)
 		}})
 		if err != nil {
@@ -165,7 +165,7 @@ func (m *RoleMgr) PostEvent(roleID uint64, evt role.Event) {
 	if !ok {
 		return
 	}
-	if err := r.events.Push(evt); err != nil {
+	if err := r.events.PushAndWake(evt); err != nil {
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", roleID))
 	}
 }
@@ -175,7 +175,7 @@ func (m *RoleMgr) PostEventBySesID(sesID uint64, evt role.Event) {
 	if !ok {
 		return
 	}
-	if err := r.events.Push(evt); err != nil {
+	if err := r.events.PushAndWake(evt); err != nil {
 		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", sesID))
 	}
 }

@@ -8,26 +8,6 @@ import (
 	"sync"
 )
 
-// bufPool 序列化 Buffer 对象池
-//
-//	预分配 512 字节的容量，减少扩容次数。可根据游戏实际包体大小调整。
-var bufPool = sync.Pool{
-	New: func() any {
-		b := make([]byte, 0, 1024)
-		return &b
-	},
-}
-
-// FreeBuffer 发送完毕后，需要手动归还 []byte
-func FreeBuffer(b *[]byte) {
-	//  容量过大的异常包直接丢弃，防止占用过多常驻内存
-	if cap(*b) > 64*1024 {
-		return
-	}
-	*b = (*b)[:0] // 重置长度为 0，但保留 capacity
-	bufPool.Put(b)
-}
-
 //
 // // NatsMsgPool NatsMsg 对象池
 // var NatsMsgPool = sync.Pool{
@@ -72,6 +52,26 @@ func FreeBuffer(b *[]byte) {
 // 	}
 // 	return msg, nil
 // }
+
+// bufPool 序列化 Buffer 对象池
+//
+//	预分配
+var bufPool = sync.Pool{
+	New: func() any {
+		b := make([]byte, 0, 1024)
+		return &b
+	},
+}
+
+// FreeBuffer 发送完毕后，需要手动归还 []byte
+func FreeBuffer(b *[]byte) {
+	//  容量过大的异常包直接丢弃，防止占用过多常驻内存
+	if cap(*b) > 64*1024 {
+		return
+	}
+	*b = (*b)[:0] // 重置长度为 0，但保留 capacity
+	bufPool.Put(b)
+}
 
 const headerSize = 4 + 8 + 8 + 4 + 4 + 1
 

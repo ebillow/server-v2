@@ -15,7 +15,7 @@ import (
 
 // SendBytes 发送数据给客户端
 func (s *Session) SendBytes(msgID uint32, data []byte) {
-	err := s.out.Push(MsgSend{
+	err := s.out.PushAndWake(MsgSend{
 		ID:   msgID,
 		Data: data,
 	})

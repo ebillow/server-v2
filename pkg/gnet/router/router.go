@@ -1,17 +1,12 @@
 package router
 
 import (
-	"errors"
+	"server/pkg/pb/msgid"
 )
 
 var (
-	cliMsgRouter = newClientRouter()
-	serMsgRouter = newServerRouter()
-)
-
-var (
-	errAPINotFind         = errors.New("api not exist")
-	errMsgIDBiggerThanMax = errors.New("msg id bigger than max")
+	cliMsgRouter = newClientRouter(int32(msgid.MsgIDMax_C2SMax))
+	serMsgRouter = newServerRouter(int32(msgid.MsgIDMax_S2SMax))
 )
 
 func S() *ServerRouter {

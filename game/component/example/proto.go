@@ -6,7 +6,6 @@ import (
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
-	"time"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -21,15 +20,16 @@ func init() {
 
 func onEchoCli(_ gctx.Context, msgBase proto.Message, r *role.Role) {
 	msg := msgBase.(*pb.C2SEcho)
-	r.Send(&pb.S2CEcho{
-		ID:      msg.ID,
-		Name:    msg.Name,
-		Level:   msg.Level,
-		Exp:     msg.Exp,
-		Data:    msg.Data,
-		CliTime: msg.Time,
-		SrvTime: time.Now().UnixMilli(),
-	})
+	msgOut := pb.GetS2CEcho()
+	msgOut.ID = msg.ID
+	msgOut.Name = msg.Name
+	msgOut.Level = msg.Level
+	msgOut.Exp = msg.Exp
+	msgOut.Data = msg.Data
+	msgOut.CliTime = msg.Time
+
+	r.Send(msgOut)
+	pb.PutS2CEcho(msgOut)
 	pb.PutC2SEcho(msg)
 }
 

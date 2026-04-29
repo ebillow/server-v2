@@ -15,9 +15,10 @@ import (
 var Q DataBus
 
 type DataBus struct {
-	conn    *nats.Conn
-	serType pb.Server
-	serID   int32
+	conn        *nats.Conn
+	serType     pb.Server
+	serID       int32
+	pubBatchers sync.Map
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options ...nats.Option) error {

@@ -4,6 +4,13 @@ option optimize_for = LITE_RUNTIME;
 option go_package = "./msgid";
 package msgid;
 
+enum MsgIDMax {
+    MsgIDMaxNone = 0;
+    C2SMax = 999999;
+    S2SMax = 100000;
+}
+
+
 enum MsgIDS2S {
     S2SNone = 0;
     S2SReqLogin = 1;

@@ -16,8 +16,8 @@ type ServerRouter struct {
 	*MsgRouter
 }
 
-func newServerRouter() *ServerRouter {
-	return &ServerRouter{MsgRouter: NewMsgRouter()}
+func newServerRouter(max int32) *ServerRouter {
+	return &ServerRouter{MsgRouter: NewMsgRouter(max)}
 }
 
 // On 注册服务器间消息，并且是发给指定角色的消息处理函数

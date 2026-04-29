@@ -7,45 +7,9 @@ import (
 	"server/pkg/pb"
 )
 
-func (bs *DataBus) getIdxPubBatcher(serType pb.Server, serID int32) *PubBatcher {
-	key := (uint64(serType) << 32) | uint64(uint32(serID))
-	val, ok := bs.pubBatchers.Load(key)
-	if !ok {
-		subject := getIndexSubject(serType, serID)
-		tb := NewPubBatcher(subject, bs.conn)
-		actual, _ := bs.pubBatchers.LoadOrStore(key, tb)
-		val = actual
-	}
-	return val.(*PubBatcher)
-}
-
-func (bs *DataBus) getGroupPubBatcher(serType pb.Server) *PubBatcher {
-	key := uint64(serType)
-	val, ok := bs.pubBatchers.Load(key)
-	if !ok {
-		subject := getGroupSubject(serType)
-		tb := NewPubBatcher(subject, bs.conn)
-		actual, _ := bs.pubBatchers.LoadOrStore(key, tb)
-		val = actual
-	}
-	return val.(*PubBatcher)
-}
-
-func (bs *DataBus) getAllPubBatcher(serType pb.Server) *PubBatcher {
-	key := uint64(serType)
-	val, ok := bs.pubBatchers.Load(key)
-	if !ok {
-		subject := getAllSubject(serType)
-		tb := NewPubBatcher(subject, bs.conn)
-		actual, _ := bs.pubBatchers.LoadOrStore(key, tb)
-		val = actual
-	}
-	return val.(*PubBatcher)
-}
-
 // Send 指定发送
 func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   bs.serID,
@@ -54,11 +18,20 @@ func (bs *DataBus) Send(serType pb.Server, serID int32, msgID uint32, data []byt
 		SesID:   sesID,
 		Forward: 0,
 	})
+	if err != nil {
+		return gerror.Wrap(err, "encode err:")
+	}
+	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
+	if err != nil {
+		codec.FreeBuffer(bp)
+		return gerror.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(bp)
 	return nil
 }
 
 func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerID:   bs.serID,
@@ -67,13 +40,21 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID int32, msgID uint32, d
 		SesID:   sesID,
 		Forward: 1,
 	})
-
+	if err != nil {
+		return gerror.Wrap(err, "encode err:")
+	}
+	err = bs.conn.Publish(getIndexSubject(serType, serID), out)
+	if err != nil {
+		codec.FreeBuffer(bp)
+		return gerror.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(bp)
 	return nil
 }
 
 // SendAny 组发送. 随机一个能收到
 func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
-	bs.getGroupPubBatcher(serType).Add(gctx.Context{
+	out, bp, err := codec.Encode(gctx.Context{
 		MsgID:   msgID,
 		Data:    data,
 		SerType: bs.serType,
@@ -82,6 +63,15 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 		SesID:   sesID,
 		Forward: 0,
 	})
+	if err != nil {
+		return gerror.Wrap(err, "encode err:")
+	}
+	err = bs.conn.Publish(getGroupSubject(serType), out)
+	if err != nil {
+		codec.FreeBuffer(bp)
+		return gerror.Wrap(err, "publish err:")
+	}
+	codec.FreeBuffer(bp)
 	return nil
 }
 

@@ -1,12 +1,13 @@
 package gnet
 
 import (
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
+
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {

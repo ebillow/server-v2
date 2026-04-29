@@ -24,6 +24,16 @@ func NewSwapQueue[T any](size int, maxSize int) *SwapQueue[T] {
 	}
 }
 
+func (s *SwapQueue[T]) PushAndWake(data T) error {
+	if err := s.Push(data); err != nil {
+		return err
+	}
+
+	s.Wake()
+
+	return nil
+}
+
 func (s *SwapQueue[T]) Push(data T) error {
 	s.mtx.Lock()
 
@@ -35,13 +45,11 @@ func (s *SwapQueue[T]) Push(data T) error {
 	s.write = append(s.write, data)
 	s.mtx.Unlock() // 写入完毕，立刻解锁
 
-	// 唤醒消费者：如果通道满了(已有信号)，直接丢弃，消费者醒着自然会去读
-	s.Wake()
-
 	return nil
 }
 
 func (s *SwapQueue[T]) Wake() {
+	// 唤醒消费者：如果通道满了(已有信号)，直接丢弃，消费者醒着自然会去读
 	select {
 	case s.sig <- struct{}{}:
 	default:
