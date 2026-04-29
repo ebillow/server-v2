@@ -60,7 +60,6 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 	return true
 }
 
-// 看需求，可以合并发送
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
 		s.Close(pb.DisconnectReason_NetErr)
@@ -71,8 +70,8 @@ func (s *Session) sendLoop(ctx context.Context) {
 	for {
 		select {
 		case <-s.out.Sig():
+			_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 			s.out.Range(func(v MsgSend) bool {
-				_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 				w, err := s.conn.NextWriter(websocket.BinaryMessage)
 				if err != nil {
 					zap.L().Warn("NextWriter error", zap.Error(err))

@@ -10,7 +10,6 @@ import (
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -30,9 +29,9 @@ func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 	}()
 
 	for {
-		if cfg.ReadDeadline > 0 {
-			_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
-		}
+		// if cfg.ReadDeadline > 0 {
+		// 	_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
+		// }
 		mt, r, err := s.conn.NextReader()
 		if err != nil {
 			zap.L().Warn("NextReader err", zap.Inline(s), zap.Error(err))
@@ -103,7 +102,7 @@ func (s *Session) forwardToSrv(src []byte) {
 
 	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
-	err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id) // nats Publish很快
+	err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
 	if err != nil {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
