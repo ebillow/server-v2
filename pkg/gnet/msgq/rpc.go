@@ -3,7 +3,6 @@ package msgq
 import (
 	"encoding/binary"
 	"server/pkg/gerror"
-	"server/pkg/gnet/codec"
 	"server/pkg/pb"
 	"time"
 
@@ -13,8 +12,8 @@ import (
 
 // RpcCall 远程调用，注意最好保持单向调用，否则可能出现互相等待
 func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, toSer pb.Server, toSerID int32, roleID uint64, sesID uint64, timeOut time.Duration) error {
-	bufPtr := bufPool.Get().(*[]byte)
-	defer codec.FreeBuffer(bufPtr)
+	bufPtr := GetBuffer()
+	defer FreeBuffer(bufPtr)
 
 	buf := (*bufPtr)[:0]
 
@@ -52,8 +51,8 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 }
 
 func RpcRespond(msg *nats.Msg, ack proto.Message) error {
-	bufPtr := bufPool.Get().(*[]byte)
-	defer codec.FreeBuffer(bufPtr)
+	bufPtr := GetBuffer()
+	defer FreeBuffer(bufPtr)
 
 	buf := (*bufPtr)[:0]
 	marshalOpts := proto.MarshalOptions{}

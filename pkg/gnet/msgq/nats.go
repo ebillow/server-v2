@@ -15,15 +15,16 @@ import (
 var Q DataBus
 
 type DataBus struct {
-	conn        *nats.Conn
-	rpcConn     *nats.Conn
-	serType     pb.Server
-	serID       int32
-	pubBatchers sync.Map
+	conn     *nats.Conn
+	rpcConn  *nats.Conn
+	serType  pb.Server
+	serID    int32
+	pubIdx   sync.Map
+	pubGroup sync.Map
+	pubAll   sync.Map
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options ...nats.Option) error {
-	initSubjects()
 	conn, err := setupNatsConn(connStr, options...)
 	if err != nil {
 		return err
@@ -76,23 +77,7 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 	return nc, nil
 }
 
-var subjectCache sync.Map
 var rpcSubCache sync.Map
-var (
-	groupSubject = make([]string, pb.Server_Max)
-	allSubject   = make([]string, pb.Server_Max)
-)
-
-func getIndexSubject(serType pb.Server, serID int32) string {
-	key := (uint64(serType) << 32) | uint64(uint32(serID))
-	if val, ok := subjectCache.Load(key); ok {
-		return val.(string)
-	}
-
-	str := "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
-	subjectCache.Store(key, str)
-	return str
-}
 
 func getRpcIdxSubject(serType pb.Server, serID int32) string {
 	key := (uint64(serType) << 32) | uint64(uint32(serID))
@@ -105,17 +90,14 @@ func getRpcIdxSubject(serType pb.Server, serID int32) string {
 	return str
 }
 
-func initSubjects() {
-	for serType := pb.Server(0); serType < pb.Server_Max; serType++ {
-		groupSubject[serType] = "msg." + flag.SrvName(serType) + ".group"
-		allSubject[serType] = "msg." + flag.SrvName(serType) + ".all"
-	}
+func getIndexSubject(serType pb.Server, serID int32) string {
+	return "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
 }
 
 func getGroupSubject(serType pb.Server) string {
-	return groupSubject[serType]
+	return "msg." + flag.SrvName(serType) + ".group"
 }
 
 func getAllSubject(serType pb.Server) string {
-	return allSubject[serType]
+	return "msg." + flag.SrvName(serType) + ".all"
 }

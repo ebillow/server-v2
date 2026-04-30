@@ -60,12 +60,12 @@ func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleI
 		Data:    b,
 	}
 	// 异步发布，不阻塞主线程
-	_, err = jt.JS.PublishMsgAsync(msg)
+	ackF, err := jt.JS.PublishMsgAsync(msg)
 	if err != nil {
 		return err
 	}
 
-	// jt.ack <- ackF
+	jt.ack <- ackF
 	return err
 }
 
