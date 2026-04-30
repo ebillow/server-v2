@@ -62,11 +62,11 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
 
-	// 1. 创建或获取消费者 (挂载到统一的 streamName 上)
+	//  创建或获取消费者 (挂载到统一的 streamName 上)
 	consumer, err := jt.JS.CreateOrUpdateConsumer(ctx, streamName, jetstream.ConsumerConfig{
 		Durable:       consumerName,                // 持久化消费者名称
 		AckPolicy:     jetstream.AckExplicitPolicy, // 显式确认
-		FilterSubject: subject,                     // 【核心魔法】：只过滤出当前需要的 subject
+		FilterSubject: subject,                     // 只过滤出当前需要的 subject
 		MaxAckPending: 2000,                        // 流量控制
 		AckWait:       time.Minute,
 	})
@@ -75,7 +75,7 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 		return err
 	}
 
-	// 2. 开始消费消息
+	// 开始消费消息
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
 		ctxs, err := BatchDecode(msgRaw.Data())
 		for _, v := range ctxs {
