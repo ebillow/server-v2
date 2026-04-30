@@ -2,19 +2,21 @@ package js
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"server/pkg/flag"
-
-	"github.com/nats-io/nats.go/jetstream"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
+	"server/pkg/gerror"
+	"server/pkg/gnet/gctx"
 
 	"server/pkg/pb"
 	"strings"
 	"time"
+
+	"github.com/nats-io/nats.go/jetstream"
+	"go.uber.org/zap"
 )
 
-func (jt *JetStream) Serve(ctx context.Context, cb func(msg *pb.NatsMsg)) error {
+func (jt *JetStream) Serve(ctx context.Context, cb func(msg gctx.Context)) error {
 	if err := jt.initGlobalStream(ctx); err != nil {
 		return err
 	}
@@ -55,7 +57,7 @@ func (jt *JetStream) initGlobalStream(ctx context.Context) error {
 	return nil
 }
 
-func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg *pb.NatsMsg)) error {
+func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.Context)) error {
 	streamName := getStreamName(jt.serType)
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
@@ -75,18 +77,11 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg *pb.Na
 
 	// 2. 开始消费消息
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		msg := &pb.NatsMsg{}
-		err = proto.Unmarshal(msgRaw.Data(), msg)
-		if err != nil {
-			zap.L().Error("Error unmarshalling log", zap.Error(err))
-			msgRaw.Ack() // 解析失败直接丢弃，防止死循环
-			return
+		ctxs, err := BatchDecode(msgRaw.Data())
+		for _, v := range ctxs {
+			cb(v)
 		}
-
-		// 执行业务回调
-		cb(msg)
-
-		// 处理完成，Ack 确认 todo ack放到cb里
+		// 处理完成，Ack 确认
 		if err = msgRaw.Ack(); err != nil {
 			zap.L().Error("Ack failed", zap.Error(err))
 		}
@@ -98,4 +93,65 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg *pb.Na
 	zap.L().Info("Start consumer", zap.String("stream", streamName), zap.String("subject", subject))
 	jt.consContext = append(jt.consContext, consContext)
 	return nil
+}
+
+// BatchDecode 批量解码大包
+func BatchDecode(buf []byte) ([]gctx.Context, error) {
+	var ctxs []gctx.Context
+	offset := 0
+
+	for offset < len(buf) {
+		// 读取 4 字节的长度前缀
+		if len(buf)-offset < 4 {
+			return nil, gerror.New("batch decode error: missing length prefix")
+		}
+		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
+		offset += 4
+
+		// 截取单条消息的数据段
+		if len(buf)-offset < subSize {
+			return nil, gerror.New("batch decode error: buffer too small for sub-message")
+		}
+		subBuf := buf[offset : offset+subSize]
+
+		ctx, err := Decode(subBuf)
+		if err != nil {
+			return nil, err // 或者记录错误并 continue
+		}
+
+		ctxs = append(ctxs, ctx)
+		offset += subSize
+	}
+
+	return ctxs, nil
+}
+
+func Decode(buf []byte) (ctx gctx.Context, err error) {
+	if len(buf) < headerSize {
+		return ctx, gerror.New("decode error: buffer too small for header")
+	}
+
+	offset := 0
+
+	ctx.MsgID = binary.LittleEndian.Uint32(buf[offset:])
+	offset += 4
+
+	ctx.RoleID = binary.LittleEndian.Uint64(buf[offset:])
+	offset += 8
+
+	ctx.SesID = binary.LittleEndian.Uint64(buf[offset:])
+	offset += 8
+
+	ctx.SerType = pb.Server(binary.LittleEndian.Uint32(buf[offset:]))
+	offset += 4
+
+	ctx.SerID = int32(binary.LittleEndian.Uint32(buf[offset:]))
+	offset += 4
+
+	ctx.Forward = buf[offset]
+	offset += 1
+
+	ctx.Data = buf[offset:]
+
+	return ctx, nil
 }

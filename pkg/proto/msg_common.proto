@@ -14,6 +14,7 @@ enum Server{
 	Account = 1;
 	Game = 2;
 	Center = 3;
+	Log = 4;
 	GM = 20;
 	Robot = 21;
 	Max = 22;

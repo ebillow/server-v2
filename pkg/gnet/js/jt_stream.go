@@ -6,6 +6,7 @@ import (
 	"server/pkg/flag"
 	"server/pkg/pb"
 	"strconv"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
@@ -17,10 +18,12 @@ import (
 type JetStream struct {
 	JS          jetstream.JetStream
 	consContext []jetstream.ConsumeContext
-	ack         chan jetstream.PubAckFuture
 
 	serType pb.Server
 	serID   int32
+
+	pubIdx   sync.Map
+	pubGroup sync.Map
 }
 
 var S JetStream
@@ -30,7 +33,6 @@ func (jt *JetStream) Init(serType pb.Server, serID int32, natsURL string, option
 	jt.serType = serType
 	jt.serID = serID
 
-	// 1. 配置 NATS 连接选项 (生产环境必须配置重连逻辑)
 	opts := append(
 		options,
 		nats.Name(flag.SrvName(serType)+strconv.Itoa(int(jt.serID))),
@@ -49,7 +51,7 @@ func (jt *JetStream) Init(serType pb.Server, serID int32, natsURL string, option
 		return err
 	}
 
-	// 2. 创建 JetStream 上下文
+	// 创建 JetStream 上下文
 	jt.JS, err = jetstream.New(nc)
 	if err != nil {
 		return err
