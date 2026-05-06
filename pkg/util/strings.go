@@ -1,20 +1,23 @@
 package util
 
 import (
-	"fmt"
-	"golang.org/x/exp/constraints"
 	"strconv"
+
+	"golang.org/x/exp/constraints"
 )
 
-type Number interface {
-	constraints.Integer | constraints.Float
+// ItoString 整数转字符串 (极致性能版)
+func ItoString[T constraints.Integer](n T) string {
+	// FormatInt 只能接受 int64，所以统一转为 int64
+	return strconv.FormatInt(int64(n), 10)
 }
 
-// ToString 整数转字符串
-func ToString[T Number](n T) string {
-	return fmt.Sprint(n)
+// UtoString 无符号整数转字符串 (防止 uint64 极大值转 int64 时溢出变负数)
+func UtoString[T constraints.Unsigned](n T) string {
+	return strconv.FormatUint(uint64(n), 10)
 }
 
+// FtoString 浮点数转字符串，避免Sprint写成科学计数，并且小数位数刚好够
 func FtoString[T constraints.Float](n T) string {
 	return strconv.FormatFloat(float64(n), 'f', -1, 64)
 }
