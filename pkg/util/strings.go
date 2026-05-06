@@ -8,12 +8,9 @@ import (
 
 // ItoString 整数转字符串 (极致性能版)
 func ItoString[T constraints.Integer](n T) string {
-	// FormatInt 只能接受 int64，所以统一转为 int64
-	return strconv.FormatInt(int64(n), 10)
-}
-
-// UtoString 无符号整数转字符串 (防止 uint64 极大值转 int64 时溢出变负数)
-func UtoString[T constraints.Unsigned](n T) string {
+	if n < 0 {
+		return strconv.FormatInt(int64(n), 10)
+	}
 	return strconv.FormatUint(uint64(n), 10)
 }
 
