@@ -52,7 +52,7 @@ func Init(ctx context.Context) error {
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	cfg := loadNetCfg()
-	go session.StartWSServer("0.0.0.0:"+util.ToString(flag.TcpPort), cfg)
+	go session.StartWSServer("0.0.0.0:"+util.IToString(flag.TcpPort), cfg)
 
 	zap.S().Infof("listen on ws:%d", flag.TcpPort)
 	return nil

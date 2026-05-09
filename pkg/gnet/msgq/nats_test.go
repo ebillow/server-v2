@@ -85,7 +85,7 @@ func BenchmarkHead(b *testing.B) {
 
 		msg.Header.Set("ser_name", "self name")
 		msg.Header.Set("ser_id", "self_id")
-		msg.Header.Set("msg_id", util.ToString(msgID))
+		msg.Header.Set("msg_id", util.IToString(msgID))
 		msg.Header.Set("role_id", "3")
 
 		// ------------------
@@ -203,12 +203,5 @@ func TestDiffSub(t *testing.T) {
 		case <-time.After(time.Second * 10):
 			return
 		}
-	}
-}
-
-// BenchmarkGetSubName-10    	14597458	        92.66 ns/op
-func BenchmarkGetSubName(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		getIndexSubject(pb.Server_Game, 1)
 	}
 }

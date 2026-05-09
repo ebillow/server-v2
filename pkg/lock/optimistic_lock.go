@@ -3,13 +3,14 @@ package lock
 import (
 	"context"
 	"errors"
-	"github.com/redis/go-redis/v9"
-	"go.uber.org/zap"
 	"math/rand"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
-// OptimisticLockedDo 乐观锁，保存时可以用save这个pipe
+// OptimisticLockedDo 乐观锁，保存时用save这个pipe
 func OptimisticLockedDo(ctx context.Context, redisCli redis.UniversalClient, key string, fn func(ctx context.Context, tx *redis.Tx, save redis.Pipeliner) error) error {
 	txfTarget := func(tx *redis.Tx) error {
 		pipe := tx.TxPipeline()

@@ -9,32 +9,32 @@ import (
 
 func TestItoString(t *testing.T) {
 	i := 12312312312312313
-	str := ItoString(i)
+	str := IToString(i)
 	require.Equal(t, "12312312312312313", str)
 
 	i = 2
-	str = ItoString(i)
+	str = IToString(i)
 	require.Equal(t, "2", str)
 
 	i2 := uint64(math.MaxUint64)
-	str = ItoString(i2)
+	str = IToString(i2)
 	require.Equal(t, "18446744073709551615", str)
 
 	ii := -1231231231233
-	str = ItoString(ii)
+	str = IToString(ii)
 	require.Equal(t, "-1231231231233", str)
 }
 
 func TestFtoString(t *testing.T) {
 	f := 123123123123.12312
-	str := FtoString(f)
+	str := FToString(f)
 	require.Equal(t, "123123123123.12312", str)
 
 	f = 1.12312231231
-	str = FtoString(f)
+	str = FToString(f)
 	require.Equal(t, "1.12312231231", str)
 
 	f = -1.12312231231
-	str = FtoString(f)
+	str = FToString(f)
 	require.Equal(t, "-1.12312231231", str)
 }

@@ -6,16 +6,16 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
-// ItoString 整数转字符串 (极致性能版)
-func ItoString[T constraints.Integer](n T) string {
+// IToString 整数转字符串
+func IToString[T constraints.Integer](n T) string {
 	if n < 0 {
 		return strconv.FormatInt(int64(n), 10)
 	}
 	return strconv.FormatUint(uint64(n), 10)
 }
 
-// FtoString 浮点数转字符串，避免Sprint写成科学计数，并且小数位数刚好够
-func FtoString[T constraints.Float](n T) string {
+// FToString 浮点数转字符串，避免Sprint写成科学计数，并且小数位数刚好够
+func FToString[T constraints.Float](n T) string {
 	return strconv.FormatFloat(float64(n), 'f', -1, 64)
 }
 
