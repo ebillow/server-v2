@@ -77,7 +77,7 @@ func TestSubscribe(t *testing.T) {
 
 // BenchmarkHead-10    	 9132805	       127.9 ns/op
 func BenchmarkHead(b *testing.B) {
-	serID := int32(1)
+	serID := uint8(1)
 	msgID := 2
 
 	for i := 0; i < b.N; i++ {

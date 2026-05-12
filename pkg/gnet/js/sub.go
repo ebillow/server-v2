@@ -21,8 +21,8 @@ func (jt *JetStream) Serve(ctx context.Context, cb func(msg gctx.Context)) error
 		return err
 	}
 	subjects := []string{
-		getIndexSubject(jt.serType, jt.serID),
-		getGroupSubject(jt.serType)}
+		getIndexSubject(pb.Server(jt.serType), jt.serID),
+		getGroupSubject(pb.Server(jt.serType))}
 
 	for _, subject := range subjects {
 		err := jt.sub(ctx, subject, cb)
@@ -35,12 +35,12 @@ func (jt *JetStream) Serve(ctx context.Context, cb func(msg gctx.Context)) error
 
 // initGlobalStream 幂等创建或更新全局统一的 Stream
 func (jt *JetStream) initGlobalStream(ctx context.Context) error {
-	streamName := getStreamName(jt.serType)
-	wildcardSubject := getStreamWildcardSubject(jt.serType)
+	streamName := getStreamName(pb.Server(jt.serType))
+	wildcardSubject := getStreamWildcardSubject(pb.Server(jt.serType))
 
 	cfg := jetstream.StreamConfig{
 		Name:        streamName,
-		Description: fmt.Sprintf("Unified stream for %s", flag.SrvName(jt.serType)),
+		Description: fmt.Sprintf("Unified stream for %s", flag.SrvName(pb.Server(jt.serType))),
 		Subjects:    []string{wildcardSubject}, // 核心：监听通配符
 		MaxAge:      24 * time.Hour,            // 消息保留1天
 		MaxBytes:    10 * 1024 * 1024 * 1024,   // 10GB 限制
@@ -58,7 +58,7 @@ func (jt *JetStream) initGlobalStream(ctx context.Context) error {
 }
 
 func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.Context)) error {
-	streamName := getStreamName(jt.serType)
+	streamName := getStreamName(pb.Server(jt.serType))
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
 
@@ -142,11 +142,17 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	ctx.SesID = binary.LittleEndian.Uint64(buf[offset:])
 	offset += 8
 
-	ctx.SerType = pb.Server(binary.LittleEndian.Uint32(buf[offset:]))
-	offset += 4
+	ctx.FromSer = buf[offset]
+	offset += 1
 
-	ctx.SerID = int32(binary.LittleEndian.Uint32(buf[offset:]))
-	offset += 4
+	ctx.FromSerID = buf[offset]
+	offset += 1
+
+	ctx.ToSer = buf[offset]
+	offset += 1
+
+	ctx.ToSerID = buf[offset]
+	offset += 1
 
 	ctx.Forward = buf[offset]
 	offset += 1

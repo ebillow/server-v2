@@ -56,5 +56,9 @@ func UnInit(ctx context.Context) {
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	router.S().Handle(ctx)
+	if ctx.Forward > 0 {
+
+	} else {
+		router.S().Handle(ctx)
+	}
 }

@@ -2,26 +2,27 @@ package login
 
 import (
 	"context"
-	"go.uber.org/zap"
 	"server/pkg/discovery"
 	"server/pkg/flag"
 	"server/pkg/pb"
 	"time"
+
+	"go.uber.org/zap"
 )
 
-func gameExist(gameID int32) bool {
-	return discovery.Exist(flag.SrvName(pb.Server_Game), gameID)
+func gameExist(gameID uint8) bool {
+	return discovery.Exist(flag.SrvName(pb.Server_Game), int32(gameID))
 }
 
-func randGameID(world uint32) (int32, pb.LoginCode) {
+func randGameID(world uint32) (uint8, pb.LoginCode) {
 	id, ok := discovery.Pick(flag.SrvName(pb.Server_Game))
 	if !ok {
 		return 0, pb.LoginCode_LCNoGame
 	}
-	return id, pb.LoginCode_LCSuccess
+	return uint8(id), pb.LoginCode_LCSuccess
 }
 
-func choseGame(lastGameID int32, world uint32) (int32, pb.LoginCode) {
+func choseGame(lastGameID uint8, world uint32) (uint8, pb.LoginCode) {
 	if lastGameID != 0 { // 已登录过
 		if gameExist(lastGameID) {
 			return lastGameID, pb.LoginCode_LCSuccess

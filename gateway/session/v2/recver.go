@@ -107,7 +107,7 @@ func (s *Session) forwardToSrv(src []byte) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
 			zap.String("to", serType.String()),
-			zap.Int32("idx", serID),
+			zap.Uint8("idx", serID),
 			zap.Inline(s),
 		)
 		return
@@ -116,7 +116,7 @@ func (s *Session) forwardToSrv(src []byte) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
 			zap.String("to", serType.String()),
-			zap.Int32("idx", serID),
+			zap.Uint8("idx", serID),
 			zap.Inline(s),
 		)
 	}

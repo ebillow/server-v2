@@ -49,7 +49,7 @@ func (s *Session) Close(why pb.DisconnectReason) {
 		s.cancel()
 
 		RemoveSession(s.Id)
-		gnet.SendToGame(s.GameID.Load(), &pb.S2SGt2SDisconnect{
+		gnet.SendToGame(s.getSerID(pb.Server_Game), &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
 			Why:   pb.DisconnectReason(s.disConnReason.Load()),
 		}, 0, 0)
@@ -87,6 +87,6 @@ func (s *Session) start() {
 	zap.L().Info("connect", zap.Inline(s))
 }
 
-func (s *Session) getSerID(ser pb.Server) int32 {
-	return s.GameID.Load()
+func (s *Session) getSerID(ser pb.Server) uint8 {
+	return uint8(s.GameID.Load())
 }

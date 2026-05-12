@@ -19,8 +19,8 @@ type JetStream struct {
 	JS          jetstream.JetStream
 	consContext []jetstream.ConsumeContext
 
-	serType pb.Server
-	serID   int32
+	serType uint8
+	serID   uint8
 
 	pubIdx   sync.Map
 	pubGroup sync.Map
@@ -29,8 +29,8 @@ type JetStream struct {
 var S JetStream
 
 // Init 连接并确保 Stream 存在
-func (jt *JetStream) Init(serType pb.Server, serID int32, natsURL string, options ...nats.Option) error {
-	jt.serType = serType
+func (jt *JetStream) Init(serType pb.Server, serID uint8, natsURL string, options ...nats.Option) error {
+	jt.serType = uint8(serType)
 	jt.serID = serID
 
 	opts := append(
@@ -88,7 +88,7 @@ func getStreamWildcardSubject(serType pb.Server) string {
 }
 
 // 获取具体节点的 Subject (例如: stream.game.idx.1)
-func getIndexSubject(serType pb.Server, serID int32) string {
+func getIndexSubject(serType pb.Server, serID uint8) string {
 	return fmt.Sprintf("stream.%s.idx.%d", flag.SrvName(serType), serID)
 }
 

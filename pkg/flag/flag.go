@@ -15,9 +15,9 @@ import (
 var (
 	EtcdAddr []string
 	IID      string
-	SvcIndex int // 服务索引
-	RpcPort  int // rpc 端口
-	HttpPort int // http 端口
+	SvcIndex uint8 // 服务索引
+	RpcPort  int   // rpc 端口
+	HttpPort int   // http 端口
 	TcpPort  int
 	SrvType  pb.Server
 )
@@ -26,7 +26,7 @@ var (
 func Init(serverType pb.Server, fs *pflag.FlagSet) {
 	fs.StringSliceVar(&EtcdAddr, "etcd-addr", []string{"127.0.0.1:2379"}, "etcd address")
 	fs.StringVar(&IID, "iid", "local", "商户号")
-	fs.IntVar(&SvcIndex, "index", 0, "服务索引")
+	fs.Uint8Var(&SvcIndex, "index", 0, "服务索引")
 	fs.IntVar(&RpcPort, "rpc-port", 0, "rpc 监听端口")
 	fs.IntVar(&HttpPort, "http-port", 0, "http 监听端口")
 	fs.IntVar(&TcpPort, "tcp-port", 30001, "tcp 监听端口")
@@ -36,7 +36,7 @@ func Init(serverType pb.Server, fs *pflag.FlagSet) {
 	Debug(fs)
 	if hostName := os.Getenv("HOSTNAME"); hostName != "" {
 		if hostIdx := SplitHostName(hostName); hostIdx >= 0 {
-			SvcIndex = hostIdx
+			SvcIndex = uint8(hostIdx)
 		}
 	}
 	var err error

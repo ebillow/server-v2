@@ -11,7 +11,7 @@ import (
 )
 
 func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
-	err := bs.subscribe(bs.getSubjects(bs.serType, bs.serID), func(msg *nats.Msg) {
+	err := bs.subscribe(bs.getSubjects(pb.Server(bs.serType), bs.serID), func(msg *nats.Msg) {
 		ctxs, err := BatchDecode(msg.Data)
 		if err != nil {
 			zap.L().Error("batch decode error", zap.Error(err))
@@ -56,7 +56,7 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 	return nil
 }
 
-func (bs *DataBus) getSubjects(serType pb.Server, serID int32) map[string]string {
+func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
 	subs := make(map[string]string) // [subject,queue]
 	// all
 	subs[getAllSubject(serType)] = ""
@@ -117,11 +117,17 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	ctx.SesID = binary.LittleEndian.Uint64(buf[offset:])
 	offset += 8
 
-	ctx.SerType = pb.Server(binary.LittleEndian.Uint32(buf[offset:]))
-	offset += 4
+	ctx.FromSer = buf[offset]
+	offset += 1
 
-	ctx.SerID = int32(binary.LittleEndian.Uint32(buf[offset:]))
-	offset += 4
+	ctx.FromSerID = buf[offset]
+	offset += 1
+
+	ctx.ToSer = buf[offset]
+	offset += 1
+
+	ctx.ToSerID = buf[offset]
+	offset += 1
 
 	ctx.Forward = buf[offset]
 	offset += 1

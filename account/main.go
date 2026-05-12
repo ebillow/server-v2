@@ -65,7 +65,7 @@ func UnInit(ctx context.Context) {
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	if ctx.SerType == pb.Server_Gateway {
+	if ctx.FromSer == uint8(pb.Server_Gateway) {
 		router.C().Handle(ctx)
 	} else {
 		router.S().Handle(ctx)

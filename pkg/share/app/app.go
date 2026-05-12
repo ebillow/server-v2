@@ -49,7 +49,7 @@ func (a *App) RootCmdRun(cmd *cobra.Command, args []string) {
 }
 
 func (a *App) init(ctx context.Context) error {
-	if err := idgen.Init(flag.SvcIndex); err != nil {
+	if err := idgen.Init(int(flag.SvcIndex)); err != nil {
 		return err
 	}
 	cfg.Load(flag.EtcdAddr[0], flag.IID)
@@ -69,7 +69,7 @@ func (a *App) init(ctx context.Context) error {
 	}
 	discovery.Watch()
 
-	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, int32(flag.SvcIndex), nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
+	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, flag.SvcIndex, nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
 		return err
 	}
 

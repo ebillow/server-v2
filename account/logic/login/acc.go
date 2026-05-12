@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"server/pkg/db"
 	"server/pkg/model"
 	"server/pkg/pb"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const AccountCollection = "accounts"
@@ -17,7 +18,7 @@ const AccountCollection = "accounts"
 type Account struct {
 	AccID    uint64 `redis:"acc_id" bson:"acc_id"`
 	Freeze   bool   `redis:"freeze" bson:"freeze"`
-	GameID   int32  `redis:"game_id" bson:"-"`
+	GameID   uint8  `redis:"game_id" bson:"-"`
 	Time     int64  `redis:"time" bson:"-"`
 	Seq      uint32 `redis:"seq" bson:"-"`
 	Passwd   uint64 `redis:"passwd" bson:"-"`

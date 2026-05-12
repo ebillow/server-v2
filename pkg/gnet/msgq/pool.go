@@ -3,7 +3,7 @@ package msgq
 import "sync"
 
 const (
-	headerSize = 4 + 8 + 8 + 4 + 4 + 1
+	headerSize = 4 + 8 + 8 + 1 + 1 + 1 + 1 + 1
 	batchCount = 500
 	buffSize   = 1024 * batchCount
 )

@@ -17,14 +17,14 @@ var Q DataBus
 type DataBus struct {
 	conn     *nats.Conn
 	rpcConn  *nats.Conn
-	serType  pb.Server
-	serID    int32
+	serType  uint8
+	serID    uint8
 	pubIdx   sync.Map
 	pubGroup sync.Map
 	pubAll   sync.Map
 }
 
-func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options ...nats.Option) error {
+func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options ...nats.Option) error {
 	conn, err := setupNatsConn(connStr, options...)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func (bs *DataBus) Init(connStr string, serType pb.Server, serID int32, options 
 		return err
 	}
 	bs.rpcConn = conn
-	bs.serType = serType
+	bs.serType = uint8(serType)
 	bs.serID = serID
 	return nil
 }
@@ -79,7 +79,7 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 
 var rpcSubCache sync.Map
 
-func getRpcIdxSubject(serType pb.Server, serID int32) string {
+func getRpcIdxSubject(serType pb.Server, serID uint8) string {
 	key := (uint64(serType) << 32) | uint64(uint32(serID))
 	if val, ok := rpcSubCache.Load(key); ok {
 		return val.(string)
@@ -90,7 +90,7 @@ func getRpcIdxSubject(serType pb.Server, serID int32) string {
 	return str
 }
 
-func getIndexSubject(serType pb.Server, serID int32) string {
+func getIndexSubject(serType pb.Server, serID uint8) string {
 	return "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
 }
 

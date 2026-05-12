@@ -52,7 +52,7 @@ var (
 )
 
 func Init(ctx context.Context) error {
-	begin := flag.SvcIndex * 100000
+	begin := int(flag.SvcIndex) * 100000
 	robot.Setup = &robot.ServerCfg{
 		ServerAddr: Addr,
 		Cnt:        Count,

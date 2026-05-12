@@ -14,20 +14,23 @@ type Context struct {
 	U    Unity
 	Raw  *nats.Msg
 
-	RoleID  uint64
-	SesID   uint64
-	MsgID   uint32
-	SerID   int32
-	SerType pb.Server
-	Forward uint8
+	RoleID    uint64
+	SesID     uint64
+	MsgID     uint32
+	Forward   uint8
+	FromSer   uint8
+	FromSerID uint8
+	ToSer     uint8
+	ToSerID   uint8
 }
 
 func (s Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint32("msgID", s.MsgID)
 	encoder.AddUint64("roleID", s.RoleID)
 	encoder.AddUint64("sesID", s.SesID)
-	encoder.AddString("from", flag.SrvName(s.SerType))
-	encoder.AddInt32("serID", s.SerID)
-
+	encoder.AddString("from", flag.SrvName(pb.Server(s.FromSer)))
+	encoder.AddUint8("serID", s.FromSerID)
+	encoder.AddString("to", flag.SrvName(pb.Server(s.ToSer)))
+	encoder.AddUint8("toID", s.ToSerID)
 	return nil
 }

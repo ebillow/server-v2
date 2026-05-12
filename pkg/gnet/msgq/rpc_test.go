@@ -27,10 +27,14 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
+	SrvRpc()
+	os.Exit(m.Run())
+}
 
+func SrvRpc() {
 	data := pb.S2SReqLogin{}
-	err = Q.Serve(func(ctx gctx.Context) {
-		err = proto.Unmarshal(ctx.Data, &data)
+	err := Q.Serve(func(ctx gctx.Context) {
+		err := proto.Unmarshal(ctx.Data, &data)
 		// zap.L().Info("msg recv", zap.Any("msg", &data))
 		err = RpcRespond(ctx.Raw, &pb.S2SResLogin{
 			GameID: 111,
@@ -43,7 +47,9 @@ func TestMain(m *testing.M) {
 			panic(err)
 		}
 	})
-	os.Exit(m.Run())
+	if err != nil {
+		panic(err)
+	}
 }
 
 func TestRpcCall(t *testing.T) {

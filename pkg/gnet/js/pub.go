@@ -13,30 +13,32 @@ import (
 	"go.uber.org/zap"
 )
 
-func (jt *JetStream) Send(serType pb.Server, serID int32, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	jt.getIdxPubBatcher(serType, serID).Add(gctx.Context{
-		Data:    data,
-		RoleID:  roleID,
-		SesID:   sesID,
-		MsgID:   msgID,
-		SerID:   jt.serID,
-		SerType: jt.serType,
+		Data:      data,
+		RoleID:    roleID,
+		SesID:     sesID,
+		MsgID:     msgID,
+		FromSerID: jt.serID,
+		FromSer:   jt.serType,
+		ToSerID:   serID,
+		ToSer:     uint8(serType),
 	})
 }
 
 func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	jt.getGroupPubBatcher(serType).Add(gctx.Context{
-		Data:    data,
-		RoleID:  roleID,
-		SesID:   sesID,
-		MsgID:   msgID,
-		SerID:   jt.serID,
-		SerType: jt.serType,
+		Data:      data,
+		RoleID:    roleID,
+		SesID:     sesID,
+		MsgID:     msgID,
+		FromSerID: jt.serID,
+		FromSer:   jt.serType,
 	})
 }
 
-func (jt *JetStream) getIdxPubBatcher(serType pb.Server, serID int32) *PubBatcher {
-	key := (uint64(serType) << 32) | uint64(uint32(serID))
+func (jt *JetStream) getIdxPubBatcher(serType pb.Server, serID uint8) *PubBatcher {
+	key := (uint32(serType) << 16) | uint32(serID)
 	val, ok := jt.pubIdx.Load(key)
 	if !ok {
 		tb := NewPubBatcher(getIndexSubject(serType, serID), jt.JS)
@@ -111,8 +113,10 @@ func (tb *PubBatcher) Add(ctx gctx.Context) {
 	*tb.buf = binary.LittleEndian.AppendUint32(*tb.buf, ctx.MsgID)
 	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.RoleID)
 	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.SesID)
-	*tb.buf = binary.LittleEndian.AppendUint32(*tb.buf, uint32(ctx.SerType))
-	*tb.buf = binary.LittleEndian.AppendUint32(*tb.buf, uint32(ctx.SerID))
+	*tb.buf = append(*tb.buf, ctx.FromSer)
+	*tb.buf = append(*tb.buf, ctx.FromSerID)
+	*tb.buf = append(*tb.buf, ctx.ToSer)
+	*tb.buf = append(*tb.buf, ctx.ToSerID)
 	*tb.buf = append(*tb.buf, ctx.Forward)
 	*tb.buf = append(*tb.buf, ctx.Data...)
 
