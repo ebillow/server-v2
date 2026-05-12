@@ -26,8 +26,8 @@ func NewMsgRouter(max int32) *MsgRouter {
 	return r
 }
 
-// Register 注册消息
-func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c gctx.Context, msg proto.Message)) error {
+// register 注册消息
+func (rt *MsgRouter) register(msgID uint32, cf func() proto.Message, df func(c gctx.Context, msg proto.Message)) error {
 	if msgID >= uint32(len(rt.handlers)) {
 		return gerror.New("msg id out of range")
 	}
@@ -44,14 +44,14 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() proto.Message, df func(c g
 	return nil
 }
 
-// HandleMsg 处理消息
-func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Message)) error {
-	node, err := rt.GetHandler(c.MsgID)
+// handleMsg 处理消息
+func (rt *MsgRouter) handleMsg(c gctx.Context, logFunc func(message proto.Message)) error {
+	node, err := rt.getHandler(c.MsgID)
 	if err != nil {
 		return err
 	}
 
-	msgPB, err := rt.ParseMsg(node, c.Data)
+	msgPB, err := rt.parseMsg(node, c.Data)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (rt *MsgRouter) HandleMsg(c gctx.Context, logFunc func(message proto.Messag
 	return nil
 }
 
-func (rt *MsgRouter) GetHandler(id uint32) (n *MsgHandler, err error) {
+func (rt *MsgRouter) getHandler(id uint32) (n *MsgHandler, err error) {
 	if id >= uint32(len(rt.handlers)) {
 		err = gerror.New("msg id out of range")
 		return
@@ -85,7 +85,7 @@ func (rt *MsgRouter) GetHandler(id uint32) (n *MsgHandler, err error) {
 	return
 }
 
-func (rt *MsgRouter) ParseMsg(n *MsgHandler, data []byte) (msg proto.Message, err error) {
+func (rt *MsgRouter) parseMsg(n *MsgHandler, data []byte) (msg proto.Message, err error) {
 	msg = n.createFunc()
 	if msg == nil { // 允许只有消息id没内容
 		return

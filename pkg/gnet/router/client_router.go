@@ -30,7 +30,7 @@ func (rt *ClientRouter) On(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pro
 		return
 	}
 
-	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(c gctx.Context, msg proto.Message) {
+	err := rt.register(uint32(msgID), pb.NewFuncC2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(c, msg, c.U.(*role.Role))
 	})
 	if err != nil {
@@ -51,7 +51,7 @@ func (rt *ClientRouter) OnG(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pr
 		return
 	}
 
-	err := rt.Register(uint32(msgID), pb.NewFuncC2S(msgID), func(c gctx.Context, msg proto.Message) {
+	err := rt.register(uint32(msgID), pb.NewFuncC2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(c, msg)
 	})
 	if err != nil {
@@ -63,7 +63,7 @@ func (rt *ClientRouter) OnG(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pr
 }
 
 func (rt *ClientRouter) Handle(ctx gctx.Context) {
-	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
+	err := rt.handleMsg(ctx, func(msgPB proto.Message) {
 		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
 				zap.String("msgName", msgid.MsgIDC2S_name[int32(ctx.MsgID)]),

@@ -119,13 +119,15 @@ message S2CKickRole{
 	
 }
 
-message S2SReqRoleOnline{
+message S2SReqLoginOrLogout{
 	uint64 RoleID = 1;
 	uint32 GameID = 2;
+	bool Login = 3;
 }
 
-message S2SResRoleOnline{
+message S2SResLoginOrLogout{
 	uint64 RoleID = 1;
+	bool Login = 2;
 }
 
 message S2SReqConfig{

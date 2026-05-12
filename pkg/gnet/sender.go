@@ -70,6 +70,34 @@ func SendToSrv(serType pb.Server, serID int32, msg proto.Message, roleID uint64,
 	}
 }
 
+func SendToSrvAll(serType pb.Server, msg proto.Message, roleID uint64, sesID uint64) {
+	data, err := proto.Marshal(msg)
+	if err != nil {
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
+		return
+	}
+	msgID, err := pb.GetMsgIDS2S(msg)
+	if err != nil {
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
+		return
+	}
+	err = msgq.Q.SendAll(serType, msgID, data, roleID, sesID)
+	if err != nil {
+		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
+		return
+	}
+	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
+		zap.L().Info(">>> msg.sendAll: ",
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
+			zap.Any("data", msg),
+			zap.Any("to", serType),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("roleID", roleID),
+		)
+	}
+}
+
 func SendToGate(msg proto.Message, sesID uint64) {
 	SendToSrv(pb.Server_Gateway, GateIDFromSesID(sesID), msg, 0, sesID)
 }
@@ -80,4 +108,8 @@ func SendToGame(serID int32, msg proto.Message, sesID uint64, roleID uint64) {
 
 func SendToAccount(msg proto.Message) {
 	SendToSrv(pb.Server_Account, 0, msg, 0, 0)
+}
+
+func SendToAllCenter(msg proto.Message) {
+	SendToSrvAll(pb.Server_Center, msg, 0, 0)
 }

@@ -14,8 +14,8 @@ enum MsgIDMax {
 enum MsgIDS2S {
     S2SNone = 0;
     S2SReqLogin = 1;
-    S2SReqRoleOnline = 8;
-    S2SResRoleOnline = 9;
+    S2SReqLoginOrLogout = 8;
+    S2SResLoginOrLogout = 9;
     S2SReqConfig = 10;
     S2SResConfig = 11;
     S2SKickAcc = 12;

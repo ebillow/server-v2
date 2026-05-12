@@ -62,13 +62,12 @@ type Role struct {
 	Cancel context.CancelFunc
 
 	// 注意：临时属性，重连后就丢了
-	NowSec int64
-
-	dirty            bool
+	nowSec           int64 // 当前时间，精确到秒
 	lastSave         time.Time
 	LastMinute       time.Time
 	LastHeartbeat    time.Time
 	HeartbeatTimeOut int
+	dirty            bool
 }
 
 var CreateComps func(r *Role)
@@ -162,13 +161,13 @@ func (r *Role) Online() {
 	r.HeartbeatTimeOut = 0
 
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
-	r.SecLoop(r.lastSave)
-	//
-	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtLogin, &pb.MsgKVGuidValue{
-	// 	Guid:  r.Data.Guid,
-	// 	Value: setup.Setup.ID,
-	// })
-	//
+	r.SecLoop(now)
+
+	gnet.SendToAllCenter(&pb.S2SReqLoginOrLogout{
+		RoleID: r.ID,
+		GameID: uint32(flag.SvcIndex),
+		Login:  true,
+	})
 	for _, v := range r.Comps {
 		if comp, ok := v.(ICompOnline); ok {
 			comp.Online(r)
@@ -205,7 +204,12 @@ func (r *Role) Offline() {
 
 	// 通知其它服务器
 	r.Disconnect(pb.DisconnectReason_Kick)
-	// network.SendToAllCenter(pb.MsgIDS2S_Gm2CtOffline, &pb.MsgKVGuidValue{Guid: r.Data.Guid, Value: setup.Setup.ID})
+
+	gnet.SendToAllCenter(&pb.S2SReqLoginOrLogout{
+		RoleID: r.ID,
+		GameID: uint32(flag.SvcIndex),
+		Login:  false,
+	})
 	zap.L().Info("[login] offline", zap.Inline(r))
 }
 
@@ -216,41 +220,9 @@ func (r *Role) Disconnect(why pb.DisconnectReason) {
 	}, r.SesID)
 }
 
-func (r *Role) marshal(force bool) (*DataToSave, error) {
-	rd := &DataToSave{
-		ID:   r.ID,
-		Data: make(map[string]string),
-	}
-
-	if force || r.dirty {
-		str, err := sonic.MarshalString(r.Data)
-		if err != nil {
-			zap.S().Errorf("marshal role data err:%v", err)
-			return nil, err
-		}
-
-		rd.Set(pb.TypeComp_TCBase, str)
-		r.dirty = false
-	}
-
-	for i, v := range r.Comps {
-		if v == nil {
-			continue
-		}
-		if !force && !v.IsDirty() {
-			continue
-		}
-		str, err := sonic.MarshalString(v)
-		if err != nil {
-			zap.L().Error("marshal role comp data err", zap.Error(err), zap.Inline(r))
-			continue
-		}
-
-		rd.Set(pb.TypeComp(i), str)
-		v.ClearDirty()
-	}
-
-	return rd, nil
+// NowSec 当前时间，在组件中使用，避免每次使用time.now()。精确到秒，如需更高精度，不要使用
+func (r *Role) NowSec() int64 {
+	return r.nowSec
 }
 
 func (r *Role) SecLoop(now time.Time) {
@@ -259,18 +231,17 @@ func (r *Role) SecLoop(now time.Time) {
 		return
 	}
 
-	r.NowSec = now.Unix()
-
 	reset := false
 	dayChange := false
 	monthChange := false
+	r.nowSec = now.Unix()
 
-	if r.NowSec > r.Data.ResetTime {
+	if r.nowSec > r.Data.ResetTime {
 		reset = true
-		monthChange = r.NowSec >= r.Data.DataResetMonth
+		monthChange = r.nowSec >= r.Data.DataResetMonth
 	}
 
-	if r.NowSec > r.Data.DayChange {
+	if r.nowSec > r.Data.DayChange {
 		dayChange = true
 	}
 
@@ -316,7 +287,6 @@ func (r *Role) SecLoop(now time.Time) {
 			r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
 			zap.S().Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
 		}
-		// zap.S().Debugf("%d data reset time=%v", r.Guid, time.Unix(r.Data.ResetTime, 0))
 	}
 	if dayChange {
 		begin := util.CurDayBegin()
@@ -355,13 +325,50 @@ func (r *Role) GetComp(t pb.TypeComp) IComp {
 	return r.Comps[t]
 }
 
-// Send	发送数据
+// Send	发送数据给客户端
 func (r *Role) Send(msg proto.Message) {
 	gnet.SendToRole(msg, r.SesID, r.ID)
 }
 
 func (r *Role) SetDirty() {
 	r.dirty = true
+}
+
+func (r *Role) marshal(force bool) (*DataToSave, error) {
+	rd := &DataToSave{
+		ID:   r.ID,
+		Data: make(map[string]string),
+	}
+
+	if force || r.dirty {
+		str, err := sonic.MarshalString(r.Data)
+		if err != nil {
+			zap.S().Errorf("marshal role data err:%v", err)
+			return nil, err
+		}
+
+		rd.Set(pb.TypeComp_TCBase, str)
+		r.dirty = false
+	}
+
+	for i, v := range r.Comps {
+		if v == nil {
+			continue
+		}
+		if !force && !v.IsDirty() {
+			continue
+		}
+		str, err := sonic.MarshalString(v)
+		if err != nil {
+			zap.L().Error("marshal role comp data err", zap.Error(err), zap.Inline(r))
+			continue
+		}
+
+		rd.Set(pb.TypeComp(i), str)
+		v.ClearDirty()
+	}
+
+	return rd, nil
 }
 
 func (r *Role) save() {

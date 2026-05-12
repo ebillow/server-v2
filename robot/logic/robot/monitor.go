@@ -108,7 +108,7 @@ func (m *Monitor) run() {
 					Robots.Range(func(key, value any) bool {
 						if value.(bool) == false {
 							ss.WriteString(" ")
-							ss.WriteString(util.ToString(key.(uint32)))
+							ss.WriteString(util.IToString(key.(uint32)))
 							ss.WriteString("服,")
 						}
 						return true

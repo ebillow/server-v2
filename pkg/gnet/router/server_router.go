@@ -29,7 +29,7 @@ func (rt *ServerRouter) On(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pro
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
+	err := rt.register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(c, msg, c.U.(*role.Role))
 	})
 	if err != nil {
@@ -49,7 +49,7 @@ func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pr
 			zap.Stack("stack"))
 		return
 	}
-	err := rt.Register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
+	err := rt.register(uint32(msgID), pb.NewFuncS2S(msgID), func(c gctx.Context, msg proto.Message) {
 		df(c, msg)
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func (rt *ServerRouter) OnG(msgID msgid.MsgIDS2S, df func(c gctx.Context, msg pr
 }
 
 func (rt *ServerRouter) Handle(ctx gctx.Context) {
-	err := rt.HandleMsg(ctx, func(msgPB proto.Message) {
+	err := rt.handleMsg(ctx, func(msgPB proto.Message) {
 		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
 				zap.String("msgName", msgid.MsgIDS2S_name[int32(ctx.MsgID)]),

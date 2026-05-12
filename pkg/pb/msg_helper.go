@@ -114,14 +114,14 @@ func registerAllS2SMsg() {
 		NewMessage:  func() proto.Message { return &S2SReqLogin{} },
 	})
 
-	registerS2SMsg(msgid.MsgIDS2S_S2SReqRoleOnline, &messageMeta{
-		MessageType: reflect.TypeOf(S2SReqRoleOnline{}),
-		NewMessage:  func() proto.Message { return &S2SReqRoleOnline{} },
+	registerS2SMsg(msgid.MsgIDS2S_S2SReqLoginOrLogout, &messageMeta{
+		MessageType: reflect.TypeOf(S2SReqLoginOrLogout{}),
+		NewMessage:  func() proto.Message { return &S2SReqLoginOrLogout{} },
 	})
 
-	registerS2SMsg(msgid.MsgIDS2S_S2SResRoleOnline, &messageMeta{
-		MessageType: reflect.TypeOf(S2SResRoleOnline{}),
-		NewMessage:  func() proto.Message { return &S2SResRoleOnline{} },
+	registerS2SMsg(msgid.MsgIDS2S_S2SResLoginOrLogout, &messageMeta{
+		MessageType: reflect.TypeOf(S2SResLoginOrLogout{}),
+		NewMessage:  func() proto.Message { return &S2SResLoginOrLogout{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SReqConfig, &messageMeta{

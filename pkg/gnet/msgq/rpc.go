@@ -34,17 +34,17 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 	var err error
 	buf, err = marshalOpts.MarshalAppend(buf, req)
 	if err != nil {
-		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %s", msgID, subStr)
+		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
 
 	resMsg, err := bs.rpcConn.Request(subStr, buf, timeOut)
 	if err != nil {
-		return gerror.Wrapf(err, "rpc call:request err; msg[%d]", msgID)
+		return gerror.Wrapf(err, "rpc call:request err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
 
 	err = proto.Unmarshal(resMsg.Data, ack)
 	if err != nil {
-		return gerror.Wrapf(err, "rpc call:unmarshal err; msg[%d]", msgID)
+		return gerror.Wrapf(err, "rpc call:unmarshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
 
 	return nil

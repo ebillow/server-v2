@@ -2,8 +2,6 @@ package clinet
 
 import (
 	"crypto/cipher"
-	"github.com/gorilla/websocket"
-	"go.uber.org/zap"
 	"math/big"
 	"net"
 	"server/pkg/crypt/gaes"
@@ -12,6 +10,9 @@ import (
 	"server/pkg/util"
 	"sync/atomic"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -66,7 +67,7 @@ type Session struct {
 }
 
 func (s *Session) String() string {
-	return util.ToString(s.Id) + "_" + s.Ip.String()
+	return util.IToString(s.Id) + "_" + s.Ip.String()
 }
 func (s *Session) ID() uint32 {
 	return s.Id
