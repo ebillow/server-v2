@@ -22,11 +22,7 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 		return
 	}
 	serID := GateIDFromSesID(sesID)
-	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
-	if err != nil {
-		zap.L().Warn("send to role error", zap.Error(err))
-		return
-	}
+	msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
 
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
@@ -52,11 +48,8 @@ func SendToSrv(serType pb.Server, serID uint8, msg proto.Message, roleID uint64,
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
 		return
 	}
-	err = msgq.Q.Send(serType, serID, msgID, data, roleID, sesID)
-	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
-		return
-	}
+	msgq.Q.Send(serType, serID, msgID, data, roleID, sesID)
+
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
 			zap.Uint32("msgID", msgID),
@@ -81,11 +74,8 @@ func SendToSrvAll(serType pb.Server, msg proto.Message, roleID uint64, sesID uin
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
 		return
 	}
-	err = msgq.Q.SendAll(serType, msgID, data, roleID, sesID)
-	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
-		return
-	}
+	msgq.Q.SendAll(serType, msgID, data, roleID, sesID)
+
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.sendAll: ",
 			zap.Uint32("msgID", msgID),

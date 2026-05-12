@@ -65,12 +65,12 @@ func (rt *ServerRouter) Handle(ctx gctx.Context) {
 		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
 				zap.String("msgName", msgid.MsgIDS2S_name[int32(ctx.MsgID)]),
-				zap.Inline(ctx),
+				zap.Inline(&ctx),
 			)
 		}
 	})
 	if err != nil {
-		zap.L().Warn("HandleWithRole failed", zap.Inline(ctx), zap.Error(err))
+		zap.L().Warn("HandleWithRole failed", zap.Inline(&ctx), zap.Error(err))
 		return
 	}
 }

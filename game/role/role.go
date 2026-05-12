@@ -70,8 +70,6 @@ type Role struct {
 	dirty            bool
 }
 
-var CreateComps func(r *Role)
-
 // NewRole	新建一个角色
 func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	dataBase := &pb.RoleData{}
@@ -93,7 +91,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	r.Events = queue.NewSwapQueue[Event](EventChanSize, EventChanSize*100)
 	r.Ctx, r.Cancel = context.WithCancel(context.Background())
 
-	CreateComps(r)
+	compCreate.Create(r)
 
 	for i, comp := range r.Comps {
 		if comp == nil {

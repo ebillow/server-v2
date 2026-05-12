@@ -12,7 +12,7 @@ import (
 )
 
 // Send 指定发送
-func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -22,12 +22,10 @@ func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byt
 		ToSerID:   serID,
 		RoleID:    roleID,
 		SesID:     sesID,
-		Forward:   0,
 	})
-	return nil
 }
 
-func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -37,14 +35,12 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, d
 		ToSerID:   serID,
 		RoleID:    roleID,
 		SesID:     sesID,
-		Forward:   1,
+		Flag:      gctx.Forward,
 	})
-
-	return nil
 }
 
 // SendAny 组发送. 随机一个能收到
-func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	bs.getGroupPubBatcher(serType).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -53,13 +49,11 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID 
 		ToSer:     uint8(serType),
 		RoleID:    roleID,
 		SesID:     sesID,
-		Forward:   0,
 	})
-	return nil
 }
 
 // SendAll 所有的 serName 服节点都能收到
-func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	bs.getAllPubBatcher(serType).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -68,10 +62,21 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID 
 		ToSer:     uint8(serType),
 		RoleID:    roleID,
 		SesID:     sesID,
-		Forward:   0,
 	})
+}
 
-	return nil
+func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+	bs.getGroupPubBatcher(pb.Server_Center).Add(gctx.Context{
+		MsgID:     msgID,
+		Data:      data,
+		FromSer:   bs.serType,
+		FromSerID: bs.serID,
+		ToSer:     uint8(serType),
+		ToSerID:   serID,
+		RoleID:    roleID,
+		SesID:     sesID,
+		Flag:      gctx.Forward,
+	})
 }
 
 func (bs *DataBus) getIdxPubBatcher(serType pb.Server, serID uint8) *PubBatcher {
@@ -153,7 +158,7 @@ func (tb *PubBatcher) Add(ctx gctx.Context) {
 	*tb.buf = append(*tb.buf, ctx.FromSerID)
 	*tb.buf = append(*tb.buf, ctx.ToSer)
 	*tb.buf = append(*tb.buf, ctx.ToSerID)
-	*tb.buf = append(*tb.buf, ctx.Forward)
+	*tb.buf = append(*tb.buf, ctx.Flag)
 	*tb.buf = append(*tb.buf, ctx.Data...)
 
 	tb.count++

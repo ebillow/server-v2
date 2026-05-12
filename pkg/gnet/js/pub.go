@@ -117,7 +117,7 @@ func (tb *PubBatcher) Add(ctx gctx.Context) {
 	*tb.buf = append(*tb.buf, ctx.FromSerID)
 	*tb.buf = append(*tb.buf, ctx.ToSer)
 	*tb.buf = append(*tb.buf, ctx.ToSerID)
-	*tb.buf = append(*tb.buf, ctx.Forward)
+	*tb.buf = append(*tb.buf, ctx.Flag)
 	*tb.buf = append(*tb.buf, ctx.Data...)
 
 	tb.count++

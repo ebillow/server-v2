@@ -102,16 +102,8 @@ func (s *Session) forwardToSrv(src []byte) {
 
 	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
-	err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
-	if err != nil {
-		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
-			zap.Uint32("msgID", msgID),
-			zap.String("to", serType.String()),
-			zap.Uint8("idx", serID),
-			zap.Inline(s),
-		)
-		return
-	}
+	msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
+
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),

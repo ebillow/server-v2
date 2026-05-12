@@ -82,7 +82,7 @@ func loadNetCfg() *session.Config {
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	if ctx.Forward == 1 {
+	if ctx.Flag == gctx.Forward {
 		ses := session.GetSession(ctx.SesID)
 		if ses == nil {
 			return

@@ -74,8 +74,7 @@ func inject() {
 	role.InjectRoleMgr(role_mgr.Mgr)
 	role.InjectCRouter(router.C())
 	role.InjectSRouter(router.S())
-
-	role.CreateComps = component.CreateComps
+	role.InjectCompCreate(&component.Create)
 }
 
 func OnServerMsg(ctx gctx.Context) {

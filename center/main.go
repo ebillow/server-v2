@@ -6,6 +6,7 @@ import (
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
 	"server/pkg/share/app"
@@ -56,8 +57,11 @@ func UnInit(ctx context.Context) {
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	if ctx.Forward > 0 {
-
+	if ctx.Flag == gctx.Forward {
+		gameID, ok := role_mgr.GetGameID(ctx.RoleID)
+		if ok {
+			msgq.Q.Send(pb.Server(ctx.ToSer), gameID, ctx.MsgID, ctx.Data, ctx.RoleID, ctx.SesID)
+		}
 	} else {
 		router.S().Handle(ctx)
 	}

@@ -8,6 +8,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type ICompCreate interface {
+	Create(r *Role)
+}
+
 type IRoleMgr interface {
 	Add(roleID uint64, sesID uint64, r *Role)
 	Delete(roleID uint64, sesID uint64)
@@ -40,6 +44,7 @@ var (
 	roleMgr      IRoleMgr
 	cliMsgRouter ICRouter
 	serMsgRouter ISRouter
+	compCreate   ICompCreate
 )
 
 // LoginMgr ---------------------------------------------------------
@@ -74,4 +79,8 @@ func sRouter() ISRouter {
 
 func InjectSRouter(rt ISRouter) {
 	serMsgRouter = rt
+}
+
+func InjectCompCreate(rt ICompCreate) {
+	compCreate = rt
 }

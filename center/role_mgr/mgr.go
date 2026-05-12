@@ -20,7 +20,7 @@ func Init() {
 
 type Data struct {
 	SesID  uint64
-	GameID uint32
+	GameID uint8
 }
 
 func Add(roleID uint64, data Data) {
@@ -31,7 +31,7 @@ func Del(roleID uint64) {
 	roles.Delete(roleID)
 }
 
-func GetGameID(roleID uint64) (uint32, bool) {
+func GetGameID(roleID uint64) (uint8, bool) {
 	n, ok := roles.Load(roleID)
 	if !ok {
 		return 0, false
@@ -42,7 +42,7 @@ func GetGameID(roleID uint64) (uint32, bool) {
 func onLoginOrLogout(ctx gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SReqLoginOrLogout)
 	if msg.Login {
-		Add(msg.RoleID, Data{SesID: msg.RoleID, GameID: msg.GameID})
+		Add(msg.RoleID, Data{SesID: msg.RoleID, GameID: uint8(msg.GameID)})
 	} else {
 		Del(msg.RoleID)
 	}

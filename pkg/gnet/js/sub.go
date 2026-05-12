@@ -154,7 +154,7 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	ctx.ToSerID = buf[offset]
 	offset += 1
 
-	ctx.Forward = buf[offset]
+	ctx.Flag = buf[offset]
 	offset += 1
 
 	ctx.Data = buf[offset:]

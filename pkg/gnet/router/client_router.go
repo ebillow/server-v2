@@ -68,12 +68,12 @@ func (rt *ClientRouter) Handle(ctx gctx.Context) {
 			zap.L().Info("<<< msg.recv:",
 				zap.String("msgName", msgid.MsgIDC2S_name[int32(ctx.MsgID)]),
 				zap.Any("data", msgPB),
-				zap.Inline(ctx),
+				zap.Inline(&ctx),
 			)
 		}
 	})
 	if err != nil {
-		zap.L().Warn("HandleMsg failed", zap.Inline(ctx), zap.Error(err))
+		zap.L().Warn("HandleMsg failed", zap.Inline(&ctx), zap.Error(err))
 		return
 	}
 }
