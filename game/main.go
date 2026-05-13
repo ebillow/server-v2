@@ -5,9 +5,7 @@ import (
 	"server/game/component"
 	"server/game/game_db"
 	"server/game/role"
-	"server/game/role/login_mgr"
-	_ "server/game/role/msg"
-	"server/game/role/role_mgr"
+	"server/game/role/logon_service"
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
@@ -19,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -58,40 +57,52 @@ func Init(ctx context.Context) error {
 }
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
-	login_mgr.Mgr.Start()
+	logon_service.Mgr.Start()
 	thread.GoSafe(func() {
-		role_mgr.Run(ctx)
+		role.Run(ctx)
 	})
 	return nil
 }
 
 func UnInit(ctx context.Context) {
-	login_mgr.Mgr.Close()
+	logon_service.Mgr.Close()
 }
 
 func inject() {
-	role.InjectLoginMgr(&login_mgr.Mgr)
-	role.InjectRoleMgr(role_mgr.Mgr)
+	role.InjectLoginMgr(&logon_service.Mgr)
 	role.InjectCRouter(router.C())
 	role.InjectSRouter(router.S())
 	role.InjectCompCreate(&component.Create)
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	if ctx.RoleID != 0 {
-		role.RoleMgr().PostEvent(ctx.RoleID, role.Event{
+	if ctx.ActorID > uint64(pb.ActorID_IDAccBegin) {
+		err := role.Mgr.Dispatch(ctx.ActorID, role.Event{
 			Ctx: ctx,
 		})
+		if err != nil {
+			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("role", ctx.ActorID))
+		}
+		return
+	}
+
+	if ctx.ActorID > 0 {
+		err := app.Actors.Post(ctx.ActorID, app.Event{Ctx: ctx})
+		if err != nil {
+			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("actor", ctx.ActorID), zap.String("actor", pb.ActorID_name[int32(ctx.ActorID)]))
+		}
 		return
 	}
 
 	if ctx.SesID != 0 {
-		role.RoleMgr().PostEventBySesID(ctx.SesID, role.Event{
-			Ctx:    ctx,
-			CliMsg: true,
+		err := role.Mgr.DispatchBySesID(ctx.SesID, role.Event{
+			Ctx: ctx,
 		})
+		if err != nil {
+			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("session", ctx.SesID))
+		}
 		return
 	}
 
-	router.S().Handle(ctx)
+	router.S().Handle(ctx) // todo 丢到协程里处理
 }

@@ -1,9 +1,9 @@
-package role_mgr
+package role
 
 import (
 	"context"
-	"server/game/role"
 	"server/pkg/discovery"
+	"server/pkg/gerror"
 	"server/pkg/queue"
 	"sync"
 	"time"
@@ -12,7 +12,7 @@ import (
 )
 
 type meta struct {
-	events *queue.SwapQueue[role.Event]
+	events *queue.SwapQueue[Event]
 	wait   *sync.WaitGroup
 	cancel context.CancelFunc
 	ctx    context.Context
@@ -23,16 +23,16 @@ func (m meta) Kick() {
 	m.events.Wake()
 }
 
-type RoleMgr struct {
+type Registry struct {
 	roles map[uint64]meta   // roleID:meta
 	ses   map[uint64]uint64 // sesID:roleID
 	mtx   sync.RWMutex
 }
 
-var Mgr = NewRoleMgr()
+var Mgr = NewRegistry()
 
-func NewRoleMgr() *RoleMgr {
-	m := &RoleMgr{
+func NewRegistry() *Registry {
+	m := &Registry{
 		roles: make(map[uint64]meta),
 		ses:   make(map[uint64]uint64),
 	}
@@ -50,7 +50,7 @@ func Run(ctx context.Context) {
 	for {
 		select {
 		case now := <-t.C:
-			Mgr.tick(now)
+			Mgr.onTick(now)
 		case <-t10.C:
 			discovery.UpdateLoad(int32(Mgr.Count()))
 		case <-ctx.Done():
@@ -59,7 +59,7 @@ func Run(ctx context.Context) {
 	}
 }
 
-func (m *RoleMgr) Add(roleID uint64, sesID uint64, r *role.Role) {
+func (m *Registry) Register(roleID uint64, sesID uint64, r *Role) {
 	m.mtx.Lock()
 	m.roles[roleID] = meta{
 		events: r.Events,
@@ -71,20 +71,20 @@ func (m *RoleMgr) Add(roleID uint64, sesID uint64, r *role.Role) {
 	m.mtx.Unlock()
 }
 
-func (m *RoleMgr) Count() int {
+func (m *Registry) Count() int {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	return len(m.roles)
 }
 
-func (m *RoleMgr) get(roleID uint64) (meta, bool) {
+func (m *Registry) get(roleID uint64) (meta, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	d, ok := m.roles[roleID]
 	return d, ok
 }
 
-func (m *RoleMgr) getBySes(sesID uint64) (meta, bool) {
+func (m *Registry) getBySes(sesID uint64) (meta, bool) {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 	if roleID, ok := m.ses[sesID]; !ok {
@@ -95,7 +95,7 @@ func (m *RoleMgr) getBySes(sesID uint64) (meta, bool) {
 	}
 }
 
-func (m *RoleMgr) Delete(roleID uint64, sesID uint64) {
+func (m *Registry) Unregister(roleID uint64, sesID uint64) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -108,7 +108,7 @@ func (m *RoleMgr) Delete(roleID uint64, sesID uint64) {
 	}
 }
 
-func (m *RoleMgr) tick(now time.Time) {
+func (m *Registry) onTick(now time.Time) {
 	m.mtx.RLock()
 	metas := make([]meta, 0, len(m.roles))
 	for _, v := range m.roles {
@@ -116,15 +116,16 @@ func (m *RoleMgr) tick(now time.Time) {
 	}
 	m.mtx.RUnlock() //  尽早释放读锁
 	for _, v := range metas {
-		err := v.events.PushAndWake(role.Event{Func: func(r *role.Role) {
-			r.SecLoop(now)
+		err := v.events.PushAndWake(Event{Func: func(r *Role) {
+			r.OnTick(now)
 		}})
 		if err != nil {
 			zap.L().Error("role secLoop err", zap.Error(err))
 		}
 	}
 }
-func (m *RoleMgr) KickRoleAndWait(roleID uint64) {
+
+func (m *Registry) KickAndWait(roleID uint64) {
 	r, ok := m.get(roleID)
 	if !ok {
 		return
@@ -133,7 +134,7 @@ func (m *RoleMgr) KickRoleAndWait(roleID uint64) {
 	r.wait.Wait()
 }
 
-func (m *RoleMgr) Kick(sesID uint64) {
+func (m *Registry) Kick(sesID uint64) {
 	r, ok := m.getBySes(sesID)
 	if !ok {
 		return
@@ -141,7 +142,7 @@ func (m *RoleMgr) Kick(sesID uint64) {
 	r.Kick()
 }
 
-func (m *RoleMgr) CloseAndWait() {
+func (m *Registry) CloseAndWait() {
 	ids := make([]uint64, 0, len(m.roles))
 	m.mtx.RLock()
 	for id := range m.roles {
@@ -160,22 +161,24 @@ func (m *RoleMgr) CloseAndWait() {
 	}
 }
 
-func (m *RoleMgr) PostEvent(roleID uint64, evt role.Event) {
+func (m *Registry) Dispatch(roleID uint64, evt Event) error {
 	r, ok := m.get(roleID)
 	if !ok {
-		return
+		return gerror.New("role not exist")
 	}
 	if err := r.events.PushAndWake(evt); err != nil {
-		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", roleID))
+		return gerror.New("role event full")
 	}
+	return nil
 }
 
-func (m *RoleMgr) PostEventBySesID(sesID uint64, evt role.Event) {
+func (m *Registry) DispatchBySesID(sesID uint64, evt Event) error {
 	r, ok := m.getBySes(sesID)
 	if !ok {
-		return
+		return gerror.New("role not exist")
 	}
 	if err := r.events.PushAndWake(evt); err != nil {
-		zap.L().Warn("role_mgr.postEvent chan full", zap.Uint64("roleId", sesID))
+		return gerror.New("role event full")
 	}
+	return nil
 }

@@ -61,10 +61,10 @@ func HandleMsg(r *role.Role) {
 		}
 
 		router.S().Handle(gctx.Context{
-			Data:   msg.Data,
-			U:      r,
-			RoleID: r.ID,
-			MsgID:  msg.MsgID,
+			Data:    msg.Data,
+			U:       r,
+			ActorID: r.ID,
+			MsgID:   msg.MsgID,
 		})
 	}
 	if len(ss) > 0 {

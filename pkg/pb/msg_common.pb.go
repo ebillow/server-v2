@@ -245,6 +245,55 @@ func (TypeComp) EnumDescriptor() ([]byte, []int) {
 	return file_msg_common_proto_rawDescGZIP(), []int{3}
 }
 
+type ActorID int32
+
+const (
+	ActorID_IDExample  ActorID = 0
+	ActorID_IDGlobal   ActorID = 1
+	ActorID_IDAccBegin ActorID = 10000
+)
+
+// Enum value maps for ActorID.
+var (
+	ActorID_name = map[int32]string{
+		0:     "IDExample",
+		1:     "IDGlobal",
+		10000: "IDAccBegin",
+	}
+	ActorID_value = map[string]int32{
+		"IDExample":  0,
+		"IDGlobal":   1,
+		"IDAccBegin": 10000,
+	}
+)
+
+func (x ActorID) Enum() *ActorID {
+	p := new(ActorID)
+	*p = x
+	return p
+}
+
+func (x ActorID) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ActorID) Descriptor() protoreflect.EnumDescriptor {
+	return file_msg_common_proto_enumTypes[4].Descriptor()
+}
+
+func (ActorID) Type() protoreflect.EnumType {
+	return &file_msg_common_proto_enumTypes[4]
+}
+
+func (x ActorID) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ActorID.Descriptor instead.
+func (ActorID) EnumDescriptor() ([]byte, []int) {
+	return file_msg_common_proto_rawDescGZIP(), []int{4}
+}
+
 var File_msg_common_proto protoreflect.FileDescriptor
 
 var file_msg_common_proto_rawDesc = []byte{
@@ -267,8 +316,12 @@ var file_msg_common_proto_rawDesc = []byte{
 	0x54, 0x43, 0x45, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x10, 0x01, 0x12, 0x12, 0x0a, 0x0e, 0x54,
 	0x43, 0x45, 0x6d, 0x70, 0x74, 0x79, 0x45, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x10, 0x02, 0x12,
 	0x0b, 0x0a, 0x07, 0x54, 0x43, 0x44, 0x65, 0x62, 0x75, 0x67, 0x10, 0x03, 0x12, 0x09, 0x0a, 0x05,
-	0x54, 0x43, 0x4d, 0x61, 0x78, 0x10, 0x05, 0x42, 0x08, 0x48, 0x03, 0x5a, 0x04, 0x2e, 0x2f, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x54, 0x43, 0x4d, 0x61, 0x78, 0x10, 0x05, 0x2a, 0x37, 0x0a, 0x07, 0x41, 0x63, 0x74, 0x6f, 0x72,
+	0x49, 0x44, 0x12, 0x0d, 0x0a, 0x09, 0x49, 0x44, 0x45, 0x78, 0x61, 0x6d, 0x70, 0x6c, 0x65, 0x10,
+	0x00, 0x12, 0x0c, 0x0a, 0x08, 0x49, 0x44, 0x47, 0x6c, 0x6f, 0x62, 0x61, 0x6c, 0x10, 0x01, 0x12,
+	0x0f, 0x0a, 0x0a, 0x49, 0x44, 0x41, 0x63, 0x63, 0x42, 0x65, 0x67, 0x69, 0x6e, 0x10, 0x90, 0x4e,
+	0x42, 0x08, 0x48, 0x03, 0x5a, 0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -283,12 +336,13 @@ func file_msg_common_proto_rawDescGZIP() []byte {
 	return file_msg_common_proto_rawDescData
 }
 
-var file_msg_common_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_msg_common_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_msg_common_proto_goTypes = []interface{}{
 	(Server)(0),    // 0: pb.Server
 	(EPlatType)(0), // 1: pb.EPlatType
 	(SdkType)(0),   // 2: pb.SdkType
 	(TypeComp)(0),  // 3: pb.TypeComp
+	(ActorID)(0),   // 4: pb.ActorID
 }
 var file_msg_common_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -308,7 +362,7 @@ func file_msg_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_msg_common_proto_rawDesc,
-			NumEnums:      4,
+			NumEnums:      5,
 			NumMessages:   0,
 			NumExtensions: 0,
 			NumServices:   0,

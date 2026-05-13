@@ -1,4 +1,4 @@
-package login_mgr
+package logon_service
 
 import (
 	"context"
@@ -95,7 +95,7 @@ func (s *saver) saveBatch(batch map[uint64]opSaveData) error {
 		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values()...)
 		pipe.Expire(ctx, model.KeyRole(v.ID), time.Hour*24*7)
 		zap.L().Debug("[login] save to redis", zap.Uint64("id", v.ID), zap.Any("data", v))
-		if v.Op == OpOffline {
+		if v.Op == OpLogout {
 			toDB = append(toDB, v)
 		}
 	}

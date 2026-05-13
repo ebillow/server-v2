@@ -1,9 +1,8 @@
-package login_mgr
+package logon_service
 
 import (
 	"context"
 	"server/game/role"
-	"server/game/role/role_mgr"
 	"server/pkg/gnet"
 	"server/pkg/pb"
 	"server/pkg/thread"
@@ -20,10 +19,10 @@ const (
 )
 
 const (
-	OpOnline uint32 = iota
+	OpLogin uint32 = iota
 	OpUnmarshal
-	OpRepeatedLogin
-	OpOffline
+	OpReentry
+	OpLogout
 	OpSaveRole
 	OpSaveSuccess
 )
@@ -74,9 +73,9 @@ func DebugLoginOk(id uint64) {
 	}
 }
 
-var Mgr LoginMgr
+var Mgr LogonService
 
-type LoginMgr struct {
+type LogonService struct {
 	data map[uint64]*loginData // accID:登录数据
 	ops  chan *Operator
 
@@ -89,7 +88,7 @@ type LoginMgr struct {
 	cancel       context.CancelFunc
 }
 
-func (m *LoginMgr) Start() {
+func (m *LogonService) Start() {
 	m.data = make(map[uint64]*loginData)
 	m.ops = make(chan *Operator, OpChanSize)
 	m.load = newLoader()
@@ -113,17 +112,17 @@ func (m *LoginMgr) Start() {
 	})
 }
 
-func (m *LoginMgr) Close() {
+func (m *LogonService) Close() {
 	m.cancel()
 
-	role.RoleMgr().CloseAndWait()
+	role.Mgr.CloseAndWait()
 
 	m.waitProducer.Wait()
 	m.waitConsumer.Wait()
 }
 
-// Online	请求角色的数据
-func (m *LoginMgr) Online(msg *pb.S2SReqLogin) {
+// Login	请求角色的数据
+func (m *LogonService) Login(msg *pb.S2SReqLogin) {
 	if util.Debug {
 		debugMtx.Lock()
 		debugCheck[msg.RoleID] = 0
@@ -131,19 +130,19 @@ func (m *LoginMgr) Online(msg *pb.S2SReqLogin) {
 		debugWait.Add(1)
 	}
 
-	m.ops <- &Operator{Op: OpOnline, Login: msg}
+	m.ops <- &Operator{Op: OpLogin, Login: msg}
 }
 
-// Offline	角色下线
-func (m *LoginMgr) Offline(data *role.DataToSave) {
-	m.ops <- &Operator{Op: OpOffline, Data: data}
+// Logout	角色下线
+func (m *LogonService) Logout(data *role.DataToSave) {
+	m.ops <- &Operator{Op: OpLogout, Data: data}
 }
 
-func (m *LoginMgr) SaveRole(data *role.DataToSave) {
+func (m *LogonService) SaveRole(data *role.DataToSave) {
 	m.ops <- &Operator{Op: OpSaveRole, Data: data}
 }
 
-func (m *LoginMgr) postOp(op *Operator) {
+func (m *LogonService) postOp(op *Operator) {
 	m.ops <- op
 }
 
@@ -151,13 +150,13 @@ func postOp(op *Operator) {
 	Mgr.postOp(op)
 }
 
-func (m *LoginMgr) monitor() {
+func (m *LogonService) monitor() {
 	zap.L().Info("[login] monitor",
 		zap.Int("cache", len(m.data)),
-		zap.Int("online", role_mgr.Mgr.Count()))
+		zap.Int("online", role.Mgr.Count()))
 }
 
-func (m *LoginMgr) roleOffline(p opSaveData) {
+func (m *LogonService) roleOffline(p opSaveData) {
 	ld, ok := m.data[p.ID]
 	if ok {
 		ld.setState(stateOffline)
@@ -165,14 +164,14 @@ func (m *LoginMgr) roleOffline(p opSaveData) {
 	m.saveOne(p, ld)
 }
 
-func (m *LoginMgr) saveOne(p opSaveData, ld *loginData) {
+func (m *LogonService) saveOne(p opSaveData, ld *loginData) {
 	if ld != nil {
 		ld.Cache = p.Data
 	}
 	m.save.post(p)
 }
 
-func (m *LoginMgr) saveSuccess(ids []uint64) {
+func (m *LogonService) saveSuccess(ids []uint64) {
 	for _, id := range ids {
 		if v, ok := m.data[id]; ok {
 			v.setState(stateCanDel)
@@ -180,13 +179,13 @@ func (m *LoginMgr) saveSuccess(ids []uint64) {
 	}
 }
 
-func (m *LoginMgr) checkClear() {
+func (m *LogonService) cleanup() {
 	now := time.Now().Unix()
 	const Interval = int64(60 * 1)
 
 	for k, v := range m.data {
 		if v.State == stateOffline && now-v.StateTime > Interval {
-			m.saveOne(opSaveData{ID: k, Data: v.Cache, Op: OpOffline}, v)
+			m.saveOne(opSaveData{ID: k, Data: v.Cache, Op: OpLogout}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
 			gnet.SendToAccount(&pb.S2SRoleClear{
@@ -199,7 +198,7 @@ func (m *LoginMgr) checkClear() {
 	}
 }
 
-func (m *LoginMgr) run(ctx context.Context) {
+func (m *LogonService) run(ctx context.Context) {
 	tMinute := time.NewTicker(time.Minute)
 	defer func() {
 		tMinute.Stop()
@@ -211,7 +210,7 @@ func (m *LoginMgr) run(ctx context.Context) {
 		case p := <-m.ops:
 			m.onOps(ctx, p)
 		case <-tMinute.C:
-			m.checkClear()
+			m.cleanup()
 			m.monitor()
 		case <-m.ctx.Done():
 			m.drainOps()
@@ -220,7 +219,7 @@ func (m *LoginMgr) run(ctx context.Context) {
 	}
 }
 
-func (m *LoginMgr) drainOps() {
+func (m *LogonService) drainOps() {
 	for {
 		select {
 		case p := <-m.ops:
@@ -231,17 +230,17 @@ func (m *LoginMgr) drainOps() {
 	}
 }
 
-func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
+func (m *LogonService) onOps(ctx context.Context, p *Operator) {
 	thread.RunSafe(func() {
 		switch p.Op {
-		case OpOnline:
-			m.opOnline(p)
+		case OpLogin:
+			m.opSignIn(p)
 		case OpUnmarshal:
-			m.unmarshal(p.Data, p.Login)
-		case OpRepeatedLogin:
-			m.opLoginRepeated(p)
-		case OpOffline:
-			m.roleOffline(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpOffline})
+			m.initRole(p.Data, p.Login)
+		case OpReentry:
+			m.opReentry(p)
+		case OpLogout:
+			m.roleOffline(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpLogout})
 		case OpSaveRole:
 			m.saveOne(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
 		case OpSaveSuccess:
@@ -250,8 +249,7 @@ func (m *LoginMgr) onOps(ctx context.Context, p *Operator) {
 	})
 }
 
-func (m *LoginMgr) opOnline(op *Operator) {
-	zap.L().Debug("[login] opOnline", zap.Uint64("id", op.Login.RoleID))
+func (m *LogonService) opSignIn(op *Operator) {
 	const StateTimeOut = 10
 	v := m.data[op.Login.RoleID]
 	if v == nil {
@@ -260,17 +258,17 @@ func (m *LoginMgr) opOnline(op *Operator) {
 	}
 	switch v.State {
 	case stateOnline: // 重复登录
-		m.onLoginRepeated(v, op)
+		m.handleReentry(v, op)
 	case stateOffline, stateCanDel:
-		m.unmarshal(&role.DataToSave{ID: op.Login.RoleID, Data: v.Cache}, op.Login)
+		m.initRole(&role.DataToSave{ID: op.Login.RoleID, Data: v.Cache}, op.Login)
 	case statePending:
 		now := time.Now()
 		if now.Unix()-v.StateTime < StateTimeOut {
 			return
-		} else {
-			m.load.post(op)
-			v.setState(statePending)
 		}
+		m.load.post(op)
+		v.setState(statePending)
+
 	case stateKicking:
 		return
 	default:
@@ -279,7 +277,7 @@ func (m *LoginMgr) opOnline(op *Operator) {
 	}
 }
 
-func (m *LoginMgr) unmarshal(data *role.DataToSave, login *pb.S2SReqLogin) {
+func (m *LogonService) initRole(data *role.DataToSave, login *pb.S2SReqLogin) {
 	r, err := role.NewRole(data, login)
 	if err != nil {
 		zap.S().Errorf("new role err:%v", err)
@@ -295,28 +293,28 @@ func (m *LoginMgr) unmarshal(data *role.DataToSave, login *pb.S2SReqLogin) {
 	v.Cache = data.Data
 	v.LoginSeq = login.Seq
 	v.setState(stateOnline)
-	role.RoleMgr().Add(r.ID, r.SesID, r)
+	role.Mgr.Register(r.ID, r.SesID, r)
 
-	r.Loop()
+	r.Run()
 
 	DebugLoginOk(r.ID)
 }
 
 // 处理其它设备
-func (m *LoginMgr) onLoginRepeated(v *loginData, p *Operator) {
+func (m *LogonService) handleReentry(v *loginData, p *Operator) {
 	// 避免role协程已退出了，不在role协程处理，
 	// 避免阻塞login协程，不在login协程wait
 	v.setState(stateKicking)
 
 	thread.GoSafe(func() { // 这里角色数据做参数的话，offline里就不能修改数据了
-		role.RoleMgr().KickRoleAndWait(p.Login.RoleID) // 可以wait多次
-		p.Op = OpRepeatedLogin
+		role.Mgr.KickAndWait(p.Login.RoleID) // 可以wait多次
+		p.Op = OpReentry
 		m.ops <- p
 		zap.L().Debug("[login] onLoginRepeated", zap.Uint64("id", p.Login.RoleID))
 	})
 }
 
-func (m *LoginMgr) opLoginRepeated(p *Operator) {
+func (m *LogonService) opReentry(p *Operator) {
 	v := m.data[p.Login.RoleID]
 	if v == nil {
 		zap.L().Warn("[login] can not find login data")
@@ -324,5 +322,5 @@ func (m *LoginMgr) opLoginRepeated(p *Operator) {
 	}
 
 	zap.L().Debug("[login] opLoginRepeated", zap.Uint64("id", p.Login.RoleID), zap.Any("data", v.Cache))
-	m.unmarshal(&role.DataToSave{ID: p.Login.RoleID, Data: v.Cache}, p.Login)
+	m.initRole(&role.DataToSave{ID: p.Login.RoleID, Data: v.Cache}, p.Login)
 }

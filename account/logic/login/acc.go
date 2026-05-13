@@ -78,10 +78,9 @@ func GetCurAccID(ctx context.Context) (uint64, error) {
 	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, bson.M{}, opts).Decode(acc)
 	if err != nil {
 		if errors.Is(err, mongo.ErrNoDocuments) {
-			return 0, nil
-		} else {
-			return 0, err
+			return uint64(pb.ActorID_IDAccBegin), nil
 		}
+		return 0, err
 	}
 	return acc.AccID, nil
 }

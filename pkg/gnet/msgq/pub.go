@@ -12,7 +12,7 @@ import (
 )
 
 // Send 指定发送
-func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) {
 	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -20,12 +20,12 @@ func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byt
 		FromSer:   bs.serType,
 		ToSer:     uint8(serType),
 		ToSerID:   serID,
-		RoleID:    roleID,
+		ActorID:   actorID,
 		SesID:     sesID,
 	})
 }
 
-func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) {
 	bs.getIdxPubBatcher(serType, serID).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -33,39 +33,39 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, d
 		FromSer:   bs.serType,
 		ToSer:     uint8(serType),
 		ToSerID:   serID,
-		RoleID:    roleID,
+		ActorID:   actorID,
 		SesID:     sesID,
 		Flag:      gctx.Forward,
 	})
 }
 
 // SendAny 组发送. 随机一个能收到
-func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) {
 	bs.getGroupPubBatcher(serType).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
 		FromSer:   bs.serType,
 		FromSerID: bs.serID,
 		ToSer:     uint8(serType),
-		RoleID:    roleID,
+		ActorID:   actorID,
 		SesID:     sesID,
 	})
 }
 
 // SendAll 所有的 serName 服节点都能收到
-func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) {
 	bs.getAllPubBatcher(serType).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
 		FromSer:   bs.serType,
 		FromSerID: bs.serID,
 		ToSer:     uint8(serType),
-		RoleID:    roleID,
+		ActorID:   actorID,
 		SesID:     sesID,
 	})
 }
 
-func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
+func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) {
 	bs.getGroupPubBatcher(pb.Server_Center).Add(gctx.Context{
 		MsgID:     msgID,
 		Data:      data,
@@ -73,7 +73,7 @@ func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []by
 		FromSerID: bs.serID,
 		ToSer:     uint8(serType),
 		ToSerID:   serID,
-		RoleID:    roleID,
+		ActorID:   actorID,
 		SesID:     sesID,
 		Flag:      gctx.Forward,
 	})
@@ -152,7 +152,7 @@ func (tb *PubBatcher) Add(ctx gctx.Context) {
 
 	// 写入消息本体
 	*tb.buf = binary.LittleEndian.AppendUint32(*tb.buf, ctx.MsgID)
-	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.RoleID)
+	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.ActorID)
 	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.SesID)
 	*tb.buf = append(*tb.buf, ctx.FromSer)
 	*tb.buf = append(*tb.buf, ctx.FromSerID)

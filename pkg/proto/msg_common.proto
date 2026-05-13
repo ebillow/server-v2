@@ -42,3 +42,9 @@ enum TypeComp{
 
 	TCMax = 5; //保持最大
 }
+
+enum ActorID{
+	IDExample = 0;
+	IDGlobal = 1;
+	IDAccBegin = 10000;
+}

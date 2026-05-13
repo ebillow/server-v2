@@ -1,10 +1,9 @@
-package login_mgr
+package logon_service
 
 import (
 	"context"
 	"server/game/component"
 	"server/game/role"
-	"server/game/role/role_mgr"
 	"server/pkg/cfg"
 	"server/pkg/db"
 	"server/pkg/logger"
@@ -49,7 +48,7 @@ func TestMain(m *testing.M) {
 
 	role.CreateComps = component.CreateComps
 	role.InjectLoginMgr(&Mgr)
-	role.InjectRoleMgr(role_mgr.Mgr)
+	role.InjectRoleMgr(role.Mgr)
 	Mgr.Start()
 	m.Run()
 }
@@ -91,7 +90,7 @@ func TestLoadBatch(t *testing.T) {
 }
 
 func TestLoginAndOffline(t *testing.T) {
-	Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+	Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 		CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 	},
 		SesID:       222,
@@ -112,7 +111,7 @@ func TestDataDelete(t *testing.T) {
 	roleID := uint64(111)
 	db.Redis.Del(context.Background(), model.KeyRole(roleID))
 
-	Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+	Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 		CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 	},
 		SesID:       222,
@@ -138,7 +137,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+				Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 					CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 				},
 					SesID:       id * 2,
@@ -178,7 +177,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 
 func TestLoginAndOfflineBatch(t *testing.T) {
 	for id := uint64(1); id <= IDMax; id++ {
-		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+		Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 		},
 			SesID:       id * 2,
@@ -197,7 +196,7 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 
 func TestOnlineOffline(t *testing.T) {
 	for i := 0; i < 50; i++ {
-		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+		Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 		},
 			SesID:       1 * 3,
@@ -214,7 +213,7 @@ func TestOnlineOffline(t *testing.T) {
 
 func TestLoginOtherDev(t *testing.T) {
 	for i := 0; i < 1000; i++ {
-		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+		Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 		},
 			SesID:       1 * 3,
@@ -224,7 +223,7 @@ func TestLoginOtherDev(t *testing.T) {
 		})
 
 		time.Sleep(time.Millisecond * time.Duration(util.RandRange(0, 5)))
-		Mgr.Online(&pb.S2SReqLogin{Req: &pb.C2SLogin{
+		Mgr.Login(&pb.S2SReqLogin{Req: &pb.C2SLogin{
 			CliInfo: &pb.ClientInfo{Ip: "127.0.0.1"},
 		},
 			SesID:       1 * 2,

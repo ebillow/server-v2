@@ -11,7 +11,7 @@ import (
 )
 
 // RpcCall 远程调用，注意最好保持单向调用，否则可能出现互相等待
-func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, toSer pb.Server, toSerID uint8, roleID uint64, sesID uint64, timeOut time.Duration) error {
+func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, toSer pb.Server, toSerID uint8, actorID uint64, sesID uint64, timeOut time.Duration) error {
 	bufPtr := GetBuffer()
 	defer FreeBuffer(bufPtr)
 
@@ -22,7 +22,7 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
 	buf = binary.LittleEndian.AppendUint32(buf, msgID)
-	buf = binary.LittleEndian.AppendUint64(buf, roleID)
+	buf = binary.LittleEndian.AppendUint64(buf, actorID)
 	buf = binary.LittleEndian.AppendUint64(buf, sesID)
 	buf = append(buf, bs.serType)
 	buf = append(buf, bs.serID)

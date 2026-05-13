@@ -12,18 +12,9 @@ type ICompCreate interface {
 	Create(r *Role)
 }
 
-type IRoleMgr interface {
-	Add(roleID uint64, sesID uint64, r *Role)
-	Delete(roleID uint64, sesID uint64)
-	KickRoleAndWait(roleID uint64)
-	CloseAndWait()
-	PostEvent(roleID uint64, evt Event)
-	PostEventBySesID(sesID uint64, evt Event)
-}
-
 type ILoginMgr interface {
-	Online(msg *pb.S2SReqLogin)
-	Offline(data *DataToSave)
+	Login(msg *pb.S2SReqLogin)
+	Logout(data *DataToSave)
 	SaveRole(data *DataToSave)
 }
 
@@ -41,7 +32,6 @@ type ISRouter interface {
 // ---------------------------------------------------------
 var (
 	loginMgr     ILoginMgr
-	roleMgr      IRoleMgr
 	cliMsgRouter ICRouter
 	serMsgRouter ISRouter
 	compCreate   ICompCreate
@@ -54,15 +44,6 @@ func LoginMgr() ILoginMgr {
 
 func InjectLoginMgr(mgr ILoginMgr) {
 	loginMgr = mgr
-}
-
-// RoleMgr ---------------------------------------------------------
-func RoleMgr() IRoleMgr {
-	return roleMgr
-}
-
-func InjectRoleMgr(mgr IRoleMgr) {
-	roleMgr = mgr
 }
 
 // cRouter 客户端消息路由---MsgRouter ---------------------------------------------------------

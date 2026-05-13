@@ -1,4 +1,4 @@
-package login_mgr
+package logon_service
 
 import (
 	"context"

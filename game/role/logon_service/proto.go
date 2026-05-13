@@ -1,9 +1,7 @@
-package msg
+package logon_service
 
 import (
 	"server/game/role"
-	"server/game/role/login_mgr"
-	"server/game/role/role_mgr"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
@@ -35,10 +33,10 @@ func onHeartBeat(_ gctx.Context, msgIn proto.Message, r *role.Role) {
 /*-------------------非角色消息-----------------*/
 func onLogin(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SReqLogin)
-	login_mgr.Mgr.Online(msg)
+	Mgr.Login(msg)
 }
 
 func onDisconnect(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SGt2SDisconnect)
-	role_mgr.Mgr.Kick(msg.SesID)
+	role.Mgr.Kick(msg.SesID)
 }

@@ -25,13 +25,10 @@ func NewSwapQueue[T any](size int, maxSize int) *SwapQueue[T] {
 }
 
 func (s *SwapQueue[T]) PushAndWake(data T) error {
-	if err := s.Push(data); err != nil {
-		return err
-	}
-
+	err := s.Push(data)
 	s.Wake()
 
-	return nil
+	return err
 }
 
 func (s *SwapQueue[T]) Push(data T) error {

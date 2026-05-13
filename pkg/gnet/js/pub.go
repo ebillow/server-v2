@@ -16,7 +16,7 @@ import (
 func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	jt.getIdxPubBatcher(serType, serID).Add(gctx.Context{
 		Data:      data,
-		RoleID:    roleID,
+		ActorID:   roleID,
 		SesID:     sesID,
 		MsgID:     msgID,
 		FromSerID: jt.serID,
@@ -29,7 +29,7 @@ func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []b
 func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) {
 	jt.getGroupPubBatcher(serType).Add(gctx.Context{
 		Data:      data,
-		RoleID:    roleID,
+		ActorID:   roleID,
 		SesID:     sesID,
 		MsgID:     msgID,
 		FromSerID: jt.serID,
@@ -111,7 +111,7 @@ func (tb *PubBatcher) Add(ctx gctx.Context) {
 
 	// 写入消息本体
 	*tb.buf = binary.LittleEndian.AppendUint32(*tb.buf, ctx.MsgID)
-	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.RoleID)
+	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.ActorID)
 	*tb.buf = binary.LittleEndian.AppendUint64(*tb.buf, ctx.SesID)
 	*tb.buf = append(*tb.buf, ctx.FromSer)
 	*tb.buf = append(*tb.buf, ctx.FromSerID)

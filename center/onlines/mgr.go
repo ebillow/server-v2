@@ -1,4 +1,4 @@
-package role_mgr
+package onlines
 
 import (
 	"server/pkg/gnet/gctx"

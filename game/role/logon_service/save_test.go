@@ -1,4 +1,4 @@
-package login_mgr
+package logon_service
 
 import (
 	"context"
@@ -176,7 +176,7 @@ func TestBatchSave(t *testing.T) {
 		batch[uint64(i)] = opSaveData{
 			ID:   uint64(i),
 			Data: map[string]string{"TCDebug": `{"Test":1}`},
-			Op:   OpOffline,
+			Op:   OpLogout,
 		}
 	}
 	err := s.saveBatch(batch)

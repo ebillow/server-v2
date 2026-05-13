@@ -64,7 +64,7 @@ func (rt *ClientRouter) OnG(msgID msgid.MsgIDC2S, df func(c gctx.Context, msg pr
 
 func (rt *ClientRouter) Handle(ctx gctx.Context) {
 	err := rt.handleMsg(ctx, func(msgPB proto.Message) {
-		if trace.Rule.ShouldLog(ctx.MsgID, ctx.RoleID, ctx.SesID) {
+		if trace.Rule.ShouldLog(ctx.MsgID, ctx.ActorID, ctx.SesID) {
 			zap.L().Info("<<< msg.recv:",
 				zap.String("msgName", msgid.MsgIDC2S_name[int32(ctx.MsgID)]),
 				zap.Any("data", msgPB),

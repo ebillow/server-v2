@@ -136,7 +136,7 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	ctx.MsgID = binary.LittleEndian.Uint32(buf[offset:])
 	offset += 4
 
-	ctx.RoleID = binary.LittleEndian.Uint64(buf[offset:])
+	ctx.ActorID = binary.LittleEndian.Uint64(buf[offset:])
 	offset += 8
 
 	ctx.SesID = binary.LittleEndian.Uint64(buf[offset:])

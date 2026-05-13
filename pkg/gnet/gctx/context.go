@@ -20,7 +20,7 @@ type Context struct {
 	U    Unity
 	Raw  *nats.Msg
 
-	RoleID    uint64
+	ActorID   uint64
 	SesID     uint64
 	MsgID     uint32
 	Flag      uint8
@@ -32,7 +32,7 @@ type Context struct {
 
 func (s *Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint32("msgID", s.MsgID)
-	encoder.AddUint64("roleID", s.RoleID)
+	encoder.AddUint64("actorID", s.ActorID)
 	encoder.AddUint64("sesID", s.SesID)
 	encoder.AddString("from", flag.SrvName(pb.Server(s.FromSer)))
 	encoder.AddUint8("fromID", s.FromSerID)

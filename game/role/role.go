@@ -41,9 +41,8 @@ func (d *DataToSave) IsEmpty() bool {
 const EventChanSize = 16
 
 type Event struct {
-	Ctx    gctx.Context
-	Func   func(r *Role)
-	CliMsg bool
+	Ctx  gctx.Context
+	Func func(r *Role)
 }
 
 // Role	角色数据
@@ -115,7 +114,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	return r, nil
 }
 
-func (r *Role) Loop() {
+func (r *Role) Run() {
 	r.Wait.Add(1)
 	thread.GoSafe(func() {
 		defer func() {
@@ -130,10 +129,10 @@ func (r *Role) Loop() {
 					evt.Func(r)
 				} else {
 					evt.Ctx.U = r
-					if evt.CliMsg {
-						cRouter().Handle(evt.Ctx)
-					} else {
+					if evt.Ctx.ActorID > 0 {
 						sRouter().Handle(evt.Ctx)
+					} else {
+						cRouter().Handle(evt.Ctx)
 					}
 				}
 				return true
@@ -159,13 +158,13 @@ func (r *Role) Online() {
 	r.HeartbeatTimeOut = 0
 
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
-	r.SecLoop(now)
+	r.OnTick(now)
 
-	gnet.SendToAllCenter(&pb.S2SReqLoginOrLogout{
+	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		Login:  true,
-	})
+	}, pb.ActorID_IDGlobal)
 	for _, v := range r.Comps {
 		if comp, ok := v.(ICompOnline); ok {
 			comp.Online(r)
@@ -192,22 +191,22 @@ func (r *Role) Offline() {
 		}
 	}
 
-	RoleMgr().Delete(r.ID, r.SesID)
+	Mgr.Unregister(r.ID, r.SesID)
 
 	data, err := r.marshal(true)
 	if err != nil {
 		return
 	}
-	LoginMgr().Offline(data) // offline时在mgr里保存,批量存
+	LoginMgr().Logout(data) // offline时在mgr里保存,批量存
 
 	// 通知其它服务器
 	r.Disconnect(pb.DisconnectReason_Kick)
 
-	gnet.SendToAllCenter(&pb.S2SReqLoginOrLogout{
+	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		Login:  false,
-	})
+	}, pb.ActorID_IDGlobal)
 	zap.L().Info("[login] offline", zap.Inline(r))
 }
 
@@ -223,7 +222,7 @@ func (r *Role) NowSec() int64 {
 	return r.nowSec
 }
 
-func (r *Role) SecLoop(now time.Time) {
+func (r *Role) OnTick(now time.Time) {
 	if r.Data == nil {
 		zap.L().Error("role.Data == nil")
 		return
