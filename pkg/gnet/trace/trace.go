@@ -44,11 +44,10 @@ func (t *TraceRule) ShouldLog(msgID uint32, roleID uint64, sessionID uint64) boo
 	if conf.Flag.TraceMsg { // 除了blackList全追踪
 		_, ok := t.blackList[msgID]
 		return !ok
-	} else {
-		_, ok := t.whiteList[msgID]
-
-		// todo 根据roleID和sessionID 决定
-
-		return ok
 	}
+	_, ok := t.whiteList[msgID]
+
+	// todo 根据roleID和sessionID 决定
+
+	return ok
 }

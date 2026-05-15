@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -11,37 +12,45 @@ import (
 	"go.uber.org/zap"
 )
 
-type SDRegister struct {
+type Register struct {
 	cli         *clientv3.Client
 	redisCli    redis.UniversalClient
-	leaseID     clientv3.LeaseID
+	leaseID     atomic.Int64
 	key         string
 	value       string
 	ttl         int64
-	serName     string
-	serID       int32
+	svcName     string
+	svcID       int32
 	ctx         context.Context
 	cancel      context.CancelFunc
 	currentLoad atomic.Int32 // 业务层更新此值
 }
 
-func newRegister(cli *clientv3.Client, redisCli redis.UniversalClient, serName string, serID int32, value string, ttl int64) *SDRegister {
+func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName string, m *NodeMeta, ttl int64) (*Register, error) {
+	b, err := json.Marshal(m)
+	if err != nil {
+		return nil, err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
-	return &SDRegister{
+	r := &Register{
 		cli:      cli,
 		redisCli: redisCli,
-		key:      fmt.Sprintf("%s%s_%d", Prefix, serName, serID),
-		value:    value,
+		key:      fmt.Sprintf("%s%s_%d", Prefix, svcName, m.NodeID),
+		value:    string(b),
 		ttl:      ttl,
-		serName:  serName,
-		serID:    serID,
+		svcName:  svcName,
+		svcID:    m.NodeID,
 		ctx:      ctx,
 		cancel:   cancel,
 	}
+	r.start()
+	zap.L().Info("[service discover]service registered", zap.String("name", svcName), zap.Int32("id", m.NodeID))
+	return r, nil
 }
 
 // register 启动注册和保活循环
-func (s *SDRegister) register() {
+func (s *Register) start() {
 	go func() {
 		for {
 			select {
@@ -64,10 +73,11 @@ func (s *SDRegister) register() {
 					zap.L().Error("[service discover]etcd keepalive failed, retrying...", zap.Error(err))
 				}
 			}
-			// 3. 重试间隔也要能被 context 中断
+			t := time.NewTimer(time.Second * 3)
 			select {
-			case <-time.After(time.Second * 3):
+			case <-t.C:
 			case <-s.ctx.Done():
+				t.Stop()
 				return
 			}
 		}
@@ -77,23 +87,23 @@ func (s *SDRegister) register() {
 	go s.reportLoadLoop()
 }
 
-func (s *SDRegister) keepAliveLoop() error {
+func (s *Register) keepAliveLoop() error {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*5)
 	resp, err := s.cli.Grant(ctx, s.ttl)
 	cancel()
 	if err != nil {
 		return err
 	}
-	s.leaseID = resp.ID
+	s.leaseID.Store(int64(resp.ID))
 
 	ctx, cancel = context.WithTimeout(s.ctx, time.Second*5)
-	_, err = s.cli.Put(ctx, s.key, s.value, clientv3.WithLease(s.leaseID))
+	_, err = s.cli.Put(ctx, s.key, s.value, clientv3.WithLease(resp.ID))
 	cancel()
 	if err != nil {
 		return err
 	}
 
-	keepAliveCh, err := s.cli.KeepAlive(s.ctx, s.leaseID)
+	keepAliveCh, err := s.cli.KeepAlive(s.ctx, resp.ID)
 	if err != nil {
 		return err
 	}
@@ -112,46 +122,46 @@ func (s *SDRegister) keepAliveLoop() error {
 }
 
 // UpdateLoad 暴露给业务层调用的方法（仅更新内存变量）
-func (s *SDRegister) UpdateLoad(load int32) {
+func (s *Register) UpdateLoad(load int32) {
 	s.currentLoad.Store(load)
 }
 
 // reportLoadLoop 每隔一段时间将本地负载同步到 Redis
-func (s *SDRegister) reportLoadLoop() {
-	ticker := time.NewTicker(time.Second * 3)
+func (s *Register) reportLoadLoop() {
+	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
 
-	redisKey := fmt.Sprintf("server:load:%s", s.serName)
-	fieldKey := fmt.Sprintf("%d", s.serID)
+	redisKey := redisKeyOfUpload(s.svcName, s.svcID)
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			// 退出时清理 Redis 中的负载数据
-			s.redisCli.HDel(context.Background(), redisKey, fieldKey)
+			s.redisCli.Del(context.Background(), redisKey)
 			return
 		case <-ticker.C:
-			pipe := s.redisCli.Pipeline()
-			pipe.HSet(s.ctx, redisKey, fieldKey, s.currentLoad.Load())
-			pipe.Expire(s.ctx, redisKey, time.Minute)
-			_, err := pipe.Exec(s.ctx)
+			err := s.redisCli.Set(s.ctx, redisKey, s.currentLoad.Load(), time.Minute).Err()
 			if err != nil {
 				zap.L().Error("failed to report load to redis", zap.Error(err))
+			} else {
+				zap.L().Debug("[service discover] report load to redis", zap.String("server", s.svcName), zap.Int32("id", s.svcID), zap.Int32("load", s.currentLoad.Load()))
 			}
 		}
 	}
 }
 
-// close 优雅退出
-func (s *SDRegister) close() {
+// Close 优雅退出
+func (s *Register) Close() {
 	zap.L().Debug("[service discover]context canceled")
 	s.cancel() // 停止所有后台循环
-	if s.leaseID != 0 {
+
+	leaseID := s.leaseID.Load()
+	if leaseID != 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 		defer cancel()
 
 		zap.L().Debug("[service discover]close revoke")
-		_, err := s.cli.Revoke(ctx, s.leaseID)
+		_, err := s.cli.Revoke(ctx, clientv3.LeaseID(leaseID))
 		if err != nil {
 			zap.L().Error("Failed to revoke lease", zap.Error(err))
 		}

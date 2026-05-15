@@ -1,28 +1,25 @@
 package discovery
 
 import (
-	"encoding/json"
+	"fmt"
+	"time"
+
 	"github.com/redis/go-redis/v9"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
-	"server/pkg/flag"
-	"server/pkg/pb"
-	"time"
 )
 
-const Prefix = "/services/"
+const (
+	Prefix = "/services/"
+)
 
-/*
-etcd 是基于 Raft 协议的一致性 KV 存储，它的强项在于配置同步和节点发现，不擅长高频写操作。不用它更新负载
-*/
-type Meta struct {
-	SerID int32
-	Load  int32
+func redisKeyOfUpload(serName string, serID int32) string {
+	return fmt.Sprintf("{server}:load:%s:%d", serName, serID)
 }
 
 var (
-	register  *SDRegister
-	discovery *Discovery
+	register  *Register
+	discovery *Discoverer
 	etcdCli   *clientv3.Client
 	redisCli  redis.UniversalClient
 )
@@ -42,30 +39,16 @@ func Init(endpoints []string, rdb redis.UniversalClient) error {
 	return nil
 }
 
-// Register 注册当前服务节点
-func Register(serType pb.Server, serID int32) error {
-	serName := flag.SrvName(serType)
-	meta := &Meta{
-		SerID: serID,
-		Load:  0, // 初始负载为0
-	}
-
-	b, err := json.Marshal(meta)
-	if err != nil {
-		return err
-	}
-
+// RegisterDefault 注册当前服务节点
+func RegisterDefault(srvName string, m *NodeMeta) (err error) {
 	// 初始化注册器：传入 etcd, redis 以及基础服务信息
-	register = newRegister(etcdCli, redisCli, serName, serID, string(b), 30)
-	register.register()
-
-	zap.L().Info("[service discover]service registered", zap.String("name", serName), zap.Int32("id", serID))
-	return nil
+	register, err = NewRegister(etcdCli, redisCli, srvName, m, 30)
+	return err
 }
 
 func Watch() {
 	if discovery == nil {
-		discovery = newDiscovery(etcdCli, redisCli, Prefix)
+		discovery = NewDiscovery(etcdCli, redisCli, Prefix)
 	}
 }
 
@@ -79,7 +62,7 @@ func UpdateLoad(load int32) {
 
 func Close() {
 	if register != nil {
-		register.close()
+		register.Close()
 		time.Sleep(time.Millisecond * 50)
 	}
 	if etcdCli != nil {
@@ -87,16 +70,16 @@ func Close() {
 	}
 }
 
-func Exist(serName string, id int32) bool {
+func Exists(srvName string, id int32) bool {
 	if discovery == nil {
 		return false
 	}
-	return discovery.exist(serName, id)
+	return discovery.Exists(srvName, id)
 }
 
-func Pick(serName string) (id int32, ok bool) {
+func Select(srvName string) (id int32, ok bool) {
 	if discovery == nil {
 		return 0, false
 	}
-	return discovery.Pick(serName)
+	return discovery.Select(srvName)
 }
