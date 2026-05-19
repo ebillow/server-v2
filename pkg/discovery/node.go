@@ -145,3 +145,10 @@ func (o *nodeGroup) Exists(id int32) bool {
 	_, ok := state.nodes[id]
 	return ok
 }
+
+func (o *nodeGroup) AllNodeIDs() []int32 {
+	state := o.state.Load()
+	ids := make([]int32, len(state.nodeIDs))
+	copy(ids, state.nodeIDs)
+	return ids
+}

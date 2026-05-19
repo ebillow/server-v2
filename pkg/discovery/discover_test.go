@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"server/pkg/db"
+	"server/pkg/flag"
 	"server/pkg/logger"
+	"server/pkg/pb"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +14,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -245,7 +248,51 @@ func TestDiscoverer_RedisPubSub(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, int32(150), load, "Discoverer 应该通过 Pub/Sub 成功更新内存负载")
 }
+func TestNodeGroup_AllNodeIDs(t *testing.T) {
+	ng := newNodeGroup()
 
+	// 初始为空
+	ids := ng.AllNodeIDs()
+	assert.Equal(t, 0, len(ids))
+
+	// 添加 3 个节点
+	ng.Add(Node{NodeID: 101, Load: 0})
+	ng.Add(Node{NodeID: 102, Load: 0})
+	ng.Add(Node{NodeID: 103, Load: 0})
+
+	ids = ng.AllNodeIDs()
+	assert.Equal(t, 3, len(ids))
+	assert.Contains(t, ids, int32(101))
+	assert.Contains(t, ids, int32(102))
+	assert.Contains(t, ids, int32(103))
+
+	// 测试数据隔离：修改返回的切片，不应影响底层数据
+	ids[0] = 999
+
+	idsAgain := ng.AllNodeIDs()
+	assert.NotContains(t, idsAgain, int32(999), "返回的必须是深拷贝，修改不能影响底层")
+}
+
+func TestFullState(t *testing.T) {
+	r1, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
+	require.NoError(t, err)
+	r1.UpdateLoad(2)
+
+	r2, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
+	require.NoError(t, err)
+	r2.UpdateLoad(4)
+
+	time.Sleep(time.Second * 3)
+
+	Watch()
+
+	exist := Exists(flag.SrvName(pb.Server_Game), 1)
+	require.True(t, exist)
+	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+	require.True(t, exist)
+}
+
+//
 // func TestPick(t *testing.T) {
 // 	Watch()
 //

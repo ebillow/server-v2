@@ -44,50 +44,46 @@ func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName s
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-	r.start()
+
+	go r.keepAliveLoop()
+	go r.reportLoadLoop()
 	zap.L().Info("[service discover]service registered", zap.String("name", svcName), zap.Int32("id", m.NodeID))
 	return r, nil
 }
 
-// register 启动注册和保活循环
-func (s *Register) start() {
-	go func() {
-		for {
+func (s *Register) keepAliveLoop() {
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
+
+		err := s.keepAlive()
+		if err != nil {
+			// 检查是否是由于 context 取消导致的错误
+			// 或者是 context 已经 done 了
 			select {
 			case <-s.ctx.Done():
+				// 说明是正常关闭，无需打印 Error 日志，直接退出
+				zap.L().Info("[service discover]etcd keepalive stopped (context canceled)")
 				return
 			default:
-			}
-
-			err := s.keepAliveLoop()
-			if err != nil {
-				// 检查是否是由于 context 取消导致的错误
-				// 或者是 context 已经 done 了
-				select {
-				case <-s.ctx.Done():
-					// 说明是正常关闭，无需打印 Error 日志，直接退出
-					zap.L().Info("[service discover]etcd keepalive stopped (context canceled)")
-					return
-				default:
-					// 说明是真正的网络或 etcd 故障，打印错误并重试
-					zap.L().Error("[service discover]etcd keepalive failed, retrying...", zap.Error(err))
-				}
-			}
-			t := time.NewTimer(time.Second * 3)
-			select {
-			case <-t.C:
-			case <-s.ctx.Done():
-				t.Stop()
-				return
+				// 说明是真正的网络或 etcd 故障，打印错误并重试
+				zap.L().Error("[service discover]etcd keepalive failed, retrying...", zap.Error(err))
 			}
 		}
-	}()
-
-	// 启动 Redis 负载上报循环
-	go s.reportLoadLoop()
+		t := time.NewTimer(time.Second * 3)
+		select {
+		case <-t.C:
+		case <-s.ctx.Done():
+			t.Stop()
+			return
+		}
+	}
 }
 
-func (s *Register) keepAliveLoop() error {
+func (s *Register) keepAlive() error {
 	ctx, cancel := context.WithTimeout(s.ctx, time.Second*5)
 	resp, err := s.cli.Grant(ctx, s.ttl)
 	cancel()

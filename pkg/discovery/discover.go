@@ -35,6 +35,7 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 		cancel:   cancel,
 	}
 
+	s.syncFullState(cli) // 全量拉取一次
 	// 启动带重试的 Watcher
 	go s.watchLoop(cli)
 	// 启动 Redis 负载同步循环
@@ -293,4 +294,16 @@ func (s *Discoverer) Exists(svcName string, id int32) bool {
 	}
 
 	return one.Exists(id)
+}
+
+func (s *Discoverer) GetAllNodes(svcName string) ([]int32, bool) {
+	s.mtx.RLock()
+	one, ok := s.services[svcName]
+	s.mtx.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+
+	return one.AllNodeIDs(), true
 }
