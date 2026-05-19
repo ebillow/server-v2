@@ -10,8 +10,15 @@ import (
 )
 
 const (
-	Prefix = "/services/"
+	Prefix           = "/services/"
+	RedisLoadChannel = "service:load:channel"
 )
+
+type Node struct {
+	SvcName string `json:"svc_name"`
+	NodeID  int32  `json:"node_id"`
+	Load    int32  `json:"load"`
+}
 
 func redisKeyOfUpload(serName string, serID int32) string {
 	return fmt.Sprintf("{server}:load:%s:%d", serName, serID)
@@ -40,7 +47,7 @@ func Init(endpoints []string, rdb redis.UniversalClient) error {
 }
 
 // RegisterDefault 注册当前服务节点
-func RegisterDefault(srvName string, m *NodeMeta) (err error) {
+func RegisterDefault(srvName string, m *Node) (err error) {
 	// 初始化注册器：传入 etcd, redis 以及基础服务信息
 	register, err = NewRegister(etcdCli, redisCli, srvName, m, 30)
 	return err

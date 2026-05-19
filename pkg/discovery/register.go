@@ -26,7 +26,7 @@ type Register struct {
 	currentLoad atomic.Int32 // 业务层更新此值
 }
 
-func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName string, m *NodeMeta, ttl int64) (*Register, error) {
+func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName string, m *Node, ttl int64) (*Register, error) {
 	b, err := json.Marshal(m)
 	if err != nil {
 		return nil, err
@@ -131,20 +131,25 @@ func (s *Register) reportLoadLoop() {
 	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
 
-	redisKey := redisKeyOfUpload(s.svcName, s.svcID)
-
 	for {
 		select {
 		case <-s.ctx.Done():
-			// 退出时清理 Redis 中的负载数据
-			s.redisCli.Del(context.Background(), redisKey)
 			return
 		case <-ticker.C:
-			err := s.redisCli.Set(s.ctx, redisKey, s.currentLoad.Load(), time.Minute).Err()
+			load := s.currentLoad.Load()
+			msg := Node{
+				SvcName: s.svcName,
+				NodeID:  s.svcID,
+				Load:    load,
+			}
+			b, _ := json.Marshal(msg)
+
+			pipe := s.redisCli.Pipeline()
+			pipe.Set(s.ctx, redisKeyOfUpload(s.svcName, s.svcID), load, time.Minute)
+			pipe.Publish(s.ctx, RedisLoadChannel, string(b))
+			_, err := pipe.Exec(s.ctx)
 			if err != nil {
 				zap.L().Error("failed to report load to redis", zap.Error(err))
-			} else {
-				zap.L().Debug("[service discover] report load to redis", zap.String("server", s.svcName), zap.Int32("id", s.svcID), zap.Int32("load", s.currentLoad.Load()))
 			}
 		}
 	}

@@ -17,7 +17,7 @@ import (
 )
 
 type Discoverer struct {
-	services map[string]*NodeGroup
+	services map[string]*nodeGroup
 	mtx      sync.RWMutex
 	prefix   string
 	redisCli redis.UniversalClient
@@ -30,7 +30,7 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 	s := &Discoverer{
 		prefix:   prefix,
 		redisCli: redisCli,
-		services: make(map[string]*NodeGroup),
+		services: make(map[string]*nodeGroup),
 		ctx:      ctx,
 		cancel:   cancel,
 	}
@@ -46,77 +46,141 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 // watchLoop 包含断线重连的监听机制
 func (s *Discoverer) watchLoop(cli *clientv3.Client) {
 	for {
+		s.watch(cli)
 		select {
 		case <-s.ctx.Done():
 			return
-		default:
+		case <-time.After(time.Second * 2):
 		}
-		revision := s.syncFullState(cli) // 重新全量拉取一次兜底
-
-		rch := cli.Watch(s.ctx, s.prefix, clientv3.WithPrefix(), clientv3.WithRev(revision))
-		for wresp := range rch {
-			if wresp.Canceled {
-				zap.L().Warn("etcd watch canceled, reconnecting...")
-				break // 跳出内部循环，触发重连
-			}
-			for _, ev := range wresp.Events {
-				switch ev.Type {
-				case clientv3.EventTypePut:
-					s.upsertNode(string(ev.Kv.Key), ev.Kv.Value)
-				case clientv3.EventTypeDelete:
-					s.removeNode(string(ev.Kv.Key))
-				}
-			}
-		}
-		// 重连前短暂休眠，避免雪崩
-		time.Sleep(time.Second * 2)
 	}
 }
 
-// syncLoadLoop 定时从 Redis 拉取最新负载数据
-func (s *Discoverer) syncLoadLoop() {
-	ticker := time.NewTicker(time.Second * 2)
-	defer ticker.Stop()
-
-	for {
+func (s *Discoverer) watch(cli *clientv3.Client) {
+	revision := s.syncFullState(cli) // 重新全量拉取一次兜底
+	if revision == 0 {
+		// 全量拉取失败，等待 2 秒后重试
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-ticker.C:
-			s.syncLoad()
+		case <-time.After(time.Second * 2):
+		}
+		return
+	}
+	rch := cli.Watch(s.ctx, s.prefix, clientv3.WithPrefix(), clientv3.WithRev(revision+1))
+	for wresp := range rch {
+		if wresp.Canceled {
+			zap.L().Warn("etcd watch canceled, reconnecting...")
+			break // 跳出内部循环，触发重连
+		}
+		for _, ev := range wresp.Events {
+			switch ev.Type {
+			case clientv3.EventTypePut:
+				s.upsertNode(string(ev.Kv.Key), ev.Kv.Value)
+			case clientv3.EventTypeDelete:
+				s.removeNode(string(ev.Kv.Key))
+			}
+		}
+	}
+}
+
+func (s *Discoverer) syncLoadLoop() {
+	for {
+		s.syncLoad()
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-time.After(time.Second * 2):
 		}
 	}
 }
 
 func (s *Discoverer) syncLoad() {
+	pubsub := s.redisCli.Subscribe(s.ctx, RedisLoadChannel)
+	defer pubsub.Close()
+
+	// 确认是否订阅成功
+	_, err := pubsub.Receive(s.ctx)
+	if err != nil {
+		zap.L().Error("failed to subscribe to redis channel", zap.Error(err))
+		return
+	}
+	ch := pubsub.Channel()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			zap.L().Info("redis pub/sub stopped (context canceled)")
+			return
+		case msg, ok := <-ch:
+			if !ok {
+				zap.L().Warn("redis pub/sub channel closed")
+				return
+			}
+
+			var loadMsg Node
+			if err := json.Unmarshal([]byte(msg.Payload), &loadMsg); err != nil {
+				continue
+			}
+
+			s.mtx.RLock()
+			group, exists := s.services[loadMsg.SvcName]
+			s.mtx.RUnlock()
+
+			if exists {
+				group.UpdateLoad(loadMsg.NodeID, loadMsg.Load)
+			}
+		}
+	}
+}
+
+// syncFullState 全量加載
+func (s *Discoverer) syncFullState(cli *clientv3.Client) (ver int64) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	resp, err := cli.Get(ctx, s.prefix, clientv3.WithPrefix())
+	if err != nil {
+		zap.L().Error("Get etcd failed:", zap.Error(err))
+		return 0
+	}
+	ver = resp.Header.Revision
+
+	newAll := make(map[string]*nodeGroup)
 	var keys []string
 	var keyToMeta = make(map[string]struct {
 		SerName string
 		SerID   int32
 	})
 
-	s.mtx.RLock()
-	groups := make(map[string]*NodeGroup, len(s.services))
-	for svc, group := range s.services {
-		groups[svc] = group
-	}
-	s.mtx.RUnlock()
+	for _, kv := range resp.Kvs {
+		meta := Node{}
+		if err = json.Unmarshal(kv.Value, &meta); err != nil {
+			zap.L().Error("Unmarshal meta failed in loadParams", zap.Error(err))
+			continue
+		}
+		svcName, serID, err := parseServicePath(string(kv.Key))
+		if err != nil {
+			zap.L().Error("parse service path failed in loadParams", zap.Error(err))
+			continue
+		}
+		meta.NodeID = serID
 
-	for svc, group := range groups {
-		group.RangeReadOnly(func(m NodeMeta) {
-			key := redisKeyOfUpload(svc, m.NodeID)
-			keys = append(keys, key)
-			keyToMeta[key] = struct {
-				SerName string
-				SerID   int32
-			}{SerName: svc, SerID: m.NodeID}
-		})
-	}
+		if newAll[svcName] == nil {
+			newAll[svcName] = newNodeGroup()
+		}
+		newAll[svcName].Add(meta)
 
+		key := redisKeyOfUpload(svcName, meta.NodeID)
+		keys = append(keys, key)
+		keyToMeta[key] = struct {
+			SerName string
+			SerID   int32
+		}{SerName: svcName, SerID: meta.NodeID}
+	}
 	if len(keys) == 0 {
 		return
 	}
-
+	// 使用 MGet 批量获取
 	res, err := s.redisCli.MGet(s.ctx, keys...).Result()
 	if err != nil {
 		zap.L().Error("failed to mget load from redis", zap.Error(err))
@@ -134,62 +198,8 @@ func (s *Discoverer) syncLoad() {
 		load, _ := strconv.Atoi(loadStr)
 
 		meta := keyToMeta[keys[i]]
-		s.mtx.RLock()
-		oneSrv, exists := s.services[meta.SerName]
-		s.mtx.RUnlock()
-		if exists {
-			oneSrv.UpdateLoad(meta.SerID, int32(load))
-		}
+		newAll[meta.SerName].UpdateLoad(meta.SerID, int32(load))
 	}
-}
-
-// syncFullState 全量加載
-func (s *Discoverer) syncFullState(cli *clientv3.Client) int64 {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-
-	resp, err := cli.Get(ctx, s.prefix, clientv3.WithPrefix())
-	if err != nil {
-		zap.L().Error("Get etcd failed:", zap.Error(err))
-		return 0
-	}
-
-	newAll := make(map[string]*NodeGroup)
-	for _, kv := range resp.Kvs {
-		meta := NodeMeta{}
-		if err = json.Unmarshal(kv.Value, &meta); err != nil {
-			zap.L().Error("Unmarshal meta failed in loadParams", zap.Error(err))
-			continue
-		}
-		srvName, serID, err := parseServicePath(string(kv.Key))
-		if err != nil {
-			zap.L().Error("parse service path failed in loadParams", zap.Error(err))
-			continue
-		}
-		meta.NodeID = serID
-
-		if newAll[srvName] == nil {
-			newAll[srvName] = NewNodeGroup()
-		}
-		newAll[srvName].Add(meta)
-	}
-
-	s.mtx.RLock() // 获取负载
-	for serName, newOneSrv := range newAll {
-		if oldOneSrv, exists := s.services[serName]; exists {
-			// 此时 newOneSrv 还没暴露，不需要加
-			for nodeID, newMeta := range newOneSrv.nodes {
-				// 从"旧"的缓存中安全地获取历史负载
-				if oldLoad, ok := oldOneSrv.GetLoad(nodeID); ok {
-					newMeta.Load = oldLoad
-					newOneSrv.nodes[nodeID] = newMeta
-				}
-			}
-		}
-		// 继承完 Load 后，统一重建一次 P2C 缓存切片
-		newOneSrv.rebuildNodeCache()
-	}
-	s.mtx.RUnlock()
 
 	s.mtx.Lock()
 	s.services = newAll
@@ -217,7 +227,7 @@ func parseServicePath(key string) (srvName string, serID int32, err error) {
 }
 
 func (s *Discoverer) upsertNode(key string, val []byte) {
-	meta := NodeMeta{}
+	meta := Node{}
 	err := json.Unmarshal(val, &meta)
 	if err != nil {
 		zap.L().Error("Unmarshal meta failed", zap.Error(err))
@@ -229,11 +239,13 @@ func (s *Discoverer) upsertNode(key string, val []byte) {
 		return
 	}
 	meta.NodeID = svcID
+
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+
 	one := s.services[svcName]
 	if one == nil {
-		one = NewNodeGroup()
+		one = newNodeGroup()
 		s.services[svcName] = one
 	}
 	one.Add(meta)
@@ -247,8 +259,9 @@ func (s *Discoverer) removeNode(key string) {
 		return
 	}
 	s.mtx.Lock()
-	defer s.mtx.Unlock()
 	one := s.services[svcName]
+	defer s.mtx.Unlock()
+
 	if one != nil {
 		if one.Delete(svcID) {
 			delete(s.services, svcName)

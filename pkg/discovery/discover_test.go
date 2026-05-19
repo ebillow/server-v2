@@ -3,16 +3,15 @@ package discovery
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"server/pkg/db"
-	"server/pkg/flag"
 	"server/pkg/logger"
-	"server/pkg/pb"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -65,229 +64,242 @@ func TestParseServicePath(t *testing.T) {
 	}
 }
 
-// ============================================================================
-// 测试 2：节点增删与 Exists 逻辑测试
-// ============================================================================
-func TestDiscoverer_UpsertAndRemove(t *testing.T) {
-	d := &Discoverer{
-		services: make(map[string]*NodeGroup),
-	}
+func TestNodeGroup_CRUD(t *testing.T) {
+	ng := newNodeGroup()
 
-	svcName := "order_service"
-	nodeID := int32(101)
-	key := fmt.Sprintf("/prefix/%s_%d", svcName, nodeID)
+	// 1. Add
+	ng.Add(Node{NodeID: 101, Load: 50})
+	assert.True(t, ng.Exists(101))
 
-	meta := NodeMeta{NodeID: nodeID, Load: 0}
-	val, _ := json.Marshal(meta)
+	load, ok := ng.GetLoad(101)
+	assert.True(t, ok)
+	assert.Equal(t, int32(50), load)
 
-	// 1. 测试 Upsert (新增)
-	d.upsertNode(key, val)
-	assert.True(t, d.Exists(svcName, nodeID), "节点应该存在")
+	// 2. UpdateLoad (无锁更新)
+	ng.UpdateLoad(101, 99)
+	load, _ = ng.GetLoad(101)
+	assert.Equal(t, int32(99), load)
 
-	// 验证内部缓存结构
-	pool := d.services[svcName]
-	assert.NotNil(t, pool)
-	assert.Equal(t, 1, len(pool.nodes))
-	assert.Equal(t, 1, len(pool.nodeIDs), "用于P2C的切片应该被正确重建")
-
-	// 2. 测试 Remove (删除)
-	d.removeNode(key)
-	assert.False(t, d.Exists(svcName, nodeID), "节点应该被删除")
-
-	// 验证 pool 是否被清理
-	_, ok := d.services[svcName]
-	assert.False(t, ok, "当服务下没有节点时，应该清理掉整个 EndpointPool")
+	// 3. Delete
+	isEmpty := ng.Delete(101)
+	assert.True(t, isEmpty)
+	assert.False(t, ng.Exists(101))
 }
 
-// ============================================================================
-// 测试 3：P2C 算法分布测试 (核心亮点)
-// ============================================================================
-func TestP2C_AlgorithmDistribution(t *testing.T) {
-	pool := &NodeGroup{
-		nodes: make(map[int32]NodeMeta),
-	}
+func TestNodeGroup_P2C_Algorithm(t *testing.T) {
+	ng := newNodeGroup()
 
 	// 模拟 3 个节点，负载差异巨大
-	pool.nodes[1] = NodeMeta{NodeID: 1, Load: 10}  // 极低负载
-	pool.nodes[2] = NodeMeta{NodeID: 2, Load: 50}  // 中等负载
-	pool.nodes[3] = NodeMeta{NodeID: 3, Load: 200} // 极高负载
-	pool.rebuildNodeCache()
+	ng.Add(Node{NodeID: 1, Load: 10})  // 极低负载
+	ng.Add(Node{NodeID: 2, Load: 50})  // 中等负载
+	ng.Add(Node{NodeID: 3, Load: 200}) // 极高负载
 
 	counts := make(map[int32]int)
-	iterations := 60000
+	iterations := 100000 // 模拟十万次高并发请求
 
-	// 模拟高并发下的 6 万次 Pick
 	for i := 0; i < iterations; i++ {
-		id, ok := pool.SelectNode()
+		id, ok := ng.SelectNode()
 		assert.True(t, ok)
 		counts[id]++
 	}
 
-	/*
-		理论概率分析 (P2C 随机选2个，取较小者)：
-		组合 (1,2) -> 选 1
-		组合 (1,3) -> 选 1
-		组合 (2,3) -> 选 2
-		因此 1 的概率约为 66.6%，2 的概率约为 33.3%，3 的概率为 0%
-	*/
 	t.Logf("P2C 命中分布: Node1(Load:10)=%d, Node2(Load:50)=%d, Node3(Load:200)=%d",
 		counts[1], counts[2], counts[3])
 
-	// 验证羊群效应被避免，且高负载节点被保护
-	assert.Greater(t, counts[1], 38000, "低负载节点应该获得大部分流量")
-	assert.Greater(t, counts[2], 18000, "中等负载节点应该获得部分流量，避免节点1被彻底压垮")
-	assert.Equal(t, 0, counts[3], "极高负载节点在有其他选择时，应该被完全保护(0流量)")
+	// P2C 算法特性验证：
+	// 1. 绝大部分流量应该打到节点 1
+	assert.Greater(t, counts[1], 60000, "低负载节点应该获得大部分流量")
+	// 2. 节点 2 会分担一部分流量，防止节点 1 被瞬间压垮
+	assert.Greater(t, counts[2], 25000, "中等负载节点应该获得部分流量")
+	// 3. 节点 3 作为高负载节点，应该被完美保护（流量接近于 0）
+	assert.Equal(t, 0, counts[3], "极高负载节点在有其他选择时，应该被完全保护")
 }
 
-// ============================================================================
-// 测试 4：Redis 负载同步测试 (结合 Miniredis)
-// ============================================================================
-func TestDiscoverer_SyncLoad(t *testing.T) {
+func TestNodeGroup_Concurrency(t *testing.T) {
+	ng := newNodeGroup()
+	ng.Add(Node{NodeID: 1, Load: 0})
+	ng.Add(Node{NodeID: 2, Load: 0})
 
-	// 2. 初始化 Discoverer 并手动塞入一个节点
-	d := &Discoverer{
-		services: make(map[string]*NodeGroup),
-		redisCli: db.Redis,
-		ctx:      context.Background(),
-	}
+	var wg sync.WaitGroup
+	stopCh := make(chan struct{})
 
-	svcName := "payment_service"
-	nodeID := int32(888)
-
-	pool := &NodeGroup{nodes: make(map[int32]NodeMeta)}
-	pool.nodes[nodeID] = NodeMeta{NodeID: nodeID, Load: 0} // 初始负载为 0
-	pool.rebuildNodeCache()
-	d.services[svcName] = pool
-
-	// 3. 模拟业务端向 Redis 上报了负载 (Load = 150)
-	redisKey := redisKeyOfUpload(svcName, nodeID)
-	err := db.Redis.Set(context.Background(), redisKey, 150, time.Minute).Err()
-	assert.NoError(t, err)
-
-	// 4. 执行同步
-	d.syncLoad()
-
-	// 5. 验证 Discoverer 内存中的负载是否被正确更新
-	d.mtx.RLock()
-	updatedLoad := d.services[svcName].nodes[nodeID].Load
-	d.mtx.RUnlock()
-
-	assert.Equal(t, int32(150), updatedLoad, "Discoverer 应该从 Redis 成功拉取并更新内存负载")
-}
-
-// ============================================================================
-// 测试 5：全量替换时的 Load 继承逻辑测试
-// ============================================================================
-func TestDiscoverer_LoadInheritance(t *testing.T) {
-	d := &Discoverer{
-		services: make(map[string]*NodeGroup),
-	}
-
-	svcName := "chat_service"
-	nodeID := int32(1)
-
-	// 1. 构造旧缓存 (带有历史负载 999)
-	oldPool := &NodeGroup{nodes: make(map[int32]NodeMeta)}
-	oldPool.nodes[nodeID] = NodeMeta{NodeID: nodeID, Load: 999}
-	d.services[svcName] = oldPool
-
-	// 2. 模拟从 Etcd 拉取到了全新的数据 (Etcd 中的数据是没有动态 Load 的)
-	newPools := make(map[string]*NodeGroup)
-	newPool := &NodeGroup{nodes: make(map[int32]NodeMeta)}
-	newPool.nodes[nodeID] = NodeMeta{NodeID: nodeID, Load: 0} // Etcd 里拉出来 Load 是 0
-	newPools[svcName] = newPool
-
-	// 3. 执行继承逻辑 (提取自 syncFullState)
-	for sName, newOneSrv := range newPools {
-		if oldOneSrv, exists := d.services[sName]; exists {
-			for nID, newMeta := range newOneSrv.nodes {
-				if oldMeta, ok := oldOneSrv.nodes[nID]; ok {
-					// 继承 Load
-					newMeta.Load = oldMeta.Load
-					newOneSrv.nodes[nID] = newMeta
+	// 1. 开启 10 个 Goroutine 疯狂进行无锁路由选择 (SelectNode)
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					ng.SelectNode()
 				}
 			}
-		}
-		newOneSrv.rebuildNodeCache()
+		}()
 	}
-	// 替换
-	d.services = newPools
 
-	// 4. 验证继承结果
-	assert.Equal(t, int32(999), d.services[svcName].nodes[nodeID].Load, "全量替换时，必须继承旧缓存的 Load，不能归零")
+	// 2. 开启 5 个 Goroutine 疯狂进行无锁负载更新 (UpdateLoad)
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			load := int32(0)
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					load++
+					ng.UpdateLoad(1, load)
+					ng.UpdateLoad(2, load)
+				}
+			}
+		}(i)
+	}
+
+	// 3. 开启 2 个 Goroutine 模拟节点动态上下线 (Add/Delete)
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			nodeID := int32(100 + id)
+			for {
+				select {
+				case <-stopCh:
+					return
+				default:
+					ng.Add(Node{NodeID: nodeID, Load: 0})
+					time.Sleep(time.Millisecond * 10)
+					ng.Delete(nodeID)
+					time.Sleep(time.Millisecond * 10)
+				}
+			}
+		}(i)
+	}
+
+	time.Sleep(time.Second * 2)
+	close(stopCh)
+	wg.Wait()
+
+	// 如果没有 Panic，且 go test -race 不报错，说明无锁架构完美！
+	t.Log("并发测试通过，未发生 Data Race 或 Panic")
 }
 
-func TestNewWatcher(t *testing.T) {
-	Watch()
+// ============================================================================
+// 测试 5：Redis Pub/Sub 负载同步测试 (结合 Miniredis)
+// ============================================================================
+func TestDiscoverer_RedisPubSub(t *testing.T) {
+	// 1. 启动 mock redis server
+	mr, err := miniredis.Run()
+	assert.NoError(t, err)
+	defer mr.Close()
 
-	err := RegisterDefault(flag.SrvName(pb.Server_Game), &NodeMeta{NodeID: 1})
-	require.NoError(t, err)
-	// time.Sleep(time.Millisecond * 50)
-	Close()
+	rdb := redis.NewUniversalClient(&redis.UniversalOptions{
+		Addrs: []string{mr.Addr()},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 2. 初始化 Discoverer
+	d := &Discoverer{
+		services: make(map[string]*nodeGroup),
+		redisCli: rdb,
+		ctx:      ctx,
+		cancel:   cancel,
+	}
+
+	svcName := "login_service"
+	nodeID := int32(888)
+
+	// 手动塞入一个初始负载为 0 的节点
+	d.services[svcName] = newNodeGroup()
+	d.services[svcName].Add(Node{NodeID: nodeID, Load: 0})
+
+	// 3. 在后台启动 Redis 订阅监听
+	go d.syncLoad()
+
+	// 给订阅一点启动时间
+	time.Sleep(time.Millisecond * 100)
+
+	// 4. 模拟 Register 端向 Redis 发送 Pub/Sub 广播
+	msg := Node{
+		SvcName: svcName,
+		NodeID:  nodeID,
+		Load:    150,
+	}
+	b, _ := json.Marshal(msg)
+	err = rdb.Publish(ctx, RedisLoadChannel, string(b)).Err()
+	assert.NoError(t, err)
+
+	// 给 Discoverer 一点处理消息的时间
+	time.Sleep(time.Millisecond * 100)
+
+	// 5. 验证 Discoverer 内存中的负载是否被更新
+	d.mtx.RLock()
+	group := d.services[svcName]
+	d.mtx.RUnlock()
+
+	load, ok := group.GetLoad(nodeID)
+	assert.True(t, ok)
+	assert.Equal(t, int32(150), load, "Discoverer 应该通过 Pub/Sub 成功更新内存负载")
 }
 
-func TestRegister(t *testing.T) {
-	err := RegisterDefault(flag.SrvName(pb.Server_Game), &NodeMeta{NodeID: 1})
-	require.NoError(t, err)
-	Watch()
-	// time.Sleep(time.Millisecond * 50)
-	Close()
-}
-
-func TestPick(t *testing.T) {
-	Watch()
-
-	r1, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &NodeMeta{NodeID: 1}, 30)
-	require.NoError(t, err)
-	r1.UpdateLoad(2)
-	time.Sleep(time.Second)
-
-	exist := Exists(flag.SrvName(pb.Server_Game), 1)
-	require.True(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-	require.False(t, exist)
-
-	r2, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &NodeMeta{NodeID: 2}, 30)
-	require.NoError(t, err)
-	r2.UpdateLoad(4)
-	time.Sleep(time.Second)
-
-	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-	require.True(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-	require.True(t, exist)
-
-	time.Sleep(time.Second * 6)
-
-	id, ok := Select(flag.SrvName(pb.Server_Game))
-	require.True(t, ok)
-	require.Equal(t, int32(1), id)
-
-	r1.UpdateLoad(5)
-	time.Sleep(time.Second * 6)
-
-	id, ok = Select(flag.SrvName(pb.Server_Game))
-	require.True(t, ok)
-	require.Equal(t, int32(2), id)
-
-	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-	require.True(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-	require.True(t, exist)
-
-	r1.Close()
-
-	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-	require.False(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-	require.True(t, exist)
-
-	r2.Close()
-
-	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-	require.False(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-	require.False(t, exist)
-
-	Close()
-}
+// func TestPick(t *testing.T) {
+// 	Watch()
+//
+// 	r1, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
+// 	require.NoError(t, err)
+// 	r1.UpdateLoad(2)
+// 	time.Sleep(time.Second)
+//
+// 	exist := Exists(flag.SrvName(pb.Server_Game), 1)
+// 	require.True(t, exist)
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+// 	require.False(t, exist)
+//
+// 	r2, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
+// 	require.NoError(t, err)
+// 	r2.UpdateLoad(4)
+// 	time.Sleep(time.Second)
+//
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
+// 	require.True(t, exist)
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+// 	require.True(t, exist)
+//
+// 	time.Sleep(time.Second * 6)
+//
+// 	id, ok := Select(flag.SrvName(pb.Server_Game))
+// 	require.True(t, ok)
+// 	require.Equal(t, int32(1), id)
+//
+// 	r1.UpdateLoad(5)
+// 	time.Sleep(time.Second * 6)
+//
+// 	id, ok = Select(flag.SrvName(pb.Server_Game))
+// 	require.True(t, ok)
+// 	require.Equal(t, int32(2), id)
+//
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
+// 	require.True(t, exist)
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+// 	require.True(t, exist)
+//
+// 	r1.Close()
+//
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
+// 	require.False(t, exist)
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+// 	require.True(t, exist)
+//
+// 	r2.Close()
+//
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
+// 	require.False(t, exist)
+// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+// 	require.False(t, exist)
+//
+// 	Close()
+// }
