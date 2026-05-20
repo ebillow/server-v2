@@ -51,11 +51,12 @@ func (l *loginData) setState(state loginState) {
 }
 
 type Operator struct {
-	Op uint32
-
+	IDs   []uint64
 	Login *pb.S2SReqLogin  // 上线的参数
 	Data  *role.DataToSave // 下线，保存的参数
-	IDs   []uint64
+
+	Op       uint32
+	SaveBoth bool
 }
 
 var (
@@ -138,8 +139,8 @@ func (m *LogonService) Logout(data *role.DataToSave) {
 	m.ops <- &Operator{Op: OpLogout, Data: data}
 }
 
-func (m *LogonService) SaveRole(data *role.DataToSave) {
-	m.ops <- &Operator{Op: OpSaveRole, Data: data}
+func (m *LogonService) SaveRole(data *role.DataToSave, saveBoth bool) {
+	m.ops <- &Operator{Op: OpSaveRole, Data: data, SaveBoth: saveBoth}
 }
 
 func (m *LogonService) postOp(op *Operator) {
@@ -156,12 +157,13 @@ func (m *LogonService) monitor() {
 		zap.Int("online", role.Mgr.Count()))
 }
 
-func (m *LogonService) roleOffline(p opSaveData) {
-	ld, ok := m.data[p.ID]
+func (m *LogonService) roleOffline(p *Operator) {
+	ld, ok := m.data[p.Data.ID]
 	if ok {
 		ld.setState(stateOffline)
 	}
-	m.saveOne(p, ld)
+
+	m.saveOne(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Both: p.SaveBoth}, ld)
 }
 
 func (m *LogonService) saveOne(p opSaveData, ld *loginData) {
@@ -185,7 +187,7 @@ func (m *LogonService) cleanup() {
 
 	for k, v := range m.data {
 		if v.State == stateOffline && now-v.StateTime > Interval {
-			m.saveOne(opSaveData{ID: k, Data: v.Cache, Op: OpLogout}, v)
+			m.saveOne(opSaveData{ID: k, Data: v.Cache, Both: true}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
 			gnet.SendToAccount(&pb.S2SRoleClear{
@@ -240,9 +242,9 @@ func (m *LogonService) onOps(ctx context.Context, p *Operator) {
 		case OpReentry:
 			m.opReentry(p)
 		case OpLogout:
-			m.roleOffline(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpLogout})
+			m.roleOffline(p)
 		case OpSaveRole:
-			m.saveOne(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Op: OpSaveRole}, m.data[p.Data.ID])
+			m.saveOne(opSaveData{ID: p.Data.ID, Data: p.Data.Data, Both: p.SaveBoth}, m.data[p.Data.ID])
 		case OpSaveSuccess:
 			m.saveSuccess(p.IDs)
 		}

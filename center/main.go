@@ -46,7 +46,6 @@ func main() {
 
 func Init(ctx context.Context) error {
 	db.MongoUse(flag.IID + "_center")
-	onlines.Init()
 	logic.Create()
 
 	return nil

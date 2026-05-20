@@ -1,4 +1,4 @@
-package v2
+package session
 
 import (
 	"context"
@@ -48,7 +48,7 @@ func (s *Session) Close(why pb.DisconnectReason) {
 		s.disConnReason.Store(int32(why))
 		s.cancel()
 
-		RemoveSession(s.Id)
+		Remove(s.Id)
 		gnet.SendToGame(s.getSerID(pb.Server_Game), &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
 			Why:   pb.DisconnectReason(s.disConnReason.Load()),
@@ -75,7 +75,7 @@ func (s *Session) start() {
 
 	id, _ := idgen.Gen()
 	s.Id = uint64(id)
-	AddSession(s.Id, s)
+	Add(s.Id, s)
 
 	waitGroup.Add(2)
 	thread.GoSafe(func() {

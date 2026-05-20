@@ -11,6 +11,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const shardCount = 64
+
 type meta struct {
 	events *queue.SwapQueue[Event]
 	wait   *sync.WaitGroup
@@ -23,20 +25,32 @@ func (m meta) Kick() {
 	m.events.Wake()
 }
 
-type Registry struct {
-	roles map[uint64]meta   // roleID:meta
-	ses   map[uint64]uint64 // sesID:roleID
+// 定義獨立的角色分片體系
+type roleShard struct {
 	mtx   sync.RWMutex
+	roles map[uint64]meta
+}
+
+// 定義獨立的會話分片體系
+type sesShard struct {
+	mtx sync.RWMutex
+	ses map[uint64]uint64
+}
+
+type Registry struct {
+	roleShards [shardCount]*roleShard
+	sesShards  [shardCount]*sesShard
 }
 
 var Mgr = NewRegistry()
 
 func NewRegistry() *Registry {
-	m := &Registry{
-		roles: make(map[uint64]meta),
-		ses:   make(map[uint64]uint64),
+	m := &Registry{}
+	// 初始化所有分片
+	for i := 0; i < shardCount; i++ {
+		m.roleShards[i] = &roleShard{roles: make(map[uint64]meta)}
+		m.sesShards[i] = &sesShard{ses: make(map[uint64]uint64)}
 	}
-
 	return m
 }
 
@@ -59,62 +73,89 @@ func Run(ctx context.Context) {
 	}
 }
 
+func (m *Registry) getRoleShard(roleID uint64) *roleShard {
+	return m.roleShards[roleID&(shardCount-1)]
+}
+
+func (m *Registry) getSesShard(sesID uint64) *sesShard {
+	return m.sesShards[sesID&(shardCount-1)]
+}
+
 func (m *Registry) Register(roleID uint64, sesID uint64, r *Role) {
-	m.mtx.Lock()
-	m.roles[roleID] = meta{
+	sShard := m.getSesShard(sesID)
+	sShard.mtx.Lock()
+	sShard.ses[sesID] = roleID
+	sShard.mtx.Unlock()
+
+	rShard := m.getRoleShard(roleID)
+	rShard.mtx.Lock()
+	rShard.roles[roleID] = meta{
 		events: r.Events,
 		wait:   &r.Wait,
 		cancel: r.Cancel,
 		ctx:    r.Ctx,
 	}
-	m.ses[sesID] = roleID
-	m.mtx.Unlock()
+	rShard.mtx.Unlock()
 }
 
 func (m *Registry) Count() int {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	return len(m.roles)
+	var count int
+	for _, shard := range m.roleShards {
+		shard.mtx.RLock()
+		count += len(shard.roles)
+		shard.mtx.RUnlock()
+	}
+	return count
 }
 
 func (m *Registry) get(roleID uint64) (meta, bool) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	d, ok := m.roles[roleID]
+	rs := m.getRoleShard(roleID)
+	rs.mtx.RLock()
+	defer rs.mtx.RUnlock()
+	d, ok := rs.roles[roleID]
 	return d, ok
 }
 
 func (m *Registry) getBySes(sesID uint64) (meta, bool) {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-	if roleID, ok := m.ses[sesID]; !ok {
+	ss := m.getSesShard(sesID)
+	ss.mtx.RLock()
+	roleID, ok := ss.ses[sesID]
+	ss.mtx.RUnlock()
+
+	if !ok {
 		return meta{}, false
-	} else {
-		e, ok := m.roles[roleID]
-		return e, ok
 	}
+	return m.get(roleID)
 }
 
 func (m *Registry) Unregister(roleID uint64, sesID uint64) {
-	m.mtx.Lock()
-	defer m.mtx.Unlock()
+	ss := m.getSesShard(sesID)
 
-	// 严谨校验：只有当映射关系匹配时才删除
-	if curRoleID, ok := m.ses[sesID]; ok {
-		if curRoleID == roleID {
-			delete(m.ses, sesID)
-			delete(m.roles, roleID)
-		}
+	ss.mtx.Lock()
+	curRoleID, ok := ss.ses[sesID]
+	if ok && curRoleID == roleID {
+		delete(ss.ses, sesID)
+	}
+	ss.mtx.Unlock()
+
+	if ok && curRoleID == roleID {
+		rs := m.getRoleShard(roleID)
+		rs.mtx.Lock()
+		delete(rs.roles, roleID)
+		rs.mtx.Unlock()
 	}
 }
 
 func (m *Registry) onTick(now time.Time) {
-	m.mtx.RLock()
-	metas := make([]meta, 0, len(m.roles))
-	for _, v := range m.roles {
-		metas = append(metas, v)
+	var metas []meta
+	for _, shard := range m.roleShards {
+		shard.mtx.RLock()
+		for _, v := range shard.roles {
+			metas = append(metas, v)
+		}
+		shard.mtx.RUnlock() // 尽早释放当前分片的读锁
 	}
-	m.mtx.RUnlock() //  尽早释放读锁
+
 	for _, v := range metas {
 		err := v.events.PushAndWake(Event{Func: func(r *Role) {
 			r.OnTick(now)
@@ -143,21 +184,22 @@ func (m *Registry) Kick(sesID uint64) {
 }
 
 func (m *Registry) CloseAndWait() {
-	ids := make([]uint64, 0, len(m.roles))
-	m.mtx.RLock()
-	for id := range m.roles {
-		ids = append(ids, id)
-	}
-	m.mtx.RUnlock()
-	for _, id := range ids {
-		if r, ok := m.get(id); ok {
-			r.Kick() // Signal all immediately
+	var metas []meta
+	for _, shard := range m.roleShards {
+		shard.mtx.RLock()
+		if len(shard.roles) > 0 {
+			for _, v := range shard.roles {
+				metas = append(metas, v)
+			}
 		}
+		shard.mtx.RUnlock()
 	}
-	for _, id := range ids {
-		if r, ok := m.get(id); ok {
-			r.wait.Wait() // Wait for them to finish concurrently
-		}
+
+	for _, v := range metas {
+		v.Kick()
+	}
+	for _, v := range metas {
+		v.wait.Wait()
 	}
 }
 

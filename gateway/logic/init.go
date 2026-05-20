@@ -1,7 +1,7 @@
 package logic
 
 import (
-	session "server/gateway/session/v2"
+	"server/gateway/session"
 	"server/pkg/thread"
 	"time"
 
@@ -19,7 +19,7 @@ func Monitor() {
 	for {
 		select {
 		case <-t.C:
-			zap.L().Info("monitor", zap.Int32("链接人数", session.SessionCnt()))
+			zap.L().Info("monitor", zap.Int("链接人数", session.Count()))
 		}
 	}
 }

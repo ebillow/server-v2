@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"server/gateway/logic"
-	session "server/gateway/session/v2"
+	"server/gateway/session"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
@@ -83,7 +83,7 @@ func loadNetCfg() *session.Config {
 
 func OnServerMsg(ctx gctx.Context) {
 	if ctx.Flag == gctx.Forward {
-		ses := session.GetSession(ctx.SesID)
+		ses := session.Get(ctx.SesID)
 		if ses == nil {
 			return
 		}

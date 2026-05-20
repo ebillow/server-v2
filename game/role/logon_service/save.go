@@ -16,7 +16,7 @@ import (
 type opSaveData struct {
 	ID   uint64
 	Data map[string]string
-	Op   uint32
+	Both bool
 }
 
 func (d *opSaveData) Values() []interface{} {
@@ -95,7 +95,7 @@ func (s *saver) saveBatch(batch map[uint64]opSaveData) error {
 		pipe.HSet(ctx, model.KeyRole(v.ID), v.Values()...)
 		pipe.Expire(ctx, model.KeyRole(v.ID), time.Hour*24*7)
 		zap.L().Debug("[login] save to redis", zap.Uint64("id", v.ID), zap.Any("data", v))
-		if v.Op == OpLogout {
+		if v.Both {
 			toDB = append(toDB, v)
 		}
 	}

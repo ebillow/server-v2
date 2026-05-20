@@ -64,7 +64,7 @@ func TestMultiSub(t *testing.T) {
 	wg.Add(maxCnt * 2)
 	for i := 0; i < 3; i++ {
 		servers := []string{"nats://127.0.0.1:4223"}
-		err := S.Init(pb.Server_Gateway, int32(i), strings.Join(servers, ","), nats.UserInfo("123456", "123456"))
+		err := S.Init(pb.Server_Gateway, uint8(i), strings.Join(servers, ","), nats.UserInfo("123456", "123456"))
 		require.NoError(t, err)
 
 		err = S.Serve(context.Background(), func(msg gctx.Context) {
@@ -76,7 +76,7 @@ func TestMultiSub(t *testing.T) {
 	}
 
 	for i := 0; i < maxCnt; i++ {
-		S.Send(pb.Server_Gateway, int32(i), uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 3, 220)
+		S.Send(pb.Server_Gateway, uint8(i), uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 3, 220)
 
 		S.SendAny(pb.Server_Gateway, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to any: hello world"), 440, 20)
 	}

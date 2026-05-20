@@ -121,8 +121,9 @@ message S2CKickRole{
 
 message S2SReqLoginOrLogout{
 	uint64 RoleID = 1;
-	uint32 GameID = 2;
-	bool Login = 3;
+	uint64 SesID = 2;
+	uint32 GameID = 3;
+	bool Login = 4;
 }
 
 message S2SResLoginOrLogout{

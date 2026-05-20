@@ -10,40 +10,75 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-var (
-	roles sync.Map
-)
+const shardCount = 1024
 
-func Init() {
-	router.S().OnG(msgid.MsgIDS2S_S2SReqLoginOrLogout, onLoginOrLogout)
-}
+var (
+	roleShards = make([]*roleShard, shardCount)
+)
 
 type Data struct {
 	SesID  uint64
 	GameID uint8
 }
-
-func Add(roleID uint64, data Data) {
-	roles.Store(roleID, data)
+type roleShard struct {
+	mtx   sync.RWMutex
+	roles map[uint64]Data
 }
 
-func Del(roleID uint64) {
-	roles.Delete(roleID)
+func init() {
+	router.S().OnG(msgid.MsgIDS2S_S2SReqLoginOrLogout, onLoginOrLogout)
+
+	for i := 0; i < shardCount; i++ {
+		roleShards[i] = &roleShard{
+			roles: make(map[uint64]Data),
+		}
+	}
+}
+func getRoleShard(roleID uint64) *roleShard {
+	return roleShards[roleID&(shardCount-1)]
+}
+
+func Add(roleID uint64, data Data) {
+	rs := getRoleShard(roleID)
+	rs.mtx.Lock()
+	rs.roles[roleID] = data
+	rs.mtx.Unlock()
+}
+
+func Remove(roleID uint64) {
+	rs := getRoleShard(roleID)
+	rs.mtx.Lock()
+	delete(rs.roles, roleID)
+	rs.mtx.Unlock()
 }
 
 func GetGameID(roleID uint64) (uint8, bool) {
-	n, ok := roles.Load(roleID)
-	if !ok {
-		return 0, false
+	rs := getRoleShard(roleID)
+	rs.mtx.RLock()
+	defer rs.mtx.RUnlock()
+
+	r, ok := rs.roles[roleID]
+	if ok {
+		return r.GameID, ok
 	}
-	return n.(Data).GameID, true
+	return 0, false
+}
+
+func Count() int {
+	var count int
+	for _, shard := range roleShards {
+		shard.mtx.RLock()
+		count += len(shard.roles)
+		shard.mtx.RUnlock()
+	}
+	return count
 }
 
 func onLoginOrLogout(ctx gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SReqLoginOrLogout)
 	if msg.Login {
-		Add(msg.RoleID, Data{SesID: msg.RoleID, GameID: uint8(msg.GameID)})
+		Add(msg.RoleID, Data{SesID: msg.SesID, GameID: uint8(msg.GameID)})
 	} else {
-		Del(msg.RoleID)
+		Remove(msg.RoleID)
 	}
 }

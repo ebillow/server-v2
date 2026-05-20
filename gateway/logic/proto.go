@@ -1,7 +1,7 @@
 package logic
 
 import (
-	session "server/gateway/session/v2"
+	"server/gateway/session"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
@@ -17,7 +17,7 @@ func init() {
 
 func onLoginSuccess(c gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SResLogin)
-	ses := session.GetSession(c.SesID)
+	ses := session.Get(c.SesID)
 	if ses == nil {
 		return
 	}
@@ -26,7 +26,7 @@ func onLoginSuccess(c gctx.Context, msgBase proto.Message) {
 }
 
 func onDisconnect(c gctx.Context, msgBase proto.Message) {
-	ses := session.GetSession(c.SesID)
+	ses := session.Get(c.SesID)
 	if ses == nil {
 		return
 	}

@@ -2,6 +2,7 @@ package js
 
 import (
 	"context"
+	"server/pkg/pb"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ func NewPullConsumer(ctx context.Context, jt *JetStream, subject string) (*PullC
 	if err := jt.initGlobalStream(ctx); err != nil {
 		return nil, err
 	}
-	streamName := getStreamName(jt.serType)
+	streamName := getStreamName(pb.Server(jt.serType))
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
 

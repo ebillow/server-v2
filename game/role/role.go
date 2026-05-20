@@ -62,8 +62,9 @@ type Role struct {
 
 	// 注意：临时属性，重连后就丢了
 	nowSec           int64 // 当前时间，精确到秒
-	lastSave         time.Time
-	LastMinute       time.Time
+	lastSaveRedis    time.Time
+	lastSaveDB       time.Time
+	lastMinute       time.Time
 	LastHeartbeat    time.Time
 	HeartbeatTimeOut int
 	dirty            bool
@@ -153,7 +154,7 @@ func (r *Role) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 func (r *Role) Online() {
 	now := time.Now()
 	r.Data.OnlineTime = now.Unix()
-	r.lastSave = now
+	r.lastSaveRedis = now
 	r.LastHeartbeat = now
 	r.HeartbeatTimeOut = 0
 
@@ -242,8 +243,8 @@ func (r *Role) OnTick(now time.Time) {
 		dayChange = true
 	}
 
-	if now.Sub(r.LastMinute) > time.Minute {
-		r.LastMinute = now
+	if now.Sub(r.lastMinute) > time.Minute {
+		r.lastMinute = now
 		r.MinuteLoop(now)
 	}
 
@@ -282,7 +283,6 @@ func (r *Role) OnTick(now time.Time) {
 		if monthChange {
 			curMonthBegin := time.Date(now.Year(), now.Month(), 1, ResetHour, 0, 0, 0, now.Location())
 			r.Data.DataResetMonth = curMonthBegin.AddDate(0, 1, 0).Unix()
-			zap.S().Debugf("%d data next month reset time=%v", r.ID, time.Unix(r.Data.DataResetMonth, 0))
 		}
 	}
 	if dayChange {
@@ -295,9 +295,14 @@ func (r *Role) OnTick(now time.Time) {
 	}
 
 	conf := cfg.Get()
-	if now.Sub(r.lastSave).Seconds() > float64(conf.Time.AutoSave) {
-		r.save()
-		r.lastSave = now
+	if now.Sub(r.lastSaveRedis).Seconds() > float64(conf.Time.AutoSave) {
+		if now.Sub(r.lastSaveDB).Seconds() > float64(conf.Time.AutoSave*10) {
+			r.save(true)
+			r.lastSaveDB = now
+		} else {
+			r.save(false)
+		}
+		r.lastSaveRedis = now
 	}
 
 	const HeartbeatTime = 15 * 2
@@ -368,7 +373,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 	return rd, nil
 }
 
-func (r *Role) save() {
+func (r *Role) save(both bool) {
 	data, err := r.marshal(false)
 	if err != nil {
 		return
@@ -376,5 +381,6 @@ func (r *Role) save() {
 	if data.IsEmpty() {
 		return
 	}
-	LoginMgr().SaveRole(data) // offline时在mgr里保存,批量存
+
+	LoginMgr().SaveRole(data, both) // offline时在mgr里保存,批量存
 }

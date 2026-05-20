@@ -1,11 +1,10 @@
-package v2
+package session
 
 import (
 	"net"
 	"net/http"
 	"server/pkg/thread"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -80,29 +79,57 @@ func Close() {
 }
 
 /************************************************************/
+
+const shardCount = 64
+
 var (
-	CliSess sync.Map
-	CliCnt  int32
+	shards = make([]*roleShard, shardCount)
 )
 
-func AddSession(cliSesID uint64, c *Session) {
-	CliSess.Store(cliSesID, c)
-	atomic.AddInt32(&CliCnt, 1)
+type roleShard struct {
+	mtx  sync.RWMutex
+	data map[uint64]*Session
 }
 
-func RemoveSession(cliSesID uint64) {
-	CliSess.Delete(cliSesID)
-	atomic.AddInt32(&CliCnt, -1)
-}
-
-func SessionCnt() int32 {
-	return atomic.LoadInt32(&CliCnt)
-}
-
-func GetSession(cliSesID uint64) *Session {
-	s, ok := CliSess.Load(cliSesID)
-	if ok {
-		return s.(*Session)
+func init() {
+	for i := 0; i < shardCount; i++ {
+		shards[i] = &roleShard{
+			data: make(map[uint64]*Session),
+		}
 	}
-	return nil
+}
+func getRoleShard(sesID uint64) *roleShard {
+	return shards[sesID&(shardCount-1)]
+}
+
+func Add(sesID uint64, data *Session) {
+	rs := getRoleShard(sesID)
+	rs.mtx.Lock()
+	rs.data[sesID] = data
+	rs.mtx.Unlock()
+}
+
+func Remove(sesID uint64) {
+	rs := getRoleShard(sesID)
+	rs.mtx.Lock()
+	delete(rs.data, sesID)
+	rs.mtx.Unlock()
+}
+
+func Count() int {
+	var count int
+	for _, shard := range shards {
+		shard.mtx.RLock()
+		count += len(shard.data)
+		shard.mtx.RUnlock()
+	}
+	return count
+}
+
+func Get(sesID uint64) *Session {
+	rs := getRoleShard(sesID)
+	rs.mtx.RLock()
+	defer rs.mtx.RUnlock()
+
+	return rs.data[sesID]
 }
