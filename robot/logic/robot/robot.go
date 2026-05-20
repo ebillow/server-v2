@@ -2,8 +2,7 @@ package robot
 
 import (
 	"fmt"
-	"go.uber.org/zap"
-	"server/account/logic/login"
+	"server/account/logic/auth"
 	"server/pkg/crypt/dh"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
@@ -12,6 +11,8 @@ import (
 	"slices"
 	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
 
 	"google.golang.org/protobuf/proto"
 )
@@ -232,7 +233,7 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 
 	r.s.U = r
 	r.ReconnToken = msg.Token
-	rawAcc := login.RealAcc(pb.SdkType_Guest, r.acc)
+	rawAcc := auth.RealAcc(pb.SdkType_Guest, r.acc)
 	if !slices.Contains(msg.ConnectAcc, rawAcc) {
 		panic("connect acc not exist")
 	}

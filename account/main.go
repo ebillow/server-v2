@@ -5,7 +5,7 @@ import (
 	_ "net/http/pprof"
 	"server/account/acc_db"
 	"server/account/logic"
-	"server/account/logic/login"
+	"server/account/logic/auth"
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
@@ -56,7 +56,7 @@ func Init(ctx context.Context) error {
 }
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
-	login.Start(ctx)
+	auth.Start(ctx)
 	return nil
 }
 

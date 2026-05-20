@@ -1,7 +1,6 @@
-package logic
+package auth
 
 import (
-	"server/account/logic/login"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"server/pkg/pb"
@@ -26,13 +25,13 @@ func onLogin(c gctx.Context, msgBase proto.Message) {
 		Req:   msg,
 		SesID: c.SesID,
 	}
-	login.Login(msgS)
+	Login(msgS)
 }
 
 func onClearRole(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SRoleClear)
-	login.PostEvt(login.EvtParam{
-		Op:    login.OpRoleClear,
+	PostEvt(EvtParam{
+		Op:    OpRoleClear,
 		Clear: msg,
 	})
 }

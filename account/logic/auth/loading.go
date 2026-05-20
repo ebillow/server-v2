@@ -1,15 +1,16 @@
-package login
+package auth
 
 import (
 	"context"
 	"errors"
-	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.uber.org/zap"
 	"server/pkg/db"
 	"server/pkg/model"
 	"server/pkg/pb"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/zap"
 )
 
 type loader struct {

@@ -1,10 +1,8 @@
-package login
+package auth
 
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
-	"go.mongodb.org/mongo-driver/v2/bson"
 	"server/account/acc_db"
 	"server/pkg/db"
 	"server/pkg/discovery"
@@ -15,6 +13,9 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestMain(m *testing.M) {
