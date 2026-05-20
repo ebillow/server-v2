@@ -41,8 +41,8 @@ func NewRegistry() *Registry {
 }
 
 func Run(ctx context.Context) {
-	t := time.NewTicker(time.Second * 3)
-	t10 := time.NewTicker(time.Second * 10)
+	t := time.NewTicker(time.Second * 5)
+	t10 := time.NewTicker(time.Second * 3)
 	defer func() {
 		t.Stop()
 		t10.Stop()

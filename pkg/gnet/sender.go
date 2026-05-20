@@ -3,12 +3,17 @@ package gnet
 import (
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
+	"server/pkg/idgen"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
+
+func GateIDFromSesID(gateID uint64) uint8 {
+	return uint8(idgen.MachineID(int64(gateID)))
+}
 
 func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 	data, err := proto.Marshal(msg)
