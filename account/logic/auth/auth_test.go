@@ -6,6 +6,7 @@ import (
 	"server/account/acc_db"
 	"server/pkg/db"
 	"server/pkg/discovery"
+	"server/pkg/flag"
 	"server/pkg/logger"
 	"server/pkg/model"
 	"server/pkg/pb"
@@ -42,7 +43,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	discovery.Watch()
-	err = discovery.Register(pb.Server_Game, 1)
+	err = discovery.RegisterDefault(flag.SrvName(pb.Server_Game), &discovery.Node{SvcName: flag.SrvName(pb.Server_Game), NodeID: 1})
 	if err != nil {
 		panic(err)
 	}
@@ -77,7 +78,7 @@ func TestLoginBatch(t *testing.T) {
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
-			Seq:    uint32(util.RandInt(10)),
+			Seq:    uint32(util.RandRange(0, 10)),
 		})
 	}
 	if !checkSuccess() {
@@ -89,14 +90,14 @@ func TestLoginRedisExpire(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 10000; i++ {
 		keyBind := model.KeyAccBind(RealAcc(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
-		if util.Rand(5000) {
+		if util.Happen(5000) {
 			accID, err := db.Redis.Get(ctx, keyBind).Result()
 			if err != nil && err != redis.Nil {
 				t.Fatal("redis get fail")
 			}
-			db.Redis.Del(ctx, model.KeyAccount(util.ParseUint64(accID)))
+			db.Redis.Del(ctx, model.KeyAccount(util.ParseIntDef[uint64](accID)))
 		}
-		if util.Rand(5000) {
+		if util.Happen(5000) {
 			db.Redis.Del(ctx, keyBind)
 		}
 	}
@@ -111,7 +112,7 @@ func TestLoginRedisExpire(t *testing.T) {
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
-			Seq:    uint32(util.RandInt(10)),
+			Seq:    uint32(util.RandRange(0, 10)),
 		})
 	}
 	if !checkSuccess() {
@@ -254,7 +255,7 @@ func TestLoginRandSdk(t *testing.T) {
 	for i := 10000; i < 15000; i++ {
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
-				SdkType:   pb.SdkType(util.RandInt(4)),
+				SdkType:   pb.SdkType(util.RandRange(0, 4)),
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -287,7 +288,7 @@ func TestLoginDup(t *testing.T) {
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
-			Seq:    uint32(util.RandInt(10)),
+			Seq:    uint32(util.RandRange(0, 10)),
 		})
 		Login(&pb.S2SReqLogin{
 			Req: &pb.C2SLogin{
@@ -298,7 +299,7 @@ func TestLoginDup(t *testing.T) {
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
-			Seq:    uint32(util.RandInt(10)),
+			Seq:    uint32(util.RandRange(0, 10)),
 		})
 	}
 	// if !checkSuccess() {

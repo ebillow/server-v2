@@ -38,37 +38,39 @@ func ParseBool(s string) (bool, error) {
 }
 
 // ParseIntDef 字符串转整数，失败返回默认值
-func ParseIntDef[T constraints.Integer](s string, def T) T {
+func ParseIntDef[T constraints.Integer](s string) T {
+	var zero T
 	if s == "" {
-		return def
+		return zero
 	}
 	n, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return def
+		return zero
 	}
 	return T(n)
 }
 
 // ParseFloatDef 字符串转浮点数，失败返回默认值
-func ParseFloatDef[T constraints.Float](s string, def T) T {
+func ParseFloatDef[T constraints.Float](s string) T {
+	var zero T
 	if s == "" {
-		return def
+		return zero
 	}
 	n, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return def
+		return zero
 	}
 	return T(n)
 }
 
 // ParseBoolDef 字符串转布尔，失败返回默认值
-func ParseBoolDef(s string, def bool) bool {
+func ParseBoolDef(s string) bool {
 	if s == "" {
-		return def
+		return false
 	}
 	v, err := strconv.ParseBool(s)
 	if err != nil {
-		return def
+		return true
 	}
 	return v
 }
