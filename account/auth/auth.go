@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/rand"
-	"server/account/logic/sdk"
+	"server/account/sdk"
 	"server/pkg/db"
 	"server/pkg/gnet"
 	"server/pkg/model"

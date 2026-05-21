@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"server/center/logic"
+	"server/center/actors"
 	"server/center/onlines"
 	"server/pkg/db"
 	"server/pkg/flag"
@@ -46,7 +46,7 @@ func main() {
 
 func Init(ctx context.Context) error {
 	db.MongoUse(flag.IID + "_center")
-	logic.Create()
+	actors.Create()
 
 	return nil
 }

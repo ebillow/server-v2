@@ -1,8 +1,8 @@
-package logic
+package actors
 
 import (
-	"server/center/logic/example"
-	"server/center/logic/global"
+	"server/center/actors/example"
+	"server/center/actors/global"
 	"server/pkg/pb"
 	"server/pkg/share/app"
 

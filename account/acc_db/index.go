@@ -1,7 +1,7 @@
 package acc_db
 
 import (
-	"server/account/logic/auth"
+	"server/account/auth"
 	"server/pkg/db"
 
 	"go.mongodb.org/mongo-driver/v2/bson"

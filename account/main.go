@@ -4,8 +4,7 @@ import (
 	"context"
 	_ "net/http/pprof"
 	"server/account/acc_db"
-	"server/account/logic"
-	"server/account/logic/auth"
+	"server/account/auth"
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
@@ -47,8 +46,6 @@ func main() {
 }
 
 func Init(ctx context.Context) error {
-	logic.Init()
-
 	db.MongoUse(flag.IID + "_account")
 	acc_db.CreateIndex()
 

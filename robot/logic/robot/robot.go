@@ -2,7 +2,7 @@ package robot
 
 import (
 	"fmt"
-	"server/account/logic/auth"
+	"server/account/auth"
 	"server/pkg/crypt/dh"
 	"server/pkg/pb"
 	"server/pkg/pb/msgid"

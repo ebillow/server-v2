@@ -27,8 +27,14 @@ func ParseFloat[T constraints.Float](s string) (T, error) {
 
 // ParseInt 字符串转整数
 // 不经过 float64 转换，避免大整数（如雪花 ID）精度丢失
-func ParseInt[T constraints.Integer](s string) (T, error) {
+func ParseInt[T constraints.Signed](s string) (T, error) {
 	n, err := strconv.ParseInt(s, 10, 64)
+	return T(n), err
+}
+
+// ParseUint 字符串转无符号整数
+func ParseUint[T constraints.Unsigned](s string) (T, error) {
+	n, err := strconv.ParseUint(s, 10, 64)
 	return T(n), err
 }
 
@@ -38,39 +44,65 @@ func ParseBool(s string) (bool, error) {
 }
 
 // ParseIntDef 字符串转整数，失败返回默认值
-func ParseIntDef[T constraints.Integer](s string) T {
-	var zero T
+func ParseIntDef[T constraints.Signed](s string, def ...T) T {
+	var defaultVal T
+	if len(def) > 0 {
+		defaultVal = def[0]
+	}
 	if s == "" {
-		return zero
+		return defaultVal
 	}
 	n, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return zero
+		return defaultVal
 	}
 	return T(n)
 }
 
-// ParseFloatDef 字符串转浮点数，失败返回默认值
-func ParseFloatDef[T constraints.Float](s string) T {
-	var zero T
+// ParseUintDef 字符串转无符号整数，失败返回默认值(未传则返回0)
+func ParseUintDef[T constraints.Unsigned](s string, def ...T) T {
+	var defaultVal T
+	if len(def) > 0 {
+		defaultVal = def[0]
+	}
 	if s == "" {
-		return zero
+		return defaultVal
+	}
+	n, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return defaultVal
+	}
+	return T(n)
+}
+
+// ParseFloatDef 字符串转浮点数，失败返回默认值(未传则返回0)
+func ParseFloatDef[T constraints.Float](s string, def ...T) T {
+	var defaultVal T
+	if len(def) > 0 {
+		defaultVal = def[0]
+	}
+	if s == "" {
+		return defaultVal
 	}
 	n, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		return zero
+		return defaultVal
 	}
 	return T(n)
 }
 
-// ParseBoolDef 字符串转布尔，失败返回默认值
-func ParseBoolDef(s string) bool {
+// ParseBoolDef 字符串转布尔，失败返回默认值(未传则返回false)
+func ParseBoolDef(s string, def ...bool) bool {
+	defaultVal := false
+	if len(def) > 0 {
+		defaultVal = def[0]
+	}
 	if s == "" {
-		return false
+		return defaultVal
 	}
 	v, err := strconv.ParseBool(s)
 	if err != nil {
-		return true
+		return defaultVal
 	}
 	return v
 }

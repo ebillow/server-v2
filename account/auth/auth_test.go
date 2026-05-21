@@ -95,7 +95,7 @@ func TestLoginRedisExpire(t *testing.T) {
 			if err != nil && err != redis.Nil {
 				t.Fatal("redis get fail")
 			}
-			db.Redis.Del(ctx, model.KeyAccount(util.ParseIntDef[uint64](accID)))
+			db.Redis.Del(ctx, model.KeyAccount(util.ParseUintDef(accID, uint64(0))))
 		}
 		if util.Happen(5000) {
 			db.Redis.Del(ctx, keyBind)
