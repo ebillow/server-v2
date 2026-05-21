@@ -76,7 +76,7 @@ func inject() {
 }
 
 func OnServerMsg(ctx gctx.Context) {
-	if ctx.ActorID > uint64(pb.ActorID_IDAccBegin) {
+	if ctx.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
 		err := role.Mgr.Dispatch(ctx.ActorID, role.Event{
 			Ctx: ctx,
 		})
@@ -86,7 +86,7 @@ func OnServerMsg(ctx gctx.Context) {
 		return
 	}
 
-	if ctx.ActorID > 0 {
+	if ctx.ActorID > 0 { // 服务器发来的公共模块消息
 		err := app.Actors.Post(ctx.ActorID, app.Event{Ctx: ctx})
 		if err != nil {
 			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("actor", ctx.ActorID), zap.String("actor", pb.ActorID_name[int32(ctx.ActorID)]))
@@ -94,7 +94,7 @@ func OnServerMsg(ctx gctx.Context) {
 		return
 	}
 
-	if ctx.SesID != 0 {
+	if ctx.SesID != 0 { // 客户端消息
 		err := role.Mgr.DispatchBySesID(ctx.SesID, role.Event{
 			Ctx: ctx,
 		})

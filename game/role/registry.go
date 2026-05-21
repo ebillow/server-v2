@@ -12,6 +12,7 @@ import (
 )
 
 const shardCount = 64
+const tickTime = 3
 
 type meta struct {
 	events *queue.SwapQueue[Event]
@@ -55,17 +56,27 @@ func NewRegistry() *Registry {
 }
 
 func Run(ctx context.Context) {
-	t := time.NewTicker(time.Second * 5)
-	t10 := time.NewTicker(time.Second * 3)
+	const totalTickCycle = tickTime * time.Second
+	tickerDuration := totalTickCycle / time.Duration(shardCount)
+
+	t := time.NewTicker(tickerDuration)
+	tUpLoad := time.NewTicker(time.Second * 3)
 	defer func() {
 		t.Stop()
-		t10.Stop()
+		tUpLoad.Stop()
 	}()
+
+	curTick := 0
+
 	for {
 		select {
 		case now := <-t.C:
-			Mgr.onTick(now)
-		case <-t10.C:
+			Mgr.onTick(now, curTick)
+			curTick++
+			if curTick >= shardCount {
+				curTick = 0
+			}
+		case <-tUpLoad.C:
 			discovery.UpdateLoad(int32(Mgr.Count()))
 		case <-ctx.Done():
 			return
@@ -146,15 +157,14 @@ func (m *Registry) Unregister(roleID uint64, sesID uint64) {
 	}
 }
 
-func (m *Registry) onTick(now time.Time) {
+func (m *Registry) onTick(now time.Time, shardIdx int) {
 	var metas []meta
-	for _, shard := range m.roleShards {
-		shard.mtx.RLock()
-		for _, v := range shard.roles {
-			metas = append(metas, v)
-		}
-		shard.mtx.RUnlock() // 尽早释放当前分片的读锁
+	shard := m.roleShards[shardIdx]
+	shard.mtx.RLock()
+	for _, v := range shard.roles {
+		metas = append(metas, v)
 	}
+	shard.mtx.RUnlock() // 尽早释放当前分片的读锁
 
 	for _, v := range metas {
 		err := v.events.PushAndWake(Event{Func: func(r *Role) {

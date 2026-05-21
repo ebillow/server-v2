@@ -164,6 +164,7 @@ func (r *Role) Online() {
 	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
+		SesID:  r.SesID,
 		Login:  true,
 	}, pb.ActorID_IDGlobal)
 	for _, v := range r.Comps {

@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const shardCount = 1024
+const shardCount = 640
 
 var (
 	roleShards = make([]*roleShard, shardCount)
