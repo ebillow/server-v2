@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/ip2location/ip2location-go/v9"
+	"go.uber.org/zap"
 )
 
 var ip2locationDB *ip2location.DB
