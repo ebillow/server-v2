@@ -2,7 +2,7 @@ package js
 
 import (
 	"context"
-	"server/pkg/pb"
+	"server/api/pb"
 	"strings"
 	"time"
 

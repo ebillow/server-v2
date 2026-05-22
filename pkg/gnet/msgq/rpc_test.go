@@ -2,11 +2,11 @@ package msgq
 
 import (
 	"os"
+	pb2 "server/api/pb"
+	"server/api/pb/msgid"
 	"server/pkg/cfg"
 	"server/pkg/gnet/gctx"
 	"server/pkg/logger"
-	"server/pkg/pb"
-	"server/pkg/pb/msgid"
 	"testing"
 	"time"
 
@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 		Console: true,
 	})
 
-	err := Q.Init("nats://localhost:4222,nats://localhost:4222", pb.Server_Game, 1, nats.UserInfo("123456", "123456"))
+	err := Q.Init("nats://localhost:4222,nats://localhost:4222", pb2.Server_Game, 1, nats.UserInfo("123456", "123456"))
 	if err != nil {
 		panic(err)
 	}
@@ -32,13 +32,13 @@ func TestMain(m *testing.M) {
 }
 
 func SrvRpc() {
-	data := pb.S2SReqLogin{}
+	data := pb2.S2SReqLogin{}
 	err := Q.Serve(func(ctx gctx.Context) {
 		err := proto.Unmarshal(ctx.Data, &data)
 		// zap.L().Info("msg recv", zap.Any("msg", &data))
-		err = RpcRespond(ctx.Raw, &pb.S2SResLogin{
+		err = RpcRespond(ctx.Raw, &pb2.S2SResLogin{
 			GameID: 111,
-			Res: &pb.S2CLogin{
+			Res: &pb2.S2CLogin{
 				Token: data.Seq,
 			},
 		})
@@ -55,13 +55,13 @@ func SrvRpc() {
 func TestRpcCall(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		token := uint32(i * 10)
-		ack := pb.S2SResLogin{}
-		err := RpcCall(&Q, uint32(msgid.MsgIDS2S_S2SReqLogin), &pb.S2SReqLogin{
+		ack := pb2.S2SResLogin{}
+		err := RpcCall(&Q, uint32(msgid.MsgIDS2S_S2SReqLogin), &pb2.S2SReqLogin{
 			SesID:       1,
 			RoleID:      1,
 			ReConnToken: 1231231,
 			Seq:         token,
-		}, &ack, pb.Server_Game, 1, 1, 0, time.Millisecond*500)
+		}, &ack, pb2.Server_Game, 1, 1, 0, time.Millisecond*500)
 		require.NoError(t, err)
 		require.Equal(t, ack.Res.Token, token)
 		// t.Log(ack)

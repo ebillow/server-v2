@@ -2,9 +2,9 @@ package msgq
 
 import (
 	"encoding/binary"
+	"server/api/pb"
 	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
-	"server/pkg/pb"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"

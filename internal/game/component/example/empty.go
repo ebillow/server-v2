@@ -1,0 +1,24 @@
+package example
+
+import (
+	"server/internal/game/role"
+)
+
+type Empty struct {
+	cur int32
+	tmp map[int32]bool
+}
+
+func NewEmpty(r *role.Role) *Empty {
+	return &Empty{
+		tmp: make(map[int32]bool),
+	}
+}
+
+func (d *Empty) IsDirty() bool {
+	return false
+}
+
+func (d *Empty) ClearDirty() {
+
+}

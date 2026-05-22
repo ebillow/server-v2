@@ -3,7 +3,7 @@ package gerror
 import (
 	"errors"
 	"fmt"
-	"server/pkg/pb"
+	"server/api/pb"
 )
 
 type CodeErr struct {

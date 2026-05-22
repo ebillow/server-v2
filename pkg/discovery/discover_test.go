@@ -3,10 +3,10 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"server/api/pb"
 	"server/pkg/db"
 	"server/pkg/flag"
 	"server/pkg/logger"
-	"server/pkg/pb"
 	"sync"
 	"testing"
 	"time"

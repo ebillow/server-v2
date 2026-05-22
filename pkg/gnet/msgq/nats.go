@@ -2,8 +2,8 @@ package msgq
 
 import (
 	"errors"
+	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/pb"
 	"strconv"
 	"sync"
 	"time"

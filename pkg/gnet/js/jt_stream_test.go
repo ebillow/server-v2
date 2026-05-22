@@ -3,9 +3,9 @@ package js
 import (
 	"context"
 	"fmt"
+	"server/api/pb"
+	"server/api/pb/msgid"
 	"server/pkg/gnet/gctx"
-	"server/pkg/pb"
-	"server/pkg/pb/msgid"
 	"strings"
 	"sync"
 	"sync/atomic"

@@ -3,7 +3,7 @@ package flag
 import (
 	"log"
 	"os"
-	"server/pkg/pb"
+	"server/api/pb"
 	"strconv"
 	"strings"
 

@@ -2,9 +2,10 @@ package flag
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"server/pkg/pb"
+	"server/api/pb"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSrvName(t *testing.T) {

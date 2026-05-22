@@ -2,7 +2,7 @@ package msgq
 
 import (
 	"log"
-	"server/pkg/pb"
+	"server/api/pb"
 	"server/pkg/util"
 	"strconv"
 	"strings"

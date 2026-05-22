@@ -1,8 +1,8 @@
 package gctx
 
 import (
+	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/pb"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap/zapcore"

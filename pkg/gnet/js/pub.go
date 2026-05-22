@@ -2,8 +2,8 @@ package js
 
 import (
 	"encoding/binary"
+	"server/api/pb"
 	"server/pkg/gnet/gctx"
-	"server/pkg/pb"
 	"server/pkg/thread"
 	"sync"
 	"time"

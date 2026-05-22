@@ -9,7 +9,7 @@ import (
 	"bytes"
 	"go/format"
 	"os"
-	"server/pkg/pb/msgid"
+	msgid2 "server/api/pb/msgid"
 	"sort"
 	"text/template"
 )
@@ -45,7 +45,7 @@ package pb
 
 import (
 	"google.golang.org/protobuf/proto"
-	"server/pkg/pb/msgid"
+	"server/api/pb/msgid"
 	"reflect"
 )
 
@@ -84,9 +84,9 @@ func registerAllS2SMsg()  {
 	}
 
 	tmpData := &TempData{
-		C2S: getNodes(msgid.MsgIDC2S_name),
-		S2C: getNodes(msgid.MsgIDS2C_name),
-		S2S: getNodes(msgid.MsgIDS2S_name),
+		C2S: getNodes(msgid2.MsgIDC2S_name),
+		S2C: getNodes(msgid2.MsgIDS2C_name),
+		S2S: getNodes(msgid2.MsgIDS2S_name),
 	}
 	buff := bytes.NewBuffer(nil)
 	if err := tmpl.Execute(buff, tmpData); err != nil {

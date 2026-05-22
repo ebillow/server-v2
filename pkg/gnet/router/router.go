@@ -1,7 +1,7 @@
 package router
 
 import (
-	"server/pkg/pb/msgid"
+	"server/api/pb/msgid"
 )
 
 var (

@@ -3,8 +3,8 @@ package save_proto
 import (
 	"context"
 	"os"
+	"server/api/pb"
 	"server/pkg/db"
-	"server/pkg/pb"
 	"testing"
 	"time"
 

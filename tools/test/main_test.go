@@ -1,11 +1,12 @@
 package test
 
 import (
-	"go.uber.org/zap"
+	"server/api/pb/msgid"
 	"server/pkg/logger"
-	"server/pkg/pb/msgid"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 func TestMain(m *testing.M) {

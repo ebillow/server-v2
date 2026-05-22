@@ -1,7 +1,7 @@
 package gerror
 
 import (
-	"server/pkg/pb"
+	"server/api/pb"
 
 	crerr "github.com/cockroachdb/errors"
 )

@@ -2,8 +2,8 @@ package msgq
 
 import (
 	"encoding/binary"
+	"server/api/pb"
 	"server/pkg/gerror"
-	"server/pkg/pb"
 	"time"
 
 	"github.com/nats-io/nats.go"

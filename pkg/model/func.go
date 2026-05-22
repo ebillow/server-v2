@@ -1,6 +1,8 @@
 package model
 
-import "server/pkg/pb"
+import (
+	"server/api/pb"
+)
 
 func GetRoleID(accID uint64) uint64 {
 	return accID

@@ -1,12 +1,12 @@
 package router
 
 import (
-	"server/game/role"
+	"server/api/pb"
+	"server/api/pb/msgid"
+	"server/internal/game/role"
 	"server/pkg/flag"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/trace"
-	"server/pkg/pb"
-	"server/pkg/pb/msgid"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"

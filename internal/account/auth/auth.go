@@ -1,0 +1,364 @@
+package auth
+
+import (
+	"context"
+	"errors"
+	"math/rand"
+	pb2 "server/api/pb"
+	"server/internal/account/sdk"
+	"server/pkg/db"
+	"server/pkg/gnet"
+	"server/pkg/model"
+	"server/pkg/thread"
+	"server/pkg/util"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.uber.org/zap"
+)
+
+const (
+	LoginCD    = 3
+	LoadThread = 3
+)
+
+type Op int
+
+const (
+	OpLogin Op = iota
+	OpAfterSDKCheck
+	OpRoleClear
+	OpLoginFail
+)
+
+type Event struct {
+	Op    Op
+	Login *pb2.S2SReqLogin
+	Acc   *Account
+	Clear *pb2.S2SRoleClear
+	Code  pb2.LoginCode
+}
+
+var (
+	evt         = make(chan Event, 4096)
+	loading     *AccountLoader
+	tokenBucket = TokenBucketMax
+	LastRunTime int64
+	loginTime   = make(map[string]int64)
+	curAccID    atomic.Uint64
+)
+
+func Start(ctx context.Context) {
+	accID, err := GetCurAccID(ctx)
+	if err != nil {
+		zap.L().Error("get max account id", zap.Error(err))
+		return
+	}
+	curAccID.Store(accID)
+	zap.L().Info("account id:", zap.Uint64("max account", accID))
+
+	loading = newLoader()
+
+	for i := 0; i < LoadThread; i++ {
+		thread.GoSafe(func() {
+			loading.run(ctx)
+		})
+	}
+	thread.GoSafe(func() {
+		t := time.NewTicker(time.Minute)
+		tFillBucket := time.NewTicker(time.Millisecond * 200)
+		defer func() {
+			zap.S().Debug("stop Login mgr run")
+			t.Stop()
+		}()
+
+		for {
+			select {
+			case e := <-evt:
+				onEvent(e)
+			case now := <-t.C:
+				atomic.StoreInt64(&LastRunTime, now.Unix())
+				checkTimeout(now.Unix())
+			case <-tFillBucket.C:
+				refillTokenBucket()
+			case <-ctx.Done():
+				return
+			}
+		}
+	})
+}
+
+func PushToLoader(data *pb2.S2SReqLogin) {
+	loading.loading <- data
+}
+
+func PostEvt(e Event) {
+	evt <- e
+}
+
+func Login(req *pb2.S2SReqLogin) {
+	if util.Debug {
+		debugWait.Add(1)
+	}
+
+	zap.L().Debug("login req:", zap.Reflect("req", req))
+
+	PostEvt(Event{
+		Op:    OpLogin,
+		Login: req,
+	})
+}
+
+func onEvent(e Event) {
+	defer func() {
+		if err := recover(); err != nil {
+			thread.PrintStack("Login event:", err)
+		}
+	}()
+
+	switch e.Op {
+	case OpLogin:
+		login(e.Login)
+	case OpAfterSDKCheck:
+		AfterSDKCheck(e.Acc, e.Login)
+	case OpLoginFail:
+		loginFail(e.Login, e.Code)
+	case OpRoleClear:
+		onRoleLogout(model.GetAccID(e.Clear.RoleID), e.Clear.Seq)
+	default:
+	}
+}
+
+func tryConsumeTokenBucket() bool {
+	if tokenBucket < 1 {
+		return false
+	} else {
+		tokenBucket--
+		return true
+	}
+}
+
+const TokenBucketMax = int32(5000)
+
+func refillTokenBucket() {
+	tokenBucket += TokenBucketMax / 5
+	if tokenBucket > TokenBucketMax {
+		tokenBucket = TokenBucketMax
+	}
+}
+
+func checkTimeout(now int64) {
+	const MaxCount = 1000
+	cnt := 0
+	for k, v := range loginTime {
+		cnt++
+		if cnt >= MaxCount {
+			return
+		}
+		if now-v > LoginCD*2 {
+			delete(loginTime, k)
+		}
+	}
+}
+
+func login(req *pb2.S2SReqLogin) {
+	if code := canSdkCheck(req); code != pb2.LoginCode_LCSuccess {
+		PostEvt(Event{
+			Op:    OpLoginFail,
+			Code:  code,
+			Login: req,
+		})
+		return
+	}
+	sdkCheck(req)
+}
+
+func canSdkCheck(req *pb2.S2SReqLogin) pb2.LoginCode {
+	if util.Debug {
+		debugAcc[FormatAccKey(req.Req.SdkType, req.Req.Account)] = &debugCheck{
+			AccID: debugGetAccID(req.Req.Account, req.Req.SdkType),
+			Ok:    false,
+		}
+	}
+
+	if req.Req.Account == "" {
+		return pb2.LoginCode_LCAccountEmpty
+	}
+
+	if !tryConsumeTokenBucket() {
+		return pb2.LoginCode_LCServerBusy
+	}
+
+	req.Req.Account = FormatAccKey(req.Req.SdkType, req.Req.Account)
+
+	now := time.Now().Unix()
+	if now-loginTime[req.Req.Account] < LoginCD {
+		return pb2.LoginCode_LCCD
+	}
+
+	// 白名单
+
+	loginTime[req.Req.Account] = now
+	return pb2.LoginCode_LCSuccess
+}
+
+func sdkCheck(req *pb2.S2SReqLogin) {
+	var s = sdk.CreateSdk(req.Req.SdkType)
+	if s == nil {
+		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkType, req.Req.String())
+		PostEvt(Event{
+			Op:    OpLoginFail,
+			Code:  pb2.LoginCode_LCSDKErr,
+			Login: req,
+		})
+	}
+
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				thread.PrintStack("Login check err:", err, req.Req.String())
+				PostEvt(Event{
+					Op:    OpLoginFail,
+					Code:  pb2.LoginCode_LCSdkCheckFaild,
+					Login: req,
+				})
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+
+		err := s.Login(ctx, req.Req)
+		if err != nil {
+			PostEvt(Event{
+				Op:    OpLoginFail,
+				Code:  pb2.LoginCode_LCSdkCheckFaild,
+				Login: req,
+			})
+			return
+		}
+
+		PushToLoader(req)
+	}()
+}
+
+func afterSDKCheck(acc *Account, req *pb2.S2SReqLogin) pb2.LoginCode {
+	// if data.Freeze { // 封号了
+	// 	if data.FreezeEndTime == 0 || (data.FreezeEndTime > 0 && data.FreezeEndTime >= util.GetNowTimeS()) {
+	// 		network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCFreeze, Login: loginReq, RetDesc: util.ToString(data.FreezeEndTime)})
+	// 		return
+	// 	}
+	// }
+	// if data.BindDev != "" && (loginReq.CliInfo == nil || data.BindDev != loginReq.CliInfo.DevID) { // 绑定设备
+	// 	network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCBindDev, Login: loginReq})
+	// 	return
+	// }
+	if req.Req.Reconnect && acc.Passwd != 0 && req.ReConnToken != acc.Passwd {
+		return pb2.LoginCode_LCCanNotReConn
+	}
+	now := time.Now().Unix()
+	gameID, code := chooseGame(acc.GameID, 0)
+	if code != pb2.LoginCode_LCSuccess {
+		return code
+	}
+
+	acc.Time = now
+	if acc.Passwd == 0 {
+		acc.Passwd = rand.Uint64()
+	}
+
+	acc.Seq++
+	acc.GameID = gameID
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	err := acc.SaveLoginData(ctx)
+	if err != nil {
+		zap.S().Warnf("save acc Login data err:%v", err)
+		return pb2.LoginCode_LCServerErr
+	}
+
+	req.RoleID = model.GetRoleID(acc.AccID)
+	req.ReConnToken = acc.Passwd
+	req.Seq = acc.Seq
+
+	return pb2.LoginCode_LCSuccess
+}
+
+func AfterSDKCheck(acc *Account, req *pb2.S2SReqLogin) {
+	zap.L().Debug("loading finish", zap.Any("req", req), zap.Any("acc", acc))
+	if acc == nil { // 加载失败
+		loginFail(req, pb2.LoginCode_LCServerErr)
+		return
+	}
+
+	if util.Debug {
+		if !DebugCheck(acc, req) {
+			debugWait.Done()
+			return
+		}
+		debugWait.Done()
+	}
+
+	if code := afterSDKCheck(acc, req); code != pb2.LoginCode_LCSuccess {
+		loginFail(req, code)
+	} else {
+		req.ConnectedAcc = append(req.ConnectedAcc, acc.Device) // todo发送所有已绑定
+		gnet.SendToGame(acc.GameID, req, 0, 0)
+		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
+	}
+}
+
+func loginFail(req *pb2.S2SReqLogin, code pb2.LoginCode) {
+	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
+	gnet.SendToRole(&pb2.S2CLogin{Code: code}, req.SesID, 0)
+}
+
+type debugCheck struct {
+	AccID uint64
+	Ok    bool
+}
+
+var debugAcc = make(map[string]*debugCheck)
+var debugWait sync.WaitGroup
+
+func DebugCheck(acc *Account, req *pb2.S2SReqLogin) bool {
+	chk, ok := debugAcc[req.Req.Account]
+	if !ok {
+		zap.L().Error("not exist", zap.Any("req", req))
+	}
+	if chk.AccID == 0 {
+		chk.AccID = debugGetAccID(req.Req.Account, req.Req.SdkType)
+	}
+	if chk.AccID != acc.AccID {
+		zap.L().Panic("not match", zap.Any("req", req), zap.Any("acc", acc), zap.Any("real", chk))
+		return false
+	}
+	chk.Ok = true
+	return true
+}
+
+func debugGetAccID(account string, sdk pb2.SdkType) uint64 {
+	acc := Account{}
+
+	filter := bson.M{acc.FieldDevice(): account}
+	switch sdk {
+	case pb2.SdkType_Google:
+		filter = bson.M{acc.FieldGoogleID(): account}
+	case pb2.SdkType_Apple:
+		filter = bson.M{acc.FieldAppleID(): account}
+	case pb2.SdkType_Facebook:
+		filter = bson.M{acc.FieldFBID(): account}
+	default:
+
+	}
+	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(context.Background(), filter).Decode(&acc)
+	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
+		zap.L().Error("find account err", zap.Error(err))
+		return 0
+	}
+	return acc.AccID
+}

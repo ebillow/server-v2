@@ -2,8 +2,8 @@ package msgq
 
 import (
 	"encoding/binary"
+	"server/api/pb"
 	"server/pkg/gnet/gctx"
-	"server/pkg/pb"
 	"sync"
 	"time"
 

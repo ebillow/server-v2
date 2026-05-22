@@ -3,8 +3,8 @@ package js
 import (
 	"context"
 	"fmt"
+	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/pb"
 	"strconv"
 	"sync"
 	"time"

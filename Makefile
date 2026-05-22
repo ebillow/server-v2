@@ -5,7 +5,7 @@ export GO111MODULE=on
 .DEFAULT_GOAL := build
 
 # Source directory
-SOURCEDIR ?= .
+SOURCEDIR ?= ./cmd
 
 # Output directory
 OUT=./bin
@@ -21,7 +21,7 @@ APPS := $(shell \
     if [ $$found -eq 1 ]; then basename "$$d"; fi; \
   done \
 )
-APPS := $(sort $(filter-out test bin pkg tool, $(APPS)))
+APPS := $(sort $(filter-out test, $(APPS)))
 
 # 调试用：打印 APPS
 .PHONY: print-apps
@@ -46,11 +46,12 @@ $(OUT):
 # 编译
 .PHONY: build
 build: | $(OUT)
-	go build -ldflags="-s -w $(versionFlags)" -trimpath -v -o /dev/null $(foreach app,$(APPS),./$(app))
+	go build -ldflags="-s -w $(versionFlags)" -trimpath -v -o /dev/null $(foreach app,$(APPS),$(SOURCEDIR)/$(app))
 
+#逃逸分析
 .PHONY: escape
 escape: | $(OUT)
-	go build -gcflags="-m" -o /dev/null $(foreach app,$(APPS),./$(app))
+	go build -gcflags="-m" -o /dev/null $(foreach app,$(APPS),$(SOURCEDIR)/$(app))
 
 .PHONY: FORCE
 FORCE:
