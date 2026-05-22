@@ -233,7 +233,7 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 
 	r.s.U = r
 	r.ReconnToken = msg.Token
-	rawAcc := auth.RealAcc(pb.SdkType_Guest, r.acc)
+	rawAcc := auth.FormatAccKey(pb.SdkType_Guest, r.acc)
 	if !slices.Contains(msg.ConnectAcc, rawAcc) {
 		panic("connect acc not exist")
 	}

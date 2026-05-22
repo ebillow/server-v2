@@ -13,22 +13,22 @@ import (
 	"go.uber.org/zap"
 )
 
-type loader struct {
+type AccountLoader struct {
 	loading chan *pb.S2SReqLogin
 }
 
-func newLoader() *loader {
-	return &loader{
+func newLoader() *AccountLoader {
+	return &AccountLoader{
 		loading: make(chan *pb.S2SReqLogin, 4096),
 	}
 }
 
-func (l *loader) post(op *pb.S2SReqLogin) {
+func (l *AccountLoader) push(op *pb.S2SReqLogin) {
 	zap.L().Debug("start load", zap.Any("op", op))
 	l.loading <- op
 }
 
-func (l *loader) run(ctx context.Context) {
+func (l *AccountLoader) run(ctx context.Context) {
 	const (
 		batchSize     = 500
 		flushInterval = 50 * time.Millisecond
@@ -63,7 +63,7 @@ func (l *loader) run(ctx context.Context) {
 	}
 }
 
-func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
+func (l *AccountLoader) loadBatch(batch []*pb.S2SReqLogin) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// ctx := context.Background()
@@ -105,7 +105,7 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 				acc := &Account{}
 				err = c.Scan(acc)
 				if err == nil && acc.AccID > 0 {
-					PostEvt(EvtParam{
+					PostEvt(Event{
 						Op:    OpAfterSDKCheck,
 						Login: batch[i],
 						Acc:   acc,
@@ -124,7 +124,7 @@ func (l *loader) loadBatch(batch []*pb.S2SReqLogin) {
 	}
 }
 
-func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
+func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 	type Tmp struct {
 		accs  []string
 		batch []*pb.S2SReqLogin
@@ -155,7 +155,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 	}
 }
 
-func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
+func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
 	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -188,7 +188,7 @@ func (l *loader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch 
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
-			PostEvt(EvtParam{
+			PostEvt(Event{
 				Op:    OpAfterSDKCheck,
 				Login: op,
 				Acc:   r,
@@ -212,7 +212,7 @@ type accWrap struct {
 	Acc     *Account
 }
 
-func (l *loader) updateBatch(ctx context.Context, batch []accWrap) {
+func (l *AccountLoader) updateBatch(ctx context.Context, batch []accWrap) {
 	const expiration = time.Hour * 24 * 7
 	pipe := db.Redis.Pipeline()
 	for _, b := range batch {
@@ -235,7 +235,7 @@ func (l *loader) updateBatch(ctx context.Context, batch []accWrap) {
 	}
 }
 
-func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
+func (l *AccountLoader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 	accBat := make([]*Account, 0, len(batch))
 	pipe := db.Redis.Pipeline()
 	const expiration = time.Hour * 24 * 7
@@ -284,7 +284,7 @@ func (l *loader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 		// mongo已经成功，下次会从mongo加载
 	}
 	for i := range accBat {
-		PostEvt(EvtParam{
+		PostEvt(Event{
 			Op:    OpAfterSDKCheck,
 			Login: batch[i],
 			Acc:   accBat[i],

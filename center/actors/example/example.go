@@ -32,5 +32,4 @@ func (e *Example) Exit() {
 }
 
 func OnTest(ctx gctx.Context, msgBase proto.Message) {
-
 }

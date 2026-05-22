@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func gameExist(gameID uint8) bool {
+func gameExists(gameID uint8) bool {
 	return discovery.Exists(flag.SrvName(pb.Server_Game), int32(gameID))
 }
 
@@ -22,9 +22,9 @@ func randGameID(world uint32) (uint8, pb.LoginCode) {
 	return uint8(id), pb.LoginCode_LCSuccess
 }
 
-func choseGame(lastGameID uint8, world uint32) (uint8, pb.LoginCode) {
+func chooseGame(lastGameID uint8, world uint32) (uint8, pb.LoginCode) {
 	if lastGameID != 0 { // 已登录过
-		if gameExist(lastGameID) {
+		if gameExists(lastGameID) {
 			return lastGameID, pb.LoginCode_LCSuccess
 		}
 	}

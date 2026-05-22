@@ -33,7 +33,7 @@ type AccBind struct {
 	AccID   uint64 `redis:"acc_id"`
 }
 
-func RealAcc(typ pb.SdkType, acc string) string {
+func FormatAccKey(typ pb.SdkType, acc string) string {
 	return fmt.Sprintf("%d@%s", typ, acc)
 }
 

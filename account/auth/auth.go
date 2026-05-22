@@ -34,7 +34,7 @@ const (
 	OpLoginFail
 )
 
-type EvtParam struct {
+type Event struct {
 	Op    Op
 	Login *pb.S2SReqLogin
 	Acc   *Account
@@ -43,8 +43,8 @@ type EvtParam struct {
 }
 
 var (
-	evt         = make(chan EvtParam, 4096)
-	loading     *loader
+	evt         = make(chan Event, 4096)
+	loading     *AccountLoader
 	tokenBucket = TokenBucketMax
 	LastRunTime int64
 	loginTime   = make(map[string]int64)
@@ -78,7 +78,7 @@ func Start(ctx context.Context) {
 		for {
 			select {
 			case e := <-evt:
-				onEvent(ctx, e)
+				onEvent(e)
 			case now := <-t.C:
 				atomic.StoreInt64(&LastRunTime, now.Unix())
 				checkTimeout(now.Unix())
@@ -91,11 +91,11 @@ func Start(ctx context.Context) {
 	})
 }
 
-func PostLoading(data *pb.S2SReqLogin) {
+func PushToLoader(data *pb.S2SReqLogin) {
 	loading.loading <- data
 }
 
-func PostEvt(e EvtParam) {
+func PostEvt(e Event) {
 	evt <- e
 }
 
@@ -106,13 +106,13 @@ func Login(req *pb.S2SReqLogin) {
 
 	zap.L().Debug("login req:", zap.Reflect("req", req))
 
-	PostEvt(EvtParam{
+	PostEvt(Event{
 		Op:    OpLogin,
 		Login: req,
 	})
 }
 
-func onEvent(ctx context.Context, e EvtParam) {
+func onEvent(e Event) {
 	defer func() {
 		if err := recover(); err != nil {
 			thread.PrintStack("Login event:", err)
@@ -121,7 +121,7 @@ func onEvent(ctx context.Context, e EvtParam) {
 
 	switch e.Op {
 	case OpLogin:
-		login(ctx, e.Login)
+		login(e.Login)
 	case OpAfterSDKCheck:
 		AfterSDKCheck(e.Acc, e.Login)
 	case OpLoginFail:
@@ -164,21 +164,21 @@ func checkTimeout(now int64) {
 	}
 }
 
-func login(ctx context.Context, req *pb.S2SReqLogin) {
+func login(req *pb.S2SReqLogin) {
 	if code := canSdkCheck(req); code != pb.LoginCode_LCSuccess {
-		PostEvt(EvtParam{
+		PostEvt(Event{
 			Op:    OpLoginFail,
 			Code:  code,
 			Login: req,
 		})
 		return
 	}
-	sdkCheck(ctx, req)
+	sdkCheck(req)
 }
 
 func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 	if util.Debug {
-		debugAcc[RealAcc(req.Req.SdkType, req.Req.Account)] = &debugCheck{
+		debugAcc[FormatAccKey(req.Req.SdkType, req.Req.Account)] = &debugCheck{
 			AccID: debugGetAccID(req.Req.Account, req.Req.SdkType),
 			Ok:    false,
 		}
@@ -192,7 +192,7 @@ func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 		return pb.LoginCode_LCServerBusy
 	}
 
-	req.Req.Account = RealAcc(req.Req.SdkType, req.Req.Account)
+	req.Req.Account = FormatAccKey(req.Req.SdkType, req.Req.Account)
 
 	now := time.Now().Unix()
 	if now-loginTime[req.Req.Account] < LoginCD {
@@ -205,11 +205,11 @@ func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 	return pb.LoginCode_LCSuccess
 }
 
-func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
+func sdkCheck(req *pb.S2SReqLogin) {
 	var s = sdk.CreateSdk(req.Req.SdkType)
 	if s == nil {
 		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkType, req.Req.String())
-		PostEvt(EvtParam{
+		PostEvt(Event{
 			Op:    OpLoginFail,
 			Code:  pb.LoginCode_LCSDKErr,
 			Login: req,
@@ -220,7 +220,7 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 		defer func() {
 			if err := recover(); err != nil {
 				thread.PrintStack("Login check err:", err, req.Req.String())
-				PostEvt(EvtParam{
+				PostEvt(Event{
 					Op:    OpLoginFail,
 					Code:  pb.LoginCode_LCSdkCheckFaild,
 					Login: req,
@@ -228,9 +228,12 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 			}
 		}()
 
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+
 		err := s.Login(ctx, req.Req)
 		if err != nil {
-			PostEvt(EvtParam{
+			PostEvt(Event{
 				Op:    OpLoginFail,
 				Code:  pb.LoginCode_LCSdkCheckFaild,
 				Login: req,
@@ -238,7 +241,7 @@ func sdkCheck(ctx context.Context, req *pb.S2SReqLogin) {
 			return
 		}
 
-		PostLoading(req)
+		PushToLoader(req)
 	}()
 }
 
@@ -257,7 +260,7 @@ func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 		return pb.LoginCode_LCCanNotReConn
 	}
 	now := time.Now().Unix()
-	gameID, code := choseGame(acc.GameID, 0)
+	gameID, code := chooseGame(acc.GameID, 0)
 	if code != pb.LoginCode_LCSuccess {
 		return code
 	}

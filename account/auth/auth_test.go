@@ -89,7 +89,7 @@ func TestLoginBatch(t *testing.T) {
 func TestLoginRedisExpire(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 10000; i++ {
-		keyBind := model.KeyAccBind(RealAcc(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
+		keyBind := model.KeyAccBind(FormatAccKey(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
 		if util.Happen(5000) {
 			accID, err := db.Redis.Get(ctx, keyBind).Result()
 			if err != nil && err != redis.Nil {
