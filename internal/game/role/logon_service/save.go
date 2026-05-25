@@ -2,8 +2,8 @@ package logon_service
 
 import (
 	"context"
+	"server/internal/share/model"
 	"server/pkg/db"
-	"server/pkg/model"
 	"sync"
 	"time"
 

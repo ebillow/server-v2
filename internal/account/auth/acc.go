@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"server/api/pb"
+	"server/internal/share/model"
 	"server/pkg/db"
-	"server/pkg/model"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	pb2 "server/api/pb"
+	"server/internal/share/model"
 	"server/pkg/db"
-	"server/pkg/model"
 	"time"
 
 	"github.com/redis/go-redis/v9"

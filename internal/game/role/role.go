@@ -3,11 +3,11 @@ package role
 import (
 	"context"
 	pb2 "server/api/pb"
+	"server/internal/share/model"
 	"server/pkg/cfg"
 	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/gnet/gctx"
-	"server/pkg/model"
 	"server/pkg/queue"
 	"server/pkg/thread"
 	"server/pkg/util"

@@ -3,12 +3,13 @@ package auth
 import (
 	"context"
 	"errors"
+	"hash/fnv"
 	"math/rand"
 	pb2 "server/api/pb"
 	"server/internal/account/sdk"
+	"server/internal/share/model"
 	"server/pkg/db"
 	"server/pkg/gnet"
-	"server/pkg/model"
 	"server/pkg/thread"
 	"server/pkg/util"
 	"sync"
@@ -44,7 +45,7 @@ type Event struct {
 
 var (
 	evt         = make(chan Event, 4096)
-	loading     *AccountLoader
+	loading     []*AccountLoader
 	tokenBucket = TokenBucketMax
 	LastRunTime int64
 	loginTime   = make(map[string]int64)
@@ -60,11 +61,12 @@ func Start(ctx context.Context) {
 	curAccID.Store(accID)
 	zap.L().Info("account id:", zap.Uint64("max account", accID))
 
-	loading = newLoader()
-
+	loading = make([]*AccountLoader, 0)
 	for i := 0; i < LoadThread; i++ {
+		l := newLoader()
+		loading = append(loading, l)
 		thread.GoSafe(func() {
-			loading.run(ctx)
+			l.run(ctx)
 		})
 	}
 	thread.GoSafe(func() {
@@ -92,7 +94,8 @@ func Start(ctx context.Context) {
 }
 
 func PushToLoader(data *pb2.S2SReqLogin) {
-	loading.loading <- data
+	idx := hashAccount(data.Req.Account) % LoadThread
+	loading[idx].loading <- data
 }
 
 func PostEvt(e Event) {
@@ -135,10 +138,10 @@ func onEvent(e Event) {
 func tryConsumeTokenBucket() bool {
 	if tokenBucket < 1 {
 		return false
-	} else {
-		tokenBucket--
-		return true
 	}
+
+	tokenBucket--
+	return true
 }
 
 const TokenBucketMax = int32(5000)
@@ -310,6 +313,12 @@ func AfterSDKCheck(acc *Account, req *pb2.S2SReqLogin) {
 		gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
 	}
+}
+
+func hashAccount(acc string) uint32 {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(acc))
+	return h.Sum32()
 }
 
 func loginFail(req *pb2.S2SReqLogin, code pb2.LoginCode) {
