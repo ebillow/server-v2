@@ -20,7 +20,7 @@ type Data struct {
 	dirty      bool
 }
 
-func New(r *role.Role) *Data {
+func New(_ *role.Role) *Data {
 	return &Data{}
 }
 
@@ -57,7 +57,7 @@ func (d *Data) Online(r *role.Role) {
 	}
 }
 
-func (d *Data) Offline(r *role.Role) {
+func (d *Data) Offline(_ *role.Role) {
 	d.OfflineCnt++
 	if d.OnlineCnt != d.OfflineCnt {
 		panic("d.OnlineCnt != d.OfflineCnt")

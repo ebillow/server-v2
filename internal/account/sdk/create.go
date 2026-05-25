@@ -2,7 +2,6 @@ package sdk
 
 import (
 	"context"
-	"errors"
 	pb "server/api/pb"
 
 	"go.uber.org/zap"
@@ -13,10 +12,6 @@ import (
 1.CreateSdk函数中new一个对应的实例
 2.实现对应实例的login函数，返回成功或失败
 */
-
-var (
-	errSDKCheckFailed = errors.New("SDK check return failed")
-)
 
 type ISdkLogin interface {
 	Login(ctx context.Context, req *pb.C2SLogin) error

@@ -7,7 +7,6 @@ import (
 	"server/internal/account/auth"
 	clinet2 "server/internal/robot/clinet"
 	"server/pkg/crypt/dh"
-	"server/pkg/util"
 	"slices"
 	"sync/atomic"
 	"time"
@@ -250,6 +249,6 @@ func (r *Robot) IsLoginSuccess() bool {
 
 func (r *Robot) heartBeat(now time.Time) {
 	r.Send(msgid.MsgIDC2S_C2SHeartBeat, &pb.C2SHeartBeat{
-		CliTime: util.GetNowTimeM(),
+		CliTime: now.UnixMilli(),
 	})
 }

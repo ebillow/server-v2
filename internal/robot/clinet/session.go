@@ -13,17 +13,11 @@ import (
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-
-	"google.golang.org/protobuf/proto"
 )
 
 var (
 	sesID           = uint32(1)
 	sendPacketLimit = 1024
-)
-
-const (
-	packetHeadLen = 4
 )
 
 const (
@@ -137,11 +131,8 @@ func (s *Session) start(cfg *Config) {
 
 // main
 func (s *Session) mainLoop(cfg *Config) {
-	zap.S().Debug("main loop start")
 	defer func() {
 		waitGroup.Done()
-		zap.S().Debugf("main loop stop %v", waitGroup)
-
 		if err := recover(); err != nil {
 			thread.PrintStack(err)
 		}
@@ -197,165 +188,3 @@ func (s *Session) check1Min(cfg *Config) {
 	}
 	s.pkgCnt1Min = 0
 }
-
-func (s *Session) DebugForwardToGame(msgId uint16, message proto.Message) {
-	if message != nil {
-		data, err := proto.Marshal(message)
-		if err == nil {
-			s.forwardToGame(msgId, data)
-		}
-	} else {
-		s.forwardToGame(msgId, nil)
-	}
-}
-
-// forwardToGame	转发数据到game
-func (s *Session) forwardToGame(msgId uint16, msgData []byte) {
-	// msg := &pb.SrvMsg{
-	//	ID:  uint32(msgId),
-	//	Raw: msgData,
-	// }
-	// if s.StreamGm == nil {
-	//	zap.S().Errorf("%s stream to game no open %d", s.String(), msgId)
-	//	s.close()
-	//	return
-	// }
-	//
-	// if err := s.StreamGm.SendPB(msg); err != nil {
-	//	zap.S().Errorf("forward to game:%v", err)
-	//	s.close()
-	//	return
-	// }
-	// if msgId != uint16(pb.MsgIDC2S_C2SHeartBeat) {
-	//	zap.S().Debugf("%s forward to game:[%d]%s", s.String(), msgId, pb.MsgIDC2S_name[int32(msgId)])
-	// }
-}
-
-func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
-	// msg := &pb.SrvMsg{ID: uint32(msgID), Raw: msgData}
-	// if s.StreamFt == nil {
-	//	zap.S().Errorf("stream to ft no open %d", msgID)
-	//	s.close()
-	//	return
-	// }
-	//
-	// if err := s.StreamFt.SendPB(msg); err != nil {
-	//	zap.S().Errorf("forward to fight:%v", err)
-	//	s.close()
-	//	return
-	// }
-	//
-}
-
-// startStreamGm 开启到game的流
-// func (s *Session) startStreamGm(gameID uint32, acc uint64) {
-// 	if s.StreamGm != nil {
-// 		zap.S().Error("can not create double stream to game")
-// 		return
-// 	}
-// 	// 连接到已选定game服务器
-// 	//	zap.S().Debugf("%s get service", acc)
-// 	// conn := gnet.Get("game", gameID)
-// 	// if conn == nil {
-// 	//	zap.S().Errorf("cannot get game service, id:%d", gameID)
-// 	//	s.close()
-// 	//	return
-// 	// }
-// 	//
-// 	// //	zap.S().Debugf("%s new client", acc)
-// 	// cli := pb.NewSrvServiceClient(conn)
-// 	// // 开启到游戏服的流
-// 	// mtdata := metadata.New(map[string]string{"acc": util.ToString(acc)})
-// 	// ctx := metadata.NewOutgoingContext(context.Background(), mtdata)
-// 	// //	zap.S().Debugf("%s start srv", acc)
-// 	// stream, err := cli.SrvSrv(ctx)
-// 	// if err != nil {
-// 	//	zap.S().Errorf("%d start game stream[%s] err:%v", acc, conn.Router(), err)
-// 	//	s.close()
-// 	//	return
-// 	// }
-// 	//
-// 	// s.StreamGm = stream
-// 	// zap.S().Debugf("%s acc=%d start to game%d stream success", s.String(), acc, gameID)
-// 	// // 读取GAME返回消息的goroutine
-// 	// go func(s *Session, stream pb.SrvService_SrvSrvClient, desc string) {
-// 	//	for {
-// 	//		in, err := stream.Recv()
-// 	//		if err == io.EOF { // 流关闭
-// 	//			zap.S().Debugf("%s game stream close %v", desc, err)
-// 	//			return
-// 	//		}
-// 	//		if err != nil {
-// 	//			zap.S().Errorf("%s game stream close %v", desc, err)
-// 	//			return
-// 	//		}
-// 	//		select {
-// 	//		case s.serMsg <- in:
-// 	//		case <-s.ctrl:
-// 	//			zap.S().Debugf("%s game stream close by main goroutine", desc)
-// 	//			return
-// 	//		}
-// 	//	}
-// 	// }(s, stream, s.String())
-// }
-//
-// func (s *Session) startStreamFt(roleGuid int, ftID uint32, btGuid int, token string) {
-// 	// zap.S().Debugf("%d start stream ft %d", roleGuid, ftID)
-// 	if s.StreamFt != nil {
-// 		zap.S().Error("can not create double stream to ft")
-// 		return
-// 	}
-// 	// conn := gnet.Get("fight", ftID)
-// 	// if conn == nil {
-// 	//	zap.S().Errorf("cannot get fight service, id:%d", ftID)
-// 	//	s.close()
-// 	//	return
-// 	// }
-// 	//
-// 	// cli := pb.NewSrvServiceClient(conn)
-// 	// // 开启到fight服的流
-// 	// mtdata := metadata.New(map[string]string{"guid": strconv.Itoa(roleGuid), "region": strconv.Itoa(btGuid), "token": token})
-// 	// ctx := metadata.NewOutgoingContext(context.Background(), mtdata)
-// 	// stream, err := cli.SrvSrv(ctx)
-// 	// if err != nil {
-// 	//	zap.S().Errorf("%s start fight stream %s err:%v", s.String(), conn.Router(), err)
-// 	//	s.close()
-// 	//	return
-// 	// }
-// 	//
-// 	// s.flag.Del(FightClose)
-// 	// s.fightDie = make(chan struct{})
-// 	// s.StreamFt = stream
-// 	// s.flag.Del(FightStreamOk)
-// 	//
-// 	// // 读取fight返回消息的goroutine
-// 	// go func(sess *Session, stream pb.SrvService_SrvSrvClient, desc string) {
-// 	//	for {
-// 	//		in, err := stream.Recv()
-// 	//		if err == io.EOF { // 流关闭
-// 	//			zap.S().Debugf("%s fight stream close %v", desc, err)
-// 	//			return
-// 	//		}
-// 	//		if err != nil {
-// 	//			zap.S().Errorf("%s fight stream close %v", desc, err)
-// 	//			return
-// 	//		}
-// 	//		select {
-// 	//		case sess.serMsg <- in:
-// 	//		case <-sess.fightDie:
-// 	//			zap.S().Debugf("%s fight stream close by main goroutine", desc)
-// 	//			return
-// 	//		}
-// 	//	}
-// 	// }(s, stream, s.String())
-// }
-//
-// func (s *Session) ReConn(msg *pb.MsgReConn) {
-// 	s.startStreamGm(msg.GameID, msg.Acc)
-// 	b, err := proto.Marshal(msg)
-// 	if err != nil {
-// 		zap.S().Warnf("ReConn marshal err:%v", err)
-// 		s.close()
-// 	}
-// 	s.forwardToGame(uint16(pb.MsgIDC2S_C2SReConn), b)
-// }
