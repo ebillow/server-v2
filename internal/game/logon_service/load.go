@@ -3,7 +3,7 @@ package logon_service
 import (
 	"context"
 	"errors"
-	pb2 "server/api/pb"
+	"server/api/pb"
 	"server/internal/game/role"
 	"server/internal/share/model"
 	"server/pkg/db"
@@ -141,7 +141,7 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 }
 
 func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
-	rData := pb2.RoleData{
+	rData := pb.RoleData{
 		ID:    roleID,
 		Name:  util.IToString(roleID),
 		Level: 1,
@@ -157,6 +157,6 @@ func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
 		zap.L().Error("[login] marshal role data", zap.Error(err))
 		return nil, err
 	}
-	rd.Set(pb2.TypeComp_TCBase, str)
+	rd.Set(pb.TypeComp_TCBase, str)
 	return rd, nil
 }

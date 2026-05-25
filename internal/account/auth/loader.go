@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/internal/share/model"
 	"server/pkg/db"
 	"time"
@@ -14,16 +14,16 @@ import (
 )
 
 type AccountLoader struct {
-	loading chan *pb2.S2SReqLogin
+	loading chan *pb.S2SReqLogin
 }
 
 func newLoader() *AccountLoader {
 	return &AccountLoader{
-		loading: make(chan *pb2.S2SReqLogin, 4096),
+		loading: make(chan *pb.S2SReqLogin, 4096),
 	}
 }
 
-func (l *AccountLoader) push(op *pb2.S2SReqLogin) {
+func (l *AccountLoader) push(op *pb.S2SReqLogin) {
 	zap.L().Debug("start load", zap.Any("op", op))
 	l.loading <- op
 }
@@ -34,7 +34,7 @@ func (l *AccountLoader) run(ctx context.Context) {
 		flushInterval = 50 * time.Millisecond
 	)
 
-	batch := make([]*pb2.S2SReqLogin, 0, batchSize)
+	batch := make([]*pb.S2SReqLogin, 0, batchSize)
 	t := time.NewTicker(flushInterval)
 	defer func() {
 		t.Stop()
@@ -63,7 +63,7 @@ func (l *AccountLoader) run(ctx context.Context) {
 	}
 }
 
-func (l *AccountLoader) loadBatch(batch []*pb2.S2SReqLogin) {
+func (l *AccountLoader) loadBatch(batch []*pb.S2SReqLogin) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 	// ctx := context.Background()
@@ -79,7 +79,7 @@ func (l *AccountLoader) loadBatch(batch []*pb2.S2SReqLogin) {
 	}
 
 	pipeAcc := db.Redis.Pipeline()
-	batchFromDB := make([]*pb2.S2SReqLogin, 0, len(cmdBind))
+	batchFromDB := make([]*pb.S2SReqLogin, 0, len(cmdBind))
 	cmdAcc := make(map[int]*redis.SliceCmd)
 	for i, c := range cmdBind {
 		if c.Err() == nil {
@@ -124,12 +124,12 @@ func (l *AccountLoader) loadBatch(batch []*pb2.S2SReqLogin) {
 	}
 }
 
-func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb2.S2SReqLogin) {
+func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
 	type Tmp struct {
 		accs  []string
-		batch []*pb2.S2SReqLogin
+		batch []*pb.S2SReqLogin
 	}
-	batch := make(map[pb2.SdkType]*Tmp)
+	batch := make(map[pb.SdkType]*Tmp)
 	for _, op := range all {
 		one, ok := batch[op.Req.SdkType]
 		if !ok {
@@ -143,11 +143,11 @@ func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb2.S2SReqLo
 	for k, bt := range batch {
 		filter := bson.M{acc.FieldDevice(): bson.M{"$in": bt.accs}}
 		switch k {
-		case pb2.SdkType_Apple:
+		case pb.SdkType_Apple:
 			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
-		case pb2.SdkType_Google:
+		case pb.SdkType_Google:
 			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
-		case pb2.SdkType_Facebook:
+		case pb.SdkType_Facebook:
 			filter = bson.M{acc.FieldFBID(): bson.M{"$in": bt.accs}}
 		default:
 		}
@@ -155,7 +155,7 @@ func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb2.S2SReqLo
 	}
 }
 
-func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb2.S2SReqLogin, typ pb2.SdkType) {
+func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
 	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -173,18 +173,18 @@ func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M,
 	result := make(map[string]*Account, len(accDatas))
 	for _, acc := range accDatas {
 		switch typ {
-		case pb2.SdkType_Apple:
+		case pb.SdkType_Apple:
 			result[acc.AppleID] = acc
-		case pb2.SdkType_Google:
+		case pb.SdkType_Google:
 			result[acc.GoogleID] = acc
-		case pb2.SdkType_Facebook:
+		case pb.SdkType_Facebook:
 			result[acc.FbID] = acc
 		default:
 			result[acc.Device] = acc
 		}
 	}
 
-	newAccBatch := make([]*pb2.S2SReqLogin, 0, len(batch))
+	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
@@ -235,7 +235,7 @@ func (l *AccountLoader) updateBatch(ctx context.Context, batch []accWrap) {
 	}
 }
 
-func (l *AccountLoader) newAccountBatch(ctx context.Context, batch []*pb2.S2SReqLogin) {
+func (l *AccountLoader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
 	accBat := make([]*Account, 0, len(batch))
 	pipe := db.Redis.Pipeline()
 	const expiration = time.Hour * 24 * 7
@@ -251,13 +251,13 @@ func (l *AccountLoader) newAccountBatch(ctx context.Context, batch []*pb2.S2SReq
 		keyAcc := model.KeyAccount(acc.AccID)
 
 		switch req.Req.SdkType {
-		case pb2.SdkType_Apple:
+		case pb.SdkType_Apple:
 			acc.AppleID = req.Req.Account
 			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldAppleID(), acc.AppleID)
-		case pb2.SdkType_Google:
+		case pb.SdkType_Google:
 			acc.GoogleID = req.Req.Account
 			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldGoogleID(), acc.GoogleID)
-		case pb2.SdkType_Facebook:
+		case pb.SdkType_Facebook:
 			acc.FbID = req.Req.Account
 			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldFBID(), acc.FbID)
 		default:

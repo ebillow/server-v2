@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 	"encoding/binary"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gnet/trace"
 	"time"
@@ -33,7 +33,7 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 
 // Send 发送proto数据给客户端
 func (s *Session) Send(msg proto.Message) bool {
-	msgID, err := pb2.GetMsgIDS2C(msg)
+	msgID, err := pb.GetMsgIDS2C(msg)
 	if err != nil {
 		zap.L().Warn("send error", zap.Error(err), zap.Inline(s))
 		return false
@@ -63,7 +63,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 // sendLoop todo 合并发送，应对波峰
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
-		s.Close(pb2.DisconnectReason_NetErr)
+		s.Close(pb.DisconnectReason_NetErr)
 		waitGroup.Done()
 	}()
 
@@ -76,7 +76,7 @@ func (s *Session) sendLoop(ctx context.Context) {
 				w, err := s.conn.NextWriter(websocket.BinaryMessage)
 				if err != nil {
 					zap.L().Warn("NextWriter error", zap.Error(err))
-					s.Close(pb2.DisconnectReason_NetErr)
+					s.Close(pb.DisconnectReason_NetErr)
 					return false // 发生致命网络错误，退出循环并断开
 				}
 

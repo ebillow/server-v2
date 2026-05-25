@@ -2,7 +2,7 @@ package role
 
 import (
 	"context"
-	pb2 "server/api/pb"
+	"server/api/pb"
 	"server/internal/share/model"
 	"server/pkg/cfg"
 	"server/pkg/flag"
@@ -26,11 +26,11 @@ type DataToSave struct {
 	Data map[string]string
 }
 
-func (d *DataToSave) Get(comID pb2.TypeComp) string {
+func (d *DataToSave) Get(comID pb.TypeComp) string {
 	return d.Data[model.GetCompName(comID)]
 }
 
-func (d *DataToSave) Set(comID pb2.TypeComp, data string) {
+func (d *DataToSave) Set(comID pb.TypeComp, data string) {
 	d.Data[model.GetCompName(comID)] = data
 }
 
@@ -50,8 +50,8 @@ type Role struct {
 	ID         uint64 // role_mgr需要访问
 	SesID      uint64
 	Comps      []IComp
-	Data       *pb2.RoleData // 入库数据
-	CliInfo    *pb2.ClientInfo
+	Data       *pb.RoleData // 入库数据
+	CliInfo    *pb.ClientInfo
 	ConnectAcc []string
 	Seq        uint32
 
@@ -71,10 +71,10 @@ type Role struct {
 }
 
 // NewRole	新建一个角色
-func NewRole(data *DataToSave, login *pb2.S2SReqLogin) (*Role, error) {
-	dataBase := &pb2.RoleData{}
+func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
+	dataBase := &pb.RoleData{}
 
-	err := sonic.UnmarshalString(data.Get(pb2.TypeComp_TCBase), dataBase)
+	err := sonic.UnmarshalString(data.Get(pb.TypeComp_TCBase), dataBase)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func NewRole(data *DataToSave, login *pb2.S2SReqLogin) (*Role, error) {
 		ID:         data.ID,
 		Data:       dataBase,
 		SesID:      login.SesID,
-		Comps:      make([]IComp, pb2.TypeComp_TCMax),
+		Comps:      make([]IComp, pb.TypeComp_TCMax),
 		CliInfo:    login.Req.CliInfo,
 		ConnectAcc: login.ConnectedAcc,
 	}
@@ -97,7 +97,7 @@ func NewRole(data *DataToSave, login *pb2.S2SReqLogin) (*Role, error) {
 		if comp == nil {
 			continue
 		}
-		compData := data.Get(pb2.TypeComp(i))
+		compData := data.Get(pb.TypeComp(i))
 		if len(compData) == 0 {
 			continue
 		}
@@ -161,20 +161,20 @@ func (r *Role) Online() {
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
 	r.OnTick(now)
 
-	gnet.SendToCenter(&pb2.S2SReqLoginOrLogout{
+	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		SesID:  r.SesID,
 		Login:  true,
-	}, pb2.ActorID_IDGlobal)
+	}, pb.ActorID_IDGlobal)
 	for _, v := range r.Comps {
 		if comp, ok := v.(ICompOnline); ok {
 			comp.Online(r)
 		}
 	}
 
-	gnet.SendToGate(&pb2.S2SResLogin{
-		Res: &pb2.S2CLogin{
+	gnet.SendToGate(&pb.S2SResLogin{
+		Res: &pb.S2CLogin{
 			Player:     r.Data,
 			ConnectAcc: r.ConnectAcc,
 		},
@@ -202,18 +202,18 @@ func (r *Role) Offline() {
 	LoginMgr().Logout(data) // offline时在mgr里保存,批量存
 
 	// 通知其它服务器
-	r.Disconnect(pb2.DisconnectReason_Kick)
+	r.Disconnect(pb.DisconnectReason_Kick)
 
-	gnet.SendToCenter(&pb2.S2SReqLoginOrLogout{
+	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		Login:  false,
-	}, pb2.ActorID_IDGlobal)
+	}, pb.ActorID_IDGlobal)
 	zap.L().Info("[login] offline", zap.Inline(r))
 }
 
-func (r *Role) Disconnect(why pb2.DisconnectReason) {
-	gnet.SendToGate(&pb2.S2SS2GtDisconnect{
+func (r *Role) Disconnect(why pb.DisconnectReason) {
+	gnet.SendToGate(&pb.S2SS2GtDisconnect{
 		SesID: r.SesID,
 		Why:   why,
 	}, r.SesID)
@@ -324,7 +324,7 @@ func (r *Role) MinuteLoop(now time.Time) {
 }
 
 // GetComp	获取组件
-func (r *Role) GetComp(t pb2.TypeComp) IComp {
+func (r *Role) GetComp(t pb.TypeComp) IComp {
 	return r.Comps[t]
 }
 
@@ -350,7 +350,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 			return nil, err
 		}
 
-		rd.Set(pb2.TypeComp_TCBase, str)
+		rd.Set(pb.TypeComp_TCBase, str)
 		r.dirty = false
 	}
 
@@ -367,7 +367,7 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 			continue
 		}
 
-		rd.Set(pb2.TypeComp(i), str)
+		rd.Set(pb.TypeComp(i), str)
 		v.ClearDirty()
 	}
 

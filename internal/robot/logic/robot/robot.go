@@ -2,7 +2,7 @@ package robot
 
 import (
 	"fmt"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/api/pb/msgid"
 	"server/internal/account/auth"
 	clinet2 "server/internal/robot/clinet"
@@ -33,7 +33,7 @@ type Robot struct {
 	stateTime   time.Time
 	acc         string
 	area        uint32
-	Data        *pb2.RoleData
+	Data        *pb.RoleData
 	ReconnToken uint32
 	gameId      uint32
 
@@ -156,7 +156,7 @@ func (r *Robot) OnDisconnect() {
 	atomic.StoreUint32(&r.isDisconnect, 1)
 }
 
-func (r *Robot) GetData() *pb2.RoleData {
+func (r *Robot) GetData() *pb.RoleData {
 	return r.Data
 }
 
@@ -172,7 +172,7 @@ func (r *Robot) SendInitMsg() {
 
 	s2cPrivateKey, s2cPublicKey := dh.Exchange()
 	r.s.S2cPrivate = s2cPrivateKey
-	msg := &pb2.C2SInit{
+	msg := &pb.C2SInit{
 		S2CPublic: s2cPublicKey.String(),
 		C2SPublic: c2sPublicKey.String(),
 	}
@@ -181,13 +181,13 @@ func (r *Robot) SendInitMsg() {
 }
 
 func (r *Robot) Login() {
-	msg := pb2.C2SLogin{
+	msg := pb.C2SLogin{
 		Account: r.acc,
 		Dev:     r.acc,
-		SdkType: pb2.SdkType_Guest,
+		SdkType: pb.SdkType_Guest,
 		Channel: 0,
 
-		CliInfo: &pb2.ClientInfo{
+		CliInfo: &pb.ClientInfo{
 			DevID: "robot test",
 		},
 	}
@@ -195,28 +195,28 @@ func (r *Robot) Login() {
 }
 
 func (r *Robot) ReConn() {
-	msg := pb2.C2SLogin{
+	msg := pb.C2SLogin{
 		Account:   r.acc,
 		Dev:       r.acc,
-		SdkType:   pb2.SdkType_Guest,
+		SdkType:   pb.SdkType_Guest,
 		Channel:   0,
 		Reconnect: true,
 
-		CliInfo: &pb2.ClientInfo{
+		CliInfo: &pb.ClientInfo{
 			DevID: "robot test",
 		},
 	}
 	r.Send(msgid.MsgIDC2S_C2SLogin, &msg)
 }
 
-func (r *Robot) initData(msg *pb2.RoleData) {
+func (r *Robot) initData(msg *pb.RoleData) {
 	r.Data = msg
 	if r.Data.Items == nil {
 		r.Data.Items = make(map[string]int64)
 	}
 }
 
-func (r *Robot) onLoginSuccess(msg *pb2.S2CLogin) {
+func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 	r.initData(msg.Player)
 	r.gameId = msg.GameID
 
@@ -233,7 +233,7 @@ func (r *Robot) onLoginSuccess(msg *pb2.S2CLogin) {
 
 	r.s.U = r
 	r.ReconnToken = msg.Token
-	rawAcc := auth.FormatAccKey(pb2.SdkType_Guest, r.acc)
+	rawAcc := auth.FormatAccKey(pb.SdkType_Guest, r.acc)
 	if !slices.Contains(msg.ConnectAcc, rawAcc) {
 		panic("connect acc not exist")
 	}
@@ -249,7 +249,7 @@ func (r *Robot) IsLoginSuccess() bool {
 }
 
 func (r *Robot) heartBeat(now time.Time) {
-	r.Send(msgid.MsgIDC2S_C2SHeartBeat, &pb2.C2SHeartBeat{
+	r.Send(msgid.MsgIDC2S_C2SHeartBeat, &pb.C2SHeartBeat{
 		CliTime: util.GetNowTimeM(),
 	})
 }

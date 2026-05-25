@@ -2,7 +2,7 @@ package session
 
 import (
 	"context"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/pkg/gnet"
 	"server/pkg/idgen"
 	"server/pkg/queue"
@@ -43,15 +43,15 @@ func (s *Session) UpdateSerId(gameID int32) {
 }
 
 // Close 关闭,线程安全
-func (s *Session) Close(why pb2.DisconnectReason) {
+func (s *Session) Close(why pb.DisconnectReason) {
 	s.closeOnce.Do(func() {
 		s.disConnReason.Store(int32(why))
 		s.cancel()
 
 		Remove(s.Id)
-		gnet.SendToGame(s.getSerID(pb2.Server_Game), &pb2.S2SGt2SDisconnect{
+		gnet.SendToGame(s.getSerID(pb.Server_Game), &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
-			Why:   pb2.DisconnectReason(s.disConnReason.Load()),
+			Why:   pb.DisconnectReason(s.disConnReason.Load()),
 		}, 0, 0)
 		if s.conn != nil {
 			_ = s.conn.Close()
@@ -87,6 +87,6 @@ func (s *Session) start() {
 	zap.L().Info("connect", zap.Inline(s))
 }
 
-func (s *Session) getSerID(ser pb2.Server) uint8 {
+func (s *Session) getSerID(ser pb.Server) uint8 {
 	return uint8(s.GameID.Load())
 }

@@ -3,9 +3,9 @@ package debug
 import (
 	"context"
 	"errors"
-	pb2 "server/api/pb"
+	"server/api/pb"
 	"server/internal/game/role"
-	model2 "server/internal/share/model"
+	"server/internal/share/model"
 	"server/pkg/db"
 
 	"github.com/bytedance/sonic"
@@ -38,13 +38,13 @@ func (d *Data) Online(r *role.Role) {
 
 	// todo  test:检查,正式时删除
 	ctx := context.Background()
-	ret, err := db.Redis.HGet(ctx, model2.KeyRole(r.ID), model2.GetCompName(pb2.TypeComp_TCBase)).Result()
+	ret, err := db.Redis.HGet(ctx, model.KeyRole(r.ID), model.GetCompName(pb.TypeComp_TCBase)).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
 		zap.L().Error("redis hget", zap.Error(err))
 		return
 	}
 	if err == nil {
-		data := pb2.RoleData{}
+		data := pb.RoleData{}
 		err = sonic.UnmarshalString(ret, &data)
 		if err != nil {
 			zap.L().Error("json unmarshal", zap.Error(err))

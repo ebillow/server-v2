@@ -350,7 +350,7 @@ func (s *Session) forwardToFight(msgID uint16, msgData []byte) {
 // 	// }(s, stream, s.String())
 // }
 //
-// func (s *Session) ReConn(msg *pb2.MsgReConn) {
+// func (s *Session) ReConn(msg *pb.MsgReConn) {
 // 	s.startStreamGm(msg.GameID, msg.Acc)
 // 	b, err := proto.Marshal(msg)
 // 	if err != nil {

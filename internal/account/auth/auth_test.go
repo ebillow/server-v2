@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/internal/account/acc_db"
 	"server/internal/share/model"
 	"server/pkg/db"
@@ -43,7 +43,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	discovery.Watch()
-	err = discovery.RegisterDefault(flag.SrvName(pb2.Server_Game), &discovery.Node{SvcName: flag.SrvName(pb2.Server_Game), NodeID: 1})
+	err = discovery.RegisterDefault(flag.SrvName(pb.Server_Game), &discovery.Node{SvcName: flag.SrvName(pb.Server_Game), NodeID: 1})
 	if err != nil {
 		panic(err)
 	}
@@ -69,12 +69,12 @@ func checkSuccess() bool {
 func TestLoginBatch(t *testing.T) {
 	// 正常情况
 	for i := 1; i <= 10000; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType(i % 4),
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
 				Account:   "test" + strconv.Itoa(i),
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
@@ -89,7 +89,7 @@ func TestLoginBatch(t *testing.T) {
 func TestLoginRedisExpire(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 10000; i++ {
-		keyBind := model.KeyAccBind(FormatAccKey(pb2.SdkType(i%4), "test"+strconv.Itoa(i)))
+		keyBind := model.KeyAccBind(FormatAccKey(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
 		if util.Happen(5000) {
 			accID, err := db.Redis.Get(ctx, keyBind).Result()
 			if err != nil && err != redis.Nil {
@@ -103,12 +103,12 @@ func TestLoginRedisExpire(t *testing.T) {
 	}
 
 	for i := 1; i <= 10000; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType(i % 4),
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
 				Account:   "test" + strconv.Itoa(i),
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
@@ -201,9 +201,9 @@ func TestDBAndRedis(t *testing.T) {
 
 func TestLoginApple(t *testing.T) {
 	for i := 20000; i < 20001; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType_Apple,
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType_Apple,
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -211,7 +211,7 @@ func TestLoginApple(t *testing.T) {
 				Area:      0,
 				Version:   "",
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:        1,
 			RoleID:       0,
@@ -227,9 +227,9 @@ func TestLoginApple(t *testing.T) {
 
 func TestLogin(t *testing.T) {
 	for i := 0; i < 5000; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType_Guest,
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType_Guest,
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -237,7 +237,7 @@ func TestLogin(t *testing.T) {
 				Area:      0,
 				Version:   "",
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:        1,
 			RoleID:       0,
@@ -253,9 +253,9 @@ func TestLogin(t *testing.T) {
 
 func TestLoginRandSdk(t *testing.T) {
 	for i := 10000; i < 15000; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType(util.RandRange(0, 4)),
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(util.RandRange(0, 4)),
 				Account:   "test" + strconv.Itoa(i),
 				Token:     "",
 				Channel:   0,
@@ -263,7 +263,7 @@ func TestLoginRandSdk(t *testing.T) {
 				Area:      0,
 				Version:   "",
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:        1,
 			RoleID:       0,
@@ -279,23 +279,23 @@ func TestLoginRandSdk(t *testing.T) {
 
 func TestLoginDup(t *testing.T) {
 	for i := 1; i <= 100; i++ {
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType(i % 4),
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
 				Account:   "test" + strconv.Itoa(i),
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),
 			Seq:    uint32(util.RandRange(0, 10)),
 		})
-		Login(&pb2.S2SReqLogin{
-			Req: &pb2.C2SLogin{
-				SdkType:   pb2.SdkType(i % 4),
+		Login(&pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType:   pb.SdkType(i % 4),
 				Account:   "test" + strconv.Itoa(i),
 				Reconnect: false,
-				CliInfo:   &pb2.ClientInfo{Ip: "127.0.0.1"},
+				CliInfo:   &pb.ClientInfo{Ip: "127.0.0.1"},
 			},
 			SesID:  uint64(i),
 			RoleID: uint64(i),

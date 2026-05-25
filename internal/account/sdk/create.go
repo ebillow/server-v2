@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 	"errors"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 
 	"go.uber.org/zap"
 )
@@ -19,19 +19,19 @@ var (
 )
 
 type ISdkLogin interface {
-	Login(ctx context.Context, req *pb2.C2SLogin) error
+	Login(ctx context.Context, req *pb.C2SLogin) error
 }
 
 // 创建sdk的实例 根据sdk number
-func CreateSdk(no pb2.SdkType) ISdkLogin {
+func CreateSdk(no pb.SdkType) ISdkLogin {
 	switch no {
-	case pb2.SdkType_Guest:
+	case pb.SdkType_Guest:
 		return &SdkLocal{}
-	case pb2.SdkType_Google:
+	case pb.SdkType_Google:
 		return &Google{}
-	case pb2.SdkType_Facebook:
+	case pb.SdkType_Facebook:
 		return &Facebook{}
-	case pb2.SdkType_Apple:
+	case pb.SdkType_Apple:
 		return &Apple{}
 
 	default:

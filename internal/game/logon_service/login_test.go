@@ -3,9 +3,8 @@ package logon_service
 import (
 	"context"
 	"server/api/pb"
-	"server/game/component"
-	"server/game/role"
-	role2 "server/internal/game/role"
+	"server/internal/game/component"
+	"server/internal/game/role"
 	"server/internal/share/model"
 	"server/pkg/cfg"
 	"server/pkg/db"
@@ -47,9 +46,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	role.CreateComps = component.CreateComps
-	role2.InjectLoginMgr(&Mgr)
-	role.InjectRoleMgr(role2.Mgr)
+	role.InjectCompCreate(&component.Create)
+	role.InjectLoginMgr(&Mgr)
+
 	Mgr.Start()
 	m.Run()
 }
@@ -82,7 +81,7 @@ func TestLoadBatch(t *testing.T) {
 		return
 	}
 	defer cursor.Close(ctx)
-	var roles []*role2.DataToSave
+	var roles []*role.DataToSave
 	if err = cursor.All(ctx, &roles); err != nil {
 		zap.L().Error("cursor all failed", zap.Error(err))
 		return
@@ -101,7 +100,7 @@ func TestLoginAndOffline(t *testing.T) {
 	})
 
 	time.Sleep(time.Second * 2)
-	role.RoleMgr().KickRoleAndWait(111)
+	role.Mgr.KickAndWait(111)
 	Mgr.Close()
 	if !checkSuccess() {
 		t.Fatal("login check fail")
@@ -122,7 +121,7 @@ func TestDataDelete(t *testing.T) {
 	})
 
 	time.Sleep(time.Second * 1)
-	role.RoleMgr().KickRoleAndWait(111)
+	role.Mgr.KickAndWait(111)
 
 	if !checkSuccess() {
 		t.Fatal("login check fail")
@@ -161,7 +160,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 		for {
 			select {
 			case <-ticker.C:
-				role.RoleMgr().KickRoleAndWait(id)
+				role.Mgr.KickAndWait(id)
 				id++
 				if id == IDMax {
 					return
@@ -169,7 +168,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 			}
 		}
 	}()
-	role.RoleMgr().CloseAndWait()
+	role.Mgr.CloseAndWait()
 	Mgr.Close()
 	if !checkSuccess() {
 		t.Fatal("login check fail")
@@ -188,7 +187,7 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 		})
 	}
 	time.Sleep(time.Second * 3)
-	role.RoleMgr().CloseAndWait()
+	role.Mgr.CloseAndWait()
 	Mgr.Close()
 	if !checkSuccess() {
 		t.Fatal("login check fail")
@@ -205,10 +204,10 @@ func TestOnlineOffline(t *testing.T) {
 			ReConnToken: 2,
 			Seq:         1,
 		})
-		role.RoleMgr().KickRoleAndWait(1)
+		role.Mgr.KickAndWait(1)
 	}
 	time.Sleep(time.Second * 3)
-	role.RoleMgr().CloseAndWait()
+	role.Mgr.CloseAndWait()
 	Mgr.Close()
 }
 
@@ -235,7 +234,7 @@ func TestLoginOtherDev(t *testing.T) {
 		time.Sleep(time.Millisecond * time.Duration(util.RandRange(0, 10)))
 	}
 
-	role.RoleMgr().CloseAndWait()
+	role.Mgr.CloseAndWait()
 	Mgr.Close()
 }
 

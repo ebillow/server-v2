@@ -1,7 +1,7 @@
 package gnet
 
 import (
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/pkg/cfg"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
@@ -26,11 +26,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestSendAndServe(t *testing.T) {
-	err := msgq.Q.Init("nats://localhost:4222,nats://localhost:4222", pb2.Server_Game, 1, nats.UserInfo("123456", "123456"))
+	err := msgq.Q.Init("nats://localhost:4222,nats://localhost:4222", pb.Server_Game, 1, nats.UserInfo("123456", "123456"))
 	require.NoError(t, err)
 
 	wait := sync.WaitGroup{}
-	data := pb2.S2SReqLogin{}
+	data := pb.S2SReqLogin{}
 	cnt := 0
 	err = msgq.Q.Serve(func(ctx gctx.Context) {
 		err = proto.Unmarshal(ctx.Data, &data)
@@ -48,7 +48,7 @@ func TestSendAndServe(t *testing.T) {
 
 	for i := 0; i < 1000000; i++ {
 		wait.Add(1)
-		SendToGame(1, &pb2.S2SReqLogin{
+		SendToGame(1, &pb.S2SReqLogin{
 			SesID:       uint64(i * 2),
 			RoleID:      uint64(i),
 			ReConnToken: uint64(i * 3),

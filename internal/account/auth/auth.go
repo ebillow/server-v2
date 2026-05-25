@@ -5,7 +5,7 @@ import (
 	"errors"
 	"hash/fnv"
 	"math/rand"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/internal/account/sdk"
 	"server/internal/share/model"
 	"server/pkg/db"
@@ -37,10 +37,10 @@ const (
 
 type Event struct {
 	Op    Op
-	Login *pb2.S2SReqLogin
+	Login *pb.S2SReqLogin
 	Acc   *Account
-	Clear *pb2.S2SRoleClear
-	Code  pb2.LoginCode
+	Clear *pb.S2SRoleClear
+	Code  pb.LoginCode
 }
 
 var (
@@ -93,7 +93,7 @@ func Start(ctx context.Context) {
 	})
 }
 
-func PushToLoader(data *pb2.S2SReqLogin) {
+func PushToLoader(data *pb.S2SReqLogin) {
 	idx := hashAccount(data.Req.Account) % LoadThread
 	loading[idx].loading <- data
 }
@@ -102,7 +102,7 @@ func PostEvt(e Event) {
 	evt <- e
 }
 
-func Login(req *pb2.S2SReqLogin) {
+func Login(req *pb.S2SReqLogin) {
 	if util.Debug {
 		debugWait.Add(1)
 	}
@@ -167,8 +167,8 @@ func checkTimeout(now int64) {
 	}
 }
 
-func login(req *pb2.S2SReqLogin) {
-	if code := canSdkCheck(req); code != pb2.LoginCode_LCSuccess {
+func login(req *pb.S2SReqLogin) {
+	if code := canSdkCheck(req); code != pb.LoginCode_LCSuccess {
 		PostEvt(Event{
 			Op:    OpLoginFail,
 			Code:  code,
@@ -179,7 +179,7 @@ func login(req *pb2.S2SReqLogin) {
 	sdkCheck(req)
 }
 
-func canSdkCheck(req *pb2.S2SReqLogin) pb2.LoginCode {
+func canSdkCheck(req *pb.S2SReqLogin) pb.LoginCode {
 	if util.Debug {
 		debugAcc[FormatAccKey(req.Req.SdkType, req.Req.Account)] = &debugCheck{
 			AccID: debugGetAccID(req.Req.Account, req.Req.SdkType),
@@ -188,33 +188,33 @@ func canSdkCheck(req *pb2.S2SReqLogin) pb2.LoginCode {
 	}
 
 	if req.Req.Account == "" {
-		return pb2.LoginCode_LCAccountEmpty
+		return pb.LoginCode_LCAccountEmpty
 	}
 
 	if !tryConsumeTokenBucket() {
-		return pb2.LoginCode_LCServerBusy
+		return pb.LoginCode_LCServerBusy
 	}
 
 	req.Req.Account = FormatAccKey(req.Req.SdkType, req.Req.Account)
 
 	now := time.Now().Unix()
 	if now-loginTime[req.Req.Account] < LoginCD {
-		return pb2.LoginCode_LCCD
+		return pb.LoginCode_LCCD
 	}
 
 	// 白名单
 
 	loginTime[req.Req.Account] = now
-	return pb2.LoginCode_LCSuccess
+	return pb.LoginCode_LCSuccess
 }
 
-func sdkCheck(req *pb2.S2SReqLogin) {
+func sdkCheck(req *pb.S2SReqLogin) {
 	var s = sdk.CreateSdk(req.Req.SdkType)
 	if s == nil {
 		zap.S().Errorf("can not create sdk:%d %s", req.Req.SdkType, req.Req.String())
 		PostEvt(Event{
 			Op:    OpLoginFail,
-			Code:  pb2.LoginCode_LCSDKErr,
+			Code:  pb.LoginCode_LCSDKErr,
 			Login: req,
 		})
 	}
@@ -225,7 +225,7 @@ func sdkCheck(req *pb2.S2SReqLogin) {
 				thread.PrintStack("Login check err:", err, req.Req.String())
 				PostEvt(Event{
 					Op:    OpLoginFail,
-					Code:  pb2.LoginCode_LCSdkCheckFaild,
+					Code:  pb.LoginCode_LCSdkCheckFaild,
 					Login: req,
 				})
 			}
@@ -238,7 +238,7 @@ func sdkCheck(req *pb2.S2SReqLogin) {
 		if err != nil {
 			PostEvt(Event{
 				Op:    OpLoginFail,
-				Code:  pb2.LoginCode_LCSdkCheckFaild,
+				Code:  pb.LoginCode_LCSdkCheckFaild,
 				Login: req,
 			})
 			return
@@ -248,7 +248,7 @@ func sdkCheck(req *pb2.S2SReqLogin) {
 	}()
 }
 
-func afterSDKCheck(acc *Account, req *pb2.S2SReqLogin) pb2.LoginCode {
+func afterSDKCheck(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	// if data.Freeze { // 封号了
 	// 	if data.FreezeEndTime == 0 || (data.FreezeEndTime > 0 && data.FreezeEndTime >= util.GetNowTimeS()) {
 	// 		network.SendToGate(loginReq.GtID, &pb.S2SAcc2GtLogin{Code: pb.LoginCode_LCFreeze, Login: loginReq, RetDesc: util.ToString(data.FreezeEndTime)})
@@ -260,11 +260,11 @@ func afterSDKCheck(acc *Account, req *pb2.S2SReqLogin) pb2.LoginCode {
 	// 	return
 	// }
 	if req.Req.Reconnect && acc.Passwd != 0 && req.ReConnToken != acc.Passwd {
-		return pb2.LoginCode_LCCanNotReConn
+		return pb.LoginCode_LCCanNotReConn
 	}
 	now := time.Now().Unix()
 	gameID, code := chooseGame(acc.GameID, 0)
-	if code != pb2.LoginCode_LCSuccess {
+	if code != pb.LoginCode_LCSuccess {
 		return code
 	}
 
@@ -281,20 +281,20 @@ func afterSDKCheck(acc *Account, req *pb2.S2SReqLogin) pb2.LoginCode {
 	err := acc.SaveLoginData(ctx)
 	if err != nil {
 		zap.S().Warnf("save acc Login data err:%v", err)
-		return pb2.LoginCode_LCServerErr
+		return pb.LoginCode_LCServerErr
 	}
 
 	req.RoleID = model.GetRoleID(acc.AccID)
 	req.ReConnToken = acc.Passwd
 	req.Seq = acc.Seq
 
-	return pb2.LoginCode_LCSuccess
+	return pb.LoginCode_LCSuccess
 }
 
-func AfterSDKCheck(acc *Account, req *pb2.S2SReqLogin) {
+func AfterSDKCheck(acc *Account, req *pb.S2SReqLogin) {
 	zap.L().Debug("loading finish", zap.Any("req", req), zap.Any("acc", acc))
 	if acc == nil { // 加载失败
-		loginFail(req, pb2.LoginCode_LCServerErr)
+		loginFail(req, pb.LoginCode_LCServerErr)
 		return
 	}
 
@@ -306,7 +306,7 @@ func AfterSDKCheck(acc *Account, req *pb2.S2SReqLogin) {
 		debugWait.Done()
 	}
 
-	if code := afterSDKCheck(acc, req); code != pb2.LoginCode_LCSuccess {
+	if code := afterSDKCheck(acc, req); code != pb.LoginCode_LCSuccess {
 		loginFail(req, code)
 	} else {
 		req.ConnectedAcc = append(req.ConnectedAcc, acc.Device) // todo发送所有已绑定
@@ -321,9 +321,9 @@ func hashAccount(acc string) uint32 {
 	return h.Sum32()
 }
 
-func loginFail(req *pb2.S2SReqLogin, code pb2.LoginCode) {
+func loginFail(req *pb.S2SReqLogin, code pb.LoginCode) {
 	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
-	gnet.SendToRole(&pb2.S2CLogin{Code: code}, req.SesID, 0)
+	gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 }
 
 type debugCheck struct {
@@ -334,7 +334,7 @@ type debugCheck struct {
 var debugAcc = make(map[string]*debugCheck)
 var debugWait sync.WaitGroup
 
-func DebugCheck(acc *Account, req *pb2.S2SReqLogin) bool {
+func DebugCheck(acc *Account, req *pb.S2SReqLogin) bool {
 	chk, ok := debugAcc[req.Req.Account]
 	if !ok {
 		zap.L().Error("not exist", zap.Any("req", req))
@@ -350,16 +350,16 @@ func DebugCheck(acc *Account, req *pb2.S2SReqLogin) bool {
 	return true
 }
 
-func debugGetAccID(account string, sdk pb2.SdkType) uint64 {
+func debugGetAccID(account string, sdk pb.SdkType) uint64 {
 	acc := Account{}
 
 	filter := bson.M{acc.FieldDevice(): account}
 	switch sdk {
-	case pb2.SdkType_Google:
+	case pb.SdkType_Google:
 		filter = bson.M{acc.FieldGoogleID(): account}
-	case pb2.SdkType_Apple:
+	case pb.SdkType_Apple:
 		filter = bson.M{acc.FieldAppleID(): account}
-	case pb2.SdkType_Facebook:
+	case pb.SdkType_Facebook:
 		filter = bson.M{acc.FieldFBID(): account}
 	default:
 

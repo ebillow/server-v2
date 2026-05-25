@@ -2,7 +2,7 @@ package auth
 
 import (
 	"context"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/pkg/discovery"
 	"server/pkg/flag"
 	"time"
@@ -11,21 +11,21 @@ import (
 )
 
 func gameExists(gameID uint8) bool {
-	return discovery.Exists(flag.SrvName(pb2.Server_Game), int32(gameID))
+	return discovery.Exists(flag.SrvName(pb.Server_Game), int32(gameID))
 }
 
-func randGameID(world uint32) (uint8, pb2.LoginCode) {
-	id, ok := discovery.Select(flag.SrvName(pb2.Server_Game))
+func randGameID(world uint32) (uint8, pb.LoginCode) {
+	id, ok := discovery.Select(flag.SrvName(pb.Server_Game))
 	if !ok {
-		return 0, pb2.LoginCode_LCNoGame
+		return 0, pb.LoginCode_LCNoGame
 	}
-	return uint8(id), pb2.LoginCode_LCSuccess
+	return uint8(id), pb.LoginCode_LCSuccess
 }
 
-func chooseGame(lastGameID uint8, world uint32) (uint8, pb2.LoginCode) {
+func chooseGame(lastGameID uint8, world uint32) (uint8, pb.LoginCode) {
 	if lastGameID != 0 { // 已登录过
 		if gameExists(lastGameID) {
-			return lastGameID, pb2.LoginCode_LCSuccess
+			return lastGameID, pb.LoginCode_LCSuccess
 		}
 	}
 	return randGameID(world)

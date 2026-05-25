@@ -3,7 +3,7 @@ package logon_service
 import (
 	"context"
 	"encoding/json"
-	pb2 "server/api/pb"
+	"server/api/pb"
 	"server/pkg/db"
 	"server/pkg/util"
 	"testing"
@@ -15,8 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func mock() *pb2.S2CLogin {
-	return &pb2.S2CLogin{
+func mock() *pb.S2CLogin {
+	return &pb.S2CLogin{
 		Code:            0,
 		GameID:          23,
 		OpenTime:        time.Now().Unix(),
@@ -26,7 +26,7 @@ func mock() *pb2.S2CLogin {
 		RetDesc:         "adsfadsfadsf",
 		Token:           util.RandRange(uint32(10000), 99999),
 		CliVersion:      "1.1.0",
-		Player: &pb2.RoleData{
+		Player: &pb.RoleData{
 			ID:             1111,
 			Level:          33,
 			Exp:            23123,
@@ -128,7 +128,7 @@ func TestMsgLen(t *testing.T) {
 }
 
 func TestBsonSave(t *testing.T) {
-	d := pb2.RoleData{
+	d := pb.RoleData{
 		ID:    2,
 		Level: 100,
 		Exp:   9999,
@@ -142,7 +142,7 @@ func TestBsonSave(t *testing.T) {
 	db.Redis.Set(context.Background(), "test:bson", string(b), time.Minute)
 
 	b2 := db.Redis.Get(context.Background(), "test:bson").Val()
-	d2 := pb2.RoleData{}
+	d2 := pb.RoleData{}
 	err = bson.Unmarshal([]byte(b2), &d2)
 	require.NoError(t, err)
 	t.Log(&d2)
@@ -176,7 +176,7 @@ func TestBatchSave(t *testing.T) {
 		batch[uint64(i)] = opSaveData{
 			ID:   uint64(i),
 			Data: map[string]string{"TCDebug": `{"Test":1}`},
-			Op:   OpLogout,
+			Both: true,
 		}
 	}
 	err := s.saveBatch(batch)

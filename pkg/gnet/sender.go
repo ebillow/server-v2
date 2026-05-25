@@ -1,7 +1,7 @@
 package gnet
 
 import (
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	msgid2 "server/api/pb/msgid"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
@@ -21,20 +21,20 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
-	msgID, err := pb2.GetMsgIDS2C(msg)
+	msgID, err := pb.GetMsgIDS2C(msg)
 	if err != nil {
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
 	serID := GateIDFromSesID(sesID)
-	msgq.Q.ForwardToRole(pb2.Server_Gateway, serID, msgID, data, roleID, sesID)
+	msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
 
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid2.MsgIDS2C_name[int32(msgID)]),
 			zap.Any("data", msg),
-			zap.Any("to", pb2.Server_Gateway),
+			zap.Any("to", pb.Server_Gateway),
 			zap.Uint8("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),
@@ -42,13 +42,13 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 	}
 }
 
-func SendToSrv(serType pb2.Server, serID uint8, msg proto.Message, actorID uint64, sesID uint64) {
+func SendToSrv(serType pb.Server, serID uint8, msg proto.Message, actorID uint64, sesID uint64) {
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
 		return
 	}
-	msgID, err := pb2.GetMsgIDS2S(msg)
+	msgID, err := pb.GetMsgIDS2S(msg)
 	if err != nil {
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
 		return
@@ -68,13 +68,13 @@ func SendToSrv(serType pb2.Server, serID uint8, msg proto.Message, actorID uint6
 	}
 }
 
-func SendToSrvAll(serType pb2.Server, msg proto.Message, actorID uint64, sesID uint64) {
+func SendToSrvAll(serType pb.Server, msg proto.Message, actorID uint64, sesID uint64) {
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
 		return
 	}
-	msgID, err := pb2.GetMsgIDS2S(msg)
+	msgID, err := pb.GetMsgIDS2S(msg)
 	if err != nil {
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
 		return
@@ -94,17 +94,17 @@ func SendToSrvAll(serType pb2.Server, msg proto.Message, actorID uint64, sesID u
 }
 
 func SendToGate(msg proto.Message, sesID uint64) {
-	SendToSrv(pb2.Server_Gateway, GateIDFromSesID(sesID), msg, 0, sesID)
+	SendToSrv(pb.Server_Gateway, GateIDFromSesID(sesID), msg, 0, sesID)
 }
 
 func SendToGame(serID uint8, msg proto.Message, sesID uint64, actorID uint64) {
-	SendToSrv(pb2.Server_Game, serID, msg, actorID, sesID)
+	SendToSrv(pb.Server_Game, serID, msg, actorID, sesID)
 }
 
 func SendToAccount(msg proto.Message) {
-	SendToSrv(pb2.Server_Account, 0, msg, 0, 0)
+	SendToSrv(pb.Server_Account, 0, msg, 0, 0)
 }
 
-func SendToCenter(msg proto.Message, actorID pb2.ActorID) {
-	SendToSrv(pb2.Server_Center, 0, msg, uint64(actorID), 0)
+func SendToCenter(msg proto.Message, actorID pb.ActorID) {
+	SendToSrv(pb.Server_Center, 0, msg, uint64(actorID), 0)
 }

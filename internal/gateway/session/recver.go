@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	pb2 "server/api/pb"
+	pb "server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
@@ -24,7 +24,7 @@ var recvBufPool = sync.Pool{
 
 func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 	defer func() {
-		s.Close(pb2.DisconnectReason_Normal)
+		s.Close(pb.DisconnectReason_Normal)
 		waitGroup.Done()
 	}()
 
@@ -96,11 +96,11 @@ func (s *Session) forwardToSrv(src []byte) {
 	msgID, data, err := Decode(src)
 	if err != nil {
 		zap.L().Warn("read packet err", zap.Inline(s), zap.Error(err))
-		s.Close(pb2.DisconnectReason_DecodeErr)
+		s.Close(pb.DisconnectReason_DecodeErr)
 		return
 	}
 
-	serType := pb2.Server(msgID / 100000)
+	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
 	msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
 

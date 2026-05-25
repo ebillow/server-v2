@@ -5,8 +5,8 @@ import (
 	"server/api/pb"
 	"server/internal/game/component"
 	"server/internal/game/game_db"
-	role2 "server/internal/game/role"
-	"server/internal/game/role/logon_service"
+	"server/internal/game/logon_service"
+	"server/internal/game/role"
 	"server/internal/share/actor"
 	"server/pkg/db"
 	"server/pkg/flag"
@@ -30,7 +30,7 @@ func Init(ctx context.Context) error {
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	logon_service.Mgr.Start()
 	thread.GoSafe(func() {
-		role2.Run(ctx)
+		role.Run(ctx)
 	})
 	return nil
 }
@@ -40,15 +40,15 @@ func UnInit(ctx context.Context) {
 }
 
 func inject() {
-	role2.InjectLoginMgr(&logon_service.Mgr)
-	role2.InjectCRouter(router.C())
-	role2.InjectSRouter(router.S())
-	role2.InjectCompCreate(&component.Create)
+	role.InjectLoginMgr(&logon_service.Mgr)
+	role.InjectCRouter(router.C())
+	role.InjectSRouter(router.S())
+	role.InjectCompCreate(&component.Create)
 }
 
 func OnServerMsg(ctx gctx.Context) {
 	if ctx.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
-		err := role2.Mgr.Dispatch(ctx.ActorID, role2.Event{
+		err := role.Mgr.Dispatch(ctx.ActorID, role.Event{
 			Ctx: ctx,
 		})
 		if err != nil {
@@ -66,7 +66,7 @@ func OnServerMsg(ctx gctx.Context) {
 	}
 
 	if ctx.SesID != 0 { // 客户端消息
-		err := role2.Mgr.DispatchBySesID(ctx.SesID, role2.Event{
+		err := role.Mgr.DispatchBySesID(ctx.SesID, role.Event{
 			Ctx: ctx,
 		})
 		if err != nil {
