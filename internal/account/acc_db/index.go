@@ -20,7 +20,7 @@ func CreateIndex() {
 
 	idx[acc.FieldDevice()+"_1"] = mongo.IndexModel{
 		Keys:    bson.D{{acc.FieldDevice(), 1}},
-		Options: options.Index().SetUnique(false).SetSparse(true),
+		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
 
 	idx[acc.FieldAppleID()+"_1"] = mongo.IndexModel{

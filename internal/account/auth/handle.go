@@ -25,12 +25,12 @@ func onLogin(c gctx.Context, msgBase proto.Message) {
 		Req:   msg,
 		SesID: c.SesID,
 	}
-	Login(msgS)
+	HandleLoginRequest(msgS)
 }
 
 func onClearRole(_ gctx.Context, msgBase proto.Message) {
 	msg := msgBase.(*pb.S2SRoleClear)
-	PostEvt(Event{
+	dispatchEvent(Event{
 		Op:    OpRoleClear,
 		Clear: msg,
 	})

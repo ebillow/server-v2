@@ -10,6 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.uber.org/zap"
 )
 
@@ -17,14 +18,13 @@ type AccountLoader struct {
 	loading chan *pb.S2SReqLogin
 }
 
-func newLoader() *AccountLoader {
+func newAccountLoader() *AccountLoader {
 	return &AccountLoader{
 		loading: make(chan *pb.S2SReqLogin, 4096),
 	}
 }
 
 func (l *AccountLoader) push(op *pb.S2SReqLogin) {
-	zap.L().Debug("start load", zap.Any("op", op))
 	l.loading <- op
 }
 
@@ -35,6 +35,7 @@ func (l *AccountLoader) run(ctx context.Context) {
 	)
 
 	batch := make([]*pb.S2SReqLogin, 0, batchSize)
+	uniqueRequests := make([]*pb.S2SReqLogin, 0, batchSize)
 	t := time.NewTicker(flushInterval)
 	defer func() {
 		t.Stop()
@@ -42,8 +43,20 @@ func (l *AccountLoader) run(ctx context.Context) {
 
 	flush := func() {
 		if len(batch) > 0 {
-			l.loadBatch(batch)
+			seen := make(map[string]bool)
+
+			for _, req := range batch {
+				cacheKey := model.KeyAccBind(req.Req.SdkType, req.Req.Account)
+				if seen[cacheKey] {
+					sendLoginFailure(req, pb.LoginCode_LCServerBusy)
+					continue
+				}
+				seen[cacheKey] = true
+				uniqueRequests = append(uniqueRequests, req)
+			}
+			l.loadAccountsFromCache(uniqueRequests)
 			batch = batch[:0]
+			uniqueRequests = uniqueRequests[:0]
 		}
 	}
 
@@ -63,14 +76,15 @@ func (l *AccountLoader) run(ctx context.Context) {
 	}
 }
 
-func (l *AccountLoader) loadBatch(batch []*pb.S2SReqLogin) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	defer cancel()
-	// ctx := context.Background()
+func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
+	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	// defer cancel()
+	ctx := context.Background()
 
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
-		pipeBind.Get(ctx, model.KeyAccBind(op.Req.Account))
+		// zap.L().Debug("loadAccountsFromCache", zap.String("op", op.String()))
+		pipeBind.Get(ctx, model.KeyAccBind(op.Req.SdkType, op.Req.Account))
 	}
 	cmdBind, err := pipeBind.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
@@ -105,7 +119,7 @@ func (l *AccountLoader) loadBatch(batch []*pb.S2SReqLogin) {
 				acc := &Account{}
 				err = c.Scan(acc)
 				if err == nil && acc.AccID > 0 {
-					PostEvt(Event{
+					dispatchEvent(Event{
 						Op:    OpAfterSDKCheck,
 						Login: batch[i],
 						Acc:   acc,
@@ -120,11 +134,11 @@ func (l *AccountLoader) loadBatch(batch []*pb.S2SReqLogin) {
 	}
 
 	if len(batchFromDB) > 0 {
-		l.loadFromDBBatch(ctx, batchFromDB)
+		l.loadAccountsFromDB(ctx, batchFromDB)
 	}
 }
 
-func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLogin) {
+func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, all []*pb.S2SReqLogin) {
 	type Tmp struct {
 		accs  []string
 		batch []*pb.S2SReqLogin
@@ -146,16 +160,16 @@ func (l *AccountLoader) loadFromDBBatch(ctx context.Context, all []*pb.S2SReqLog
 		case pb.SdkType_Apple:
 			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
 		case pb.SdkType_Google:
-			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
+			filter = bson.M{acc.FieldGoogleID(): bson.M{"$in": bt.accs}}
 		case pb.SdkType_Facebook:
 			filter = bson.M{acc.FieldFBID(): bson.M{"$in": bt.accs}}
 		default:
 		}
-		l.loadOneKindAccFromDB(ctx, filter, bt.batch, k)
+		l.queryAccountsBySDKType(ctx, filter, bt.batch, k)
 	}
 }
 
-func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
+func (l *AccountLoader) queryAccountsBySDKType(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
 	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -170,6 +184,26 @@ func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M,
 		zap.L().Error("[login] cursor all failed", zap.Error(err))
 		return
 	}
+
+	// 可能redis中bind过期，acc状态还在，需要状态回填
+	if len(accDatas) > 0 {
+		pipe := db.Redis.Pipeline()
+		cmds := make([]*redis.SliceCmd, len(accDatas))
+		for i, acc := range accDatas {
+			cmds[i] = pipe.HMGet(ctx, model.KeyAccount(acc.AccID), AccFields()...)
+		}
+
+		if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
+			zap.L().Warn("enrich account from redis failed", zap.Error(err))
+		} else {
+			for i, acc := range accDatas {
+				if cmds[i].Err() == nil {
+					_ = cmds[i].Scan(acc)
+				}
+			}
+		}
+	}
+
 	result := make(map[string]*Account, len(accDatas))
 	for _, acc := range accDatas {
 		switch typ {
@@ -188,44 +222,60 @@ func (l *AccountLoader) loadOneKindAccFromDB(ctx context.Context, filter bson.M,
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.Req.Account]; ok {
-			PostEvt(Event{
+			dispatchEvent(Event{
 				Op:    OpAfterSDKCheck,
 				Login: op,
 				Acc:   r,
 			})
-			updateAccBatch = append(updateAccBatch, accWrap{Acc: r, Account: op.Req.Account}) // 延后了点，需要mgr保证不重进
+			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, Account: op.Req.Account}) // 延后了点，需要mgr保证不重进
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
 	}
 
 	if len(newAccBatch) > 0 {
-		l.newAccountBatch(ctx, newAccBatch)
+		l.registerNewAccounts(ctx, newAccBatch)
 	}
 	if len(updateAccBatch) > 0 {
-		l.updateBatch(ctx, updateAccBatch)
+		l.syncAccountsToCache(ctx, updateAccBatch)
 	}
 }
 
 type accWrap struct {
 	Account string
-	Acc     *Account
+	AccData *Account
 }
 
-func (l *AccountLoader) updateBatch(ctx context.Context, batch []accWrap) {
+func (l *AccountLoader) syncAccountsToCache(ctx context.Context, batch []accWrap) {
 	const expiration = time.Hour * 24 * 7
 	pipe := db.Redis.Pipeline()
 	for _, b := range batch {
-		keyAcc := model.KeyAccount(b.Acc.AccID)
-		pipe.HSet(ctx, keyAcc, b.Acc.FieldAccID(), b.Acc.AccID,
-			"freeze", b.Acc.Freeze,
-			b.Acc.FieldDevice(), b.Acc.Device,
-			b.Acc.FieldAppleID(), b.Acc.AppleID,
-			b.Acc.FieldGoogleID(), b.Acc.GoogleID,
-			b.Acc.FieldFBID(), b.Acc.FbID)
+		keyAcc := model.KeyAccount(b.AccData.AccID)
+		pipe.HSet(ctx, keyAcc, b.AccData.FieldAccID(), b.AccData.AccID,
+			"freeze", b.AccData.Freeze,
+			b.AccData.FieldDevice(), b.AccData.Device,
+			b.AccData.FieldAppleID(), b.AccData.AppleID,
+			b.AccData.FieldGoogleID(), b.AccData.GoogleID,
+			b.AccData.FieldFBID(), b.AccData.FbID)
 		pipe.Expire(ctx, keyAcc, expiration)
-		keyBind := model.KeyAccBind(b.Account)
-		pipe.Set(ctx, keyBind, b.Acc.AccID, expiration)
+
+		// 绑定信息
+		if len(b.AccData.Device) > 0 {
+			keyBind := model.KeyAccBind(pb.SdkType_Guest, b.AccData.Device)
+			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
+		}
+		if len(b.AccData.AppleID) > 0 {
+			keyBind := model.KeyAccBind(pb.SdkType_Apple, b.AccData.AppleID)
+			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
+		}
+		if len(b.AccData.GoogleID) > 0 {
+			keyBind := model.KeyAccBind(pb.SdkType_Google, b.AccData.GoogleID)
+			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
+		}
+		if len(b.AccData.FbID) > 0 {
+			keyBind := model.KeyAccBind(pb.SdkType_Facebook, b.AccData.FbID)
+			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
+		}
 	}
 
 	_, err := pipe.Exec(ctx)
@@ -235,59 +285,75 @@ func (l *AccountLoader) updateBatch(ctx context.Context, batch []accWrap) {
 	}
 }
 
-func (l *AccountLoader) newAccountBatch(ctx context.Context, batch []*pb.S2SReqLogin) {
-	accBat := make([]*Account, 0, len(batch))
+func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2SReqLogin) {
 	pipe := db.Redis.Pipeline()
 	const expiration = time.Hour * 24 * 7
 
 	for _, req := range batch {
-		id := curAccID.Add(1)
+		id, err := GenerateNextAccID(ctx)
+		if err != nil {
+			zap.L().Error("generate acc id failed", zap.Error(err))
+			sendLoginFailure(req, pb.LoginCode_LCServerErr)
+			continue
+		}
 
 		acc := &Account{
 			AccID:  id,
 			Device: req.Req.Dev,
 		}
 
-		keyAcc := model.KeyAccount(acc.AccID)
-
 		switch req.Req.SdkType {
 		case pb.SdkType_Apple:
 			acc.AppleID = req.Req.Account
-			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldAppleID(), acc.AppleID)
 		case pb.SdkType_Google:
 			acc.GoogleID = req.Req.Account
-			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldGoogleID(), acc.GoogleID)
 		case pb.SdkType_Facebook:
 			acc.FbID = req.Req.Account
-			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldFBID(), acc.FbID)
 		default:
 			acc.Device = req.Req.Account
-			pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldDevice(), acc.Device)
 		}
-		accBat = append(accBat, acc)
+		zap.L().Debug("db insert", zap.Any("acc", acc))
+		_, err = db.MongoDB().Collection(AccountCollection).InsertOne(ctx, acc)
+		if err != nil {
+			// 如果是唯一索引冲突（说明其他节点刚好注册了这个账号）
+			if mongo.IsDuplicateKeyError(err) {
+				zap.L().Warn("concurrent register detected, ignore", zap.String("acc", req.Req.Account))
+				sendLoginFailure(req, pb.LoginCode_LCServerBusy)
+				continue
+			}
+			zap.L().Error("[login] insert account failed", zap.Error(err))
+			sendLoginFailure(req, pb.LoginCode_LCServerErr)
+			continue
+		}
+
+		keyAcc := model.KeyAccount(acc.AccID)
+		keyBind := model.KeyAccBind(req.Req.SdkType, req.Req.Account)
+
+		pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID)
+		if acc.AppleID != "" {
+			pipe.HSet(ctx, keyAcc, acc.FieldAppleID(), acc.AppleID)
+		}
+		if acc.GoogleID != "" {
+			pipe.HSet(ctx, keyAcc, acc.FieldGoogleID(), acc.GoogleID)
+		}
+		if acc.FbID != "" {
+			pipe.HSet(ctx, keyAcc, acc.FieldFBID(), acc.FbID)
+		}
+		if acc.Device != "" {
+			pipe.HSet(ctx, keyAcc, acc.FieldDevice(), acc.Device)
+		}
 
 		pipe.Expire(ctx, keyAcc, expiration)
-		keyBind := model.KeyAccBind(req.Req.Account)
 		pipe.Set(ctx, keyBind, acc.AccID, expiration)
-	}
 
-	_, err := db.MongoDB().Collection(AccountCollection).InsertMany(ctx, accBat)
-	if err != nil {
-		zap.L().Error("[login] insert account failed", zap.Error(err))
-		return
-	}
-
-	// 写redis
-	_, err = pipe.Exec(ctx)
-	if err != nil {
-		zap.L().Warn("redis hset acc_id failed", zap.Error(err))
-		// mongo已经成功，下次会从mongo加载
-	}
-	for i := range accBat {
-		PostEvt(Event{
+		dispatchEvent(Event{
 			Op:    OpAfterSDKCheck,
-			Login: batch[i],
-			Acc:   accBat[i],
+			Login: req,
+			Acc:   acc,
 		})
+	}
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		zap.L().Warn("redis batch set failed, will fallback to mongo next time", zap.Error(err))
 	}
 }

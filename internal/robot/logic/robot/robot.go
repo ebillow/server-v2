@@ -4,7 +4,6 @@ import (
 	"fmt"
 	pb "server/api/pb"
 	"server/api/pb/msgid"
-	"server/internal/account/auth"
 	clinet2 "server/internal/robot/clinet"
 	"server/pkg/crypt/dh"
 	"slices"
@@ -232,8 +231,8 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 
 	r.s.U = r
 	r.ReconnToken = msg.Token
-	rawAcc := auth.FormatAccKey(pb.SdkType_Guest, r.acc)
-	if !slices.Contains(msg.ConnectAcc, rawAcc) {
+
+	if !slices.Contains(msg.ConnectAcc, r.acc) {
 		panic("connect acc not exist")
 	}
 	// r.Send(pb.MsgIDC2S_C2SCilentReady, nil)

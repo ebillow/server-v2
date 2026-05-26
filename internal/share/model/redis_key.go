@@ -2,22 +2,32 @@ package model
 
 import (
 	"fmt"
+	"server/api/pb"
 )
 
-const RedisKeyRole = "role:"
-const RedisKeyAccount = "acc:"
-const RedisKeyAccBind = "acc_bind:"
+const (
+	// 全局
+	RedisKeyIDs = "server:acc_id"
+	// 账号
+	RedisKeyAccountPre = "acc"
+	RedisKeyAccBindPre = "acc_bind"
+	RedisKeyLoginCD    = "acc_login_cd"
 
-// const RedisKeyIDs = "server:ids"
-
-func KeyRole(roleID uint64) string {
-	return fmt.Sprintf("%s{%d}", RedisKeyRole, roleID)
-}
+	RedisKeyRolePre = "role"
+)
 
 func KeyAccount(accID uint64) string {
-	return fmt.Sprintf("%s{%d}", RedisKeyAccount, accID)
+	return fmt.Sprintf("%s:{%d}", RedisKeyAccountPre, accID)
 }
 
-func KeyAccBind(acc string) string {
-	return RedisKeyAccBind + acc
+func KeyAccBind(typ pb.SdkType, acc string) string {
+	return fmt.Sprintf("%s:%d:%s", RedisKeyAccBindPre, typ, acc)
+}
+
+func KeyAccLoginCD(typ pb.SdkType, acc string) string {
+	return fmt.Sprintf("%s:%d:%s", RedisKeyLoginCD, typ, acc)
+}
+
+func KeyRole(roleID uint64) string {
+	return fmt.Sprintf("%s:{%d}", RedisKeyRolePre, roleID)
 }

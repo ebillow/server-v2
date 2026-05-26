@@ -46,5 +46,5 @@ enum TypeComp{
 enum ActorID{
 	IDExample = 0;
 	IDGlobal = 1;
-	IDAccBegin = 10000;
+	IDAccBegin = 100000;
 }

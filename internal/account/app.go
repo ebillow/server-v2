@@ -21,7 +21,7 @@ func Init(ctx context.Context) error {
 }
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
-	auth.Start(ctx)
+	auth.StartService(ctx)
 	return nil
 }
 
