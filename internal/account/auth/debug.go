@@ -74,7 +74,7 @@ func DebugCheck(req *pb.S2SReqLogin, success bool, acc *Account) {
 
 func loadAccInCache(account string, sdk pb.SdkType) (uint64, bool) {
 	ctx := context.Background()
-	accID, err := db.Redis.Get(ctx, model.KeyAccBind(sdk, account)).Uint64()
+	accID, err := db.Redis.Get(ctx, model.KeyAccBind(FormatBindKey(sdk, account))).Uint64()
 	if err != nil {
 		zap.L().Fatal("loadAccInCache", zap.Error(err))
 	}
@@ -92,43 +92,13 @@ func loadAccInCache(account string, sdk pb.SdkType) (uint64, bool) {
 		return accID, false
 	}
 
-	bindOk := false
-	switch sdk {
-	case pb.SdkType_Apple:
-		if acc.AppleID == account {
-			bindOk = true
-		}
-	case pb.SdkType_Google:
-		if acc.GoogleID == account {
-			bindOk = true
-		}
-	case pb.SdkType_Facebook:
-		if acc.FbID == account {
-			bindOk = true
-		}
-	case pb.SdkType_Guest:
-		if acc.Device == account {
-			bindOk = true
-		}
-	}
-
-	return accID, bindOk
+	return accID, true
 }
 
 func loadAccIDInDB(account string, sdk pb.SdkType) uint64 {
 	acc := Account{}
 
-	filter := bson.M{acc.FieldDevice(): account}
-	switch sdk {
-	case pb.SdkType_Google:
-		filter = bson.M{acc.FieldGoogleID(): account}
-	case pb.SdkType_Apple:
-		filter = bson.M{acc.FieldAppleID(): account}
-	case pb.SdkType_Facebook:
-		filter = bson.M{acc.FieldFBID(): account}
-	default:
-
-	}
+	filter := bson.M{acc.FieldBinds(): FormatBindKey(sdk, account)}
 	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(context.Background(), filter).Decode(&acc)
 	if err != nil && !errors.Is(err, mongo.ErrNoDocuments) {
 		zap.L().Error("find account err", zap.Error(err))

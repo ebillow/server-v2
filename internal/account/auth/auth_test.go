@@ -167,6 +167,7 @@ func TestLogin_RateLimit(t *testing.T) {
 		t.Fatalf("login after CD should succeed, got %v", code)
 	}
 }
+
 func TestLoginOne(t *testing.T) {
 	HandleLoginRequest(&pb.S2SReqLogin{
 		Req: &pb.C2SLogin{
@@ -191,7 +192,7 @@ func TestLoginOne(t *testing.T) {
 
 func TestLoginOneFromDB(t *testing.T) {
 	ctx := context.Background()
-	keyBind := model.KeyAccBind(pb.SdkType_Guest, "test"+strconv.Itoa(1))
+	keyBind := model.KeyAccBind(FormatBindKey(pb.SdkType_Guest, "test"+strconv.Itoa(1)))
 
 	accID, err := db.Redis.Get(ctx, keyBind).Result()
 	if err != nil && err != redis.Nil {
@@ -300,7 +301,7 @@ func TestLoginBatchRandType(t *testing.T) {
 func TestLoginRedisExpire(t *testing.T) {
 	ctx := context.Background()
 	for i := 1; i <= 10000; i++ {
-		keyBind := model.KeyAccBind(pb.SdkType(i%4), "test"+strconv.Itoa(i))
+		keyBind := model.KeyAccBind(FormatBindKey(pb.SdkType(i%4), "test"+strconv.Itoa(i)))
 		if util.Happen(5000) {
 			accID, err := db.Redis.Get(ctx, keyBind).Result()
 			if err != nil && err != redis.Nil {
@@ -329,7 +330,7 @@ func TestLoginRedisExpire(t *testing.T) {
 	checkSuccess()
 }
 
-func TestDBAndRedis(t *testing.T) {
+func TestDBAndRedisBindIsMatch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	sor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, bson.M{})
@@ -343,61 +344,15 @@ func TestDBAndRedis(t *testing.T) {
 		if acc.AccID == 0 {
 			t.Error("acc id is 0")
 		}
-		var accIDStr, appleID, googleID, fbID string
-		if len(acc.Device) > 0 {
-			accIDStr, err = db.Redis.Get(ctx, model.KeyAccBind(pb.SdkType_Guest, acc.Device)).Result()
+
+		for _, v := range acc.Binds {
+			accIDStr, err := db.Redis.Get(ctx, model.KeyAccBind(v)).Result()
 			if err != nil && err != redis.Nil {
 				t.Error(err)
 				continue
 			}
 
 			accID, err := strconv.Atoi(accIDStr)
-			if err != nil {
-				t.Error(err)
-			}
-			if acc.AccID != uint64(accID) {
-				t.Error("acc id is wrong")
-			}
-		}
-
-		if len(acc.AppleID) > 0 {
-			appleID, err = db.Redis.Get(ctx, model.KeyAccBind(pb.SdkType_Apple, acc.AppleID)).Result()
-			if err != nil && err != redis.Nil {
-				t.Error(err)
-				continue
-			}
-
-			accID, err := strconv.Atoi(appleID)
-			if err != nil {
-				t.Error(err)
-			}
-			if acc.AccID != uint64(accID) {
-				t.Error("acc id is wrong")
-			}
-		}
-
-		if len(acc.GoogleID) > 0 {
-			googleID, err = db.Redis.Get(ctx, model.KeyAccBind(pb.SdkType_Google, acc.GoogleID)).Result()
-			if err != nil && err != redis.Nil {
-				t.Error(err)
-				continue
-			}
-			accID, err := strconv.Atoi(googleID)
-			if err != nil {
-				t.Error(err)
-			}
-			if acc.AccID != uint64(accID) {
-				t.Error("acc id is wrong")
-			}
-		}
-
-		if len(acc.FbID) > 0 {
-			fbID, err = db.Redis.Get(ctx, model.KeyAccBind(pb.SdkType_Facebook, acc.FbID)).Result()
-			if err != nil && err != redis.Nil {
-				t.Error(err)
-				continue
-			}
-			accID, err := strconv.Atoi(fbID)
 			if err != nil {
 				t.Error(err)
 			}

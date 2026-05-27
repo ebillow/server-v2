@@ -20,8 +20,8 @@ func KeyAccount(accID uint64) string {
 	return fmt.Sprintf("%s:{%d}", RedisKeyAccountPre, accID)
 }
 
-func KeyAccBind(typ pb.SdkType, acc string) string {
-	return fmt.Sprintf("%s:%d:%s", RedisKeyAccBindPre, typ, acc)
+func KeyAccBind(bindKey string) string {
+	return fmt.Sprintf("%s:%s", RedisKeyAccBindPre, bindKey)
 }
 
 func KeyAccLoginCD(typ pb.SdkType, acc string) string {

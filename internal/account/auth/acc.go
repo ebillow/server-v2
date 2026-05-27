@@ -3,10 +3,12 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"server/api/pb"
 	"server/internal/share/model"
 	"server/pkg/db"
 
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -44,15 +46,15 @@ return 0
 `
 
 type Account struct {
-	AccID    uint64 `redis:"acc_id" bson:"acc_id"`
-	Freeze   bool   `redis:"freeze" bson:"freeze"`
-	GameID   uint8  `redis:"game_id" bson:"-"`
-	Seq      uint32 `redis:"seq" bson:"-"`
-	Passwd   uint64 `redis:"passwd" bson:"-"`
-	Device   string `redis:"device" bson:"device,omitempty"`
-	AppleID  string `redis:"apple_id" bson:"apple_id,omitempty"`
-	GoogleID string `redis:"google_id" bson:"google_id,omitempty"`
-	FbID     string `redis:"fb_id" bson:"fb_id,omitempty"`
+	AccID  uint64 `redis:"acc_id" bson:"acc_id"`
+	Freeze bool   `redis:"freeze" bson:"freeze"`
+	GameID uint8  `redis:"game_id" bson:"-"`
+	Seq    uint32 `redis:"seq" bson:"-"`
+	Passwd uint64 `redis:"passwd" bson:"-"`
+	// 格式: ["SdkType@AccountID", "1@apple123", "2@google456"]
+	Binds []string `redis:"-" bson:"binds,omitempty"`
+	// 为了存入 Redis Hash，将 Binds 序列化为 JSON 字符串
+	BindsJSON string `redis:"binds" bson:"-"`
 }
 
 type AccBind struct {
@@ -61,9 +63,33 @@ type AccBind struct {
 }
 
 func AccFields() []string {
-	return []string{"acc_id", "device", "apple_id", "google_id", "fb_id", "freeze", "game_id", "seq", "passwd"}
+	return []string{"acc_id", "binds", "freeze", "game_id", "seq", "passwd"}
 }
 
+func StateFields() []string {
+	return []string{"game_id", "seq", "passwd"}
+}
+
+// FormatBindKey 统一的账号标识格式化
+func FormatBindKey(sdkType pb.SdkType, account string) string {
+	return fmt.Sprintf("%d@%s", sdkType, account)
+}
+
+// UnmarshalBinds 解析 Redis 中的 JSON 数组
+func (acc *Account) UnmarshalBinds() {
+	if acc.BindsJSON != "" {
+		_ = sonic.Unmarshal([]byte(acc.BindsJSON), &acc.Binds)
+	}
+}
+
+// MarshalBinds 写入 Redis 前序列化
+func (acc *Account) MarshalBinds() string {
+	if len(acc.Binds) > 0 {
+		b, _ := sonic.Marshal(acc.Binds)
+		acc.BindsJSON = string(b)
+	}
+	return acc.BindsJSON
+}
 func (acc *Account) SaveLoginData(ctx context.Context, oldSeq uint32) (bool, error) {
 	key := model.KeyAccount(acc.AccID)
 	res, err := db.Redis.Eval(ctx, saveLoginLua, []string{key},
@@ -75,6 +101,7 @@ func (acc *Account) SaveLoginData(ctx context.Context, oldSeq uint32) (bool, err
 	// 返回 1 表示更新成功，0 表示 seq 不匹配被别人改了
 	return res.(int64) == 1, nil
 }
+
 func (acc *Account) ClearGameID(ctx context.Context, expectedSeq uint32) (bool, error) {
 	key := model.KeyAccount(acc.AccID)
 	res, err := db.Redis.Eval(ctx, clearGameLua, []string{key}, expectedSeq).Result()
@@ -88,20 +115,33 @@ func (acc *Account) ClearGameID(ctx context.Context, expectedSeq uint32) (bool, 
 func (acc *Account) FieldAccID() string {
 	return "acc_id"
 }
-func (acc *Account) FieldGoogleID() string {
-	return "google_id"
+func (acc *Account) FieldFreeze() string {
+	return "freeze"
 }
-func (acc *Account) FieldAppleID() string {
-	return "apple_id"
-}
-func (acc *Account) FieldFBID() string {
-	return "fb_id"
-}
-func (acc *Account) FieldDevice() string {
-	return "device"
+func (acc *Account) FieldBinds() string {
+	return "binds"
 }
 func (acc *Account) CollectionName() string {
 	return AccountCollection
+}
+
+// BindNewSDK 玩家在游戏内绑定新渠道
+func BindNewSDK(ctx context.Context, accID uint64, newSdkType pb.SdkType, newSdkID string) error {
+	newBindKey := FormatBindKey(newSdkType, newSdkID)
+
+	// $addToSet 保证数组元素不重复
+	update := bson.M{"$addToSet": bson.M{"binds": newBindKey}}
+
+	_, err := db.MongoDB().Collection(AccountCollection).UpdateOne(ctx, bson.M{"acc_id": accID}, update)
+	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return errors.New("该账号已被其他角色绑定")
+		}
+		return err
+	}
+
+	// 更新 Redis ...
+	return nil
 }
 
 // InitDistributedAccID 在节点启动时同步一次最大ID到Redis

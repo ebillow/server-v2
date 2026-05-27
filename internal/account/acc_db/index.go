@@ -18,22 +18,8 @@ func CreateIndex() {
 		Options: options.Index().SetUnique(true),
 	}
 
-	idx[acc.FieldDevice()+"_1"] = mongo.IndexModel{
-		Keys:    bson.D{{acc.FieldDevice(), 1}},
-		Options: options.Index().SetUnique(true).SetSparse(true),
-	}
-
-	idx[acc.FieldAppleID()+"_1"] = mongo.IndexModel{
-		Keys:    bson.D{{acc.FieldAppleID(), 1}},
-		Options: options.Index().SetUnique(true).SetSparse(true),
-	}
-
-	idx[acc.FieldGoogleID()+"_1"] = mongo.IndexModel{
-		Keys:    bson.D{{acc.FieldGoogleID(), 1}},
-		Options: options.Index().SetUnique(true).SetSparse(true),
-	}
-	idx[acc.FieldFBID()+"_1"] = mongo.IndexModel{
-		Keys:    bson.D{{acc.FieldFBID(), 1}},
+	idx[acc.FieldBinds()+"_1"] = mongo.IndexModel{
+		Keys:    bson.D{{acc.FieldBinds(), 1}},
 		Options: options.Index().SetUnique(true).SetSparse(true),
 	}
 

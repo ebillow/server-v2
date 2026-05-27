@@ -246,10 +246,7 @@ func OnSDKAuthSuccess(acc *Account, req *pb.S2SReqLogin) {
 	if code := finalizeLoginSession(acc, req); code != pb.LoginCode_LCSuccess {
 		sendLoginFailure(req, code)
 	} else {
-		req.ConnectedAcc = append(req.ConnectedAcc, acc.Device) // todo发送所有已绑定,加类型
-		req.ConnectedAcc = append(req.ConnectedAcc, acc.AppleID)
-		req.ConnectedAcc = append(req.ConnectedAcc, acc.GoogleID)
-		req.ConnectedAcc = append(req.ConnectedAcc, acc.FbID)
+		req.ConnectedAcc = acc.Binds
 		DebugCheck(req, true, acc)
 		// gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))

@@ -46,7 +46,7 @@ func (l *AccountLoader) run(ctx context.Context) {
 			seen := make(map[string]bool)
 
 			for _, req := range batch {
-				cacheKey := model.KeyAccBind(req.Req.SdkType, req.Req.Account)
+				cacheKey := FormatBindKey(req.Req.SdkType, req.Req.Account)
 				if seen[cacheKey] {
 					sendLoginFailure(req, pb.LoginCode_LCServerBusy)
 					continue
@@ -83,8 +83,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
-		// zap.L().Debug("loadAccountsFromCache", zap.String("op", op.String()))
-		pipeBind.Get(ctx, model.KeyAccBind(op.Req.SdkType, op.Req.Account))
+		pipeBind.Get(ctx, model.KeyAccBind(FormatBindKey(op.Req.SdkType, op.Req.Account)))
 	}
 	cmdBind, err := pipeBind.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
@@ -119,6 +118,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 				acc := &Account{}
 				err = c.Scan(acc)
 				if err == nil && acc.AccID > 0 {
+					acc.UnmarshalBinds()
 					dispatchEvent(Event{
 						Op:    OpAfterSDKCheck,
 						Login: batch[i],
@@ -138,38 +138,19 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 	}
 }
 
-func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, all []*pb.S2SReqLogin) {
-	type Tmp struct {
-		accs  []string
-		batch []*pb.S2SReqLogin
-	}
-	batch := make(map[pb.SdkType]*Tmp)
-	for _, op := range all {
-		one, ok := batch[op.Req.SdkType]
-		if !ok {
-			one = &Tmp{}
-			batch[op.Req.SdkType] = one
-		}
-		one.accs = append(one.accs, op.Req.Account)
-		one.batch = append(one.batch, op)
-	}
-	acc := &Account{}
-	for k, bt := range batch {
-		filter := bson.M{acc.FieldDevice(): bson.M{"$in": bt.accs}}
-		switch k {
-		case pb.SdkType_Apple:
-			filter = bson.M{acc.FieldAppleID(): bson.M{"$in": bt.accs}}
-		case pb.SdkType_Google:
-			filter = bson.M{acc.FieldGoogleID(): bson.M{"$in": bt.accs}}
-		case pb.SdkType_Facebook:
-			filter = bson.M{acc.FieldFBID(): bson.M{"$in": bt.accs}}
-		default:
-		}
-		l.queryAccountsBySDKType(ctx, filter, bt.batch, k)
-	}
+type accWrap struct {
+	BindKey string
+	AccData *Account
 }
 
-func (l *AccountLoader) queryAccountsBySDKType(ctx context.Context, filter bson.M, batch []*pb.S2SReqLogin, typ pb.SdkType) {
+func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SReqLogin) {
+	bindKeys := make([]string, 0, len(batch))
+	for _, op := range batch {
+		bindKey := FormatBindKey(op.Req.SdkType, op.Req.Account)
+		bindKeys = append(bindKeys, bindKey)
+	}
+	filter := bson.M{"binds": bson.M{"$in": bindKeys}}
+
 	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
@@ -190,7 +171,7 @@ func (l *AccountLoader) queryAccountsBySDKType(ctx context.Context, filter bson.
 		pipe := db.Redis.Pipeline()
 		cmds := make([]*redis.SliceCmd, len(accDatas))
 		for i, acc := range accDatas {
-			cmds[i] = pipe.HMGet(ctx, model.KeyAccount(acc.AccID), AccFields()...)
+			cmds[i] = pipe.HMGet(ctx, model.KeyAccount(acc.AccID), StateFields()...)
 		}
 
 		if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
@@ -204,30 +185,22 @@ func (l *AccountLoader) queryAccountsBySDKType(ctx context.Context, filter bson.
 		}
 	}
 
-	result := make(map[string]*Account, len(accDatas))
+	// 建立反向映射表，方便快速匹配
+	result := make(map[string]*Account)
 	for _, acc := range accDatas {
-		switch typ {
-		case pb.SdkType_Apple:
-			result[acc.AppleID] = acc
-		case pb.SdkType_Google:
-			result[acc.GoogleID] = acc
-		case pb.SdkType_Facebook:
-			result[acc.FbID] = acc
-		default:
-			result[acc.Device] = acc
+		// 遍历该账号绑定的所有渠道
+		for _, bind := range acc.Binds {
+			result[bind] = acc
 		}
 	}
 
 	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
-		if r, ok := result[op.Req.Account]; ok {
-			dispatchEvent(Event{
-				Op:    OpAfterSDKCheck,
-				Login: op,
-				Acc:   r,
-			})
-			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, Account: op.Req.Account}) // 延后了点，需要mgr保证不重进
+		bindKey := FormatBindKey(op.Req.SdkType, op.Req.Account)
+		if r, ok := result[bindKey]; ok {
+			dispatchEvent(Event{Op: OpAfterSDKCheck, Login: op, Acc: r})
+			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, BindKey: bindKey})
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
@@ -241,41 +214,17 @@ func (l *AccountLoader) queryAccountsBySDKType(ctx context.Context, filter bson.
 	}
 }
 
-type accWrap struct {
-	Account string
-	AccData *Account
-}
-
 func (l *AccountLoader) syncAccountsToCache(ctx context.Context, batch []accWrap) {
 	const expiration = time.Hour * 24 * 7
 	pipe := db.Redis.Pipeline()
 	for _, b := range batch {
 		keyAcc := model.KeyAccount(b.AccData.AccID)
 		pipe.HSet(ctx, keyAcc, b.AccData.FieldAccID(), b.AccData.AccID,
-			"freeze", b.AccData.Freeze,
-			b.AccData.FieldDevice(), b.AccData.Device,
-			b.AccData.FieldAppleID(), b.AccData.AppleID,
-			b.AccData.FieldGoogleID(), b.AccData.GoogleID,
-			b.AccData.FieldFBID(), b.AccData.FbID)
+			b.AccData.FieldFreeze(), b.AccData.Freeze,
+			b.AccData.FieldBinds(), b.AccData.MarshalBinds())
 		pipe.Expire(ctx, keyAcc, expiration)
 
-		// 绑定信息
-		if len(b.AccData.Device) > 0 {
-			keyBind := model.KeyAccBind(pb.SdkType_Guest, b.AccData.Device)
-			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
-		}
-		if len(b.AccData.AppleID) > 0 {
-			keyBind := model.KeyAccBind(pb.SdkType_Apple, b.AccData.AppleID)
-			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
-		}
-		if len(b.AccData.GoogleID) > 0 {
-			keyBind := model.KeyAccBind(pb.SdkType_Google, b.AccData.GoogleID)
-			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
-		}
-		if len(b.AccData.FbID) > 0 {
-			keyBind := model.KeyAccBind(pb.SdkType_Facebook, b.AccData.FbID)
-			pipe.Set(ctx, keyBind, b.AccData.AccID, expiration)
-		}
+		pipe.Set(ctx, model.KeyAccBind(b.BindKey), b.AccData.AccID, expiration)
 	}
 
 	_, err := pipe.Exec(ctx)
@@ -297,21 +246,12 @@ func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2S
 			continue
 		}
 
+		bindKey := FormatBindKey(req.Req.SdkType, req.Req.Account)
 		acc := &Account{
-			AccID:  id,
-			Device: req.Req.Dev,
+			AccID: id,
+			Binds: []string{bindKey},
 		}
 
-		switch req.Req.SdkType {
-		case pb.SdkType_Apple:
-			acc.AppleID = req.Req.Account
-		case pb.SdkType_Google:
-			acc.GoogleID = req.Req.Account
-		case pb.SdkType_Facebook:
-			acc.FbID = req.Req.Account
-		default:
-			acc.Device = req.Req.Account
-		}
 		zap.L().Debug("db insert", zap.Any("acc", acc))
 		_, err = db.MongoDB().Collection(AccountCollection).InsertOne(ctx, acc)
 		if err != nil {
@@ -327,22 +267,9 @@ func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2S
 		}
 
 		keyAcc := model.KeyAccount(acc.AccID)
-		keyBind := model.KeyAccBind(req.Req.SdkType, req.Req.Account)
+		keyBind := model.KeyAccBind(FormatBindKey(req.Req.SdkType, req.Req.Account))
 
-		pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID)
-		if acc.AppleID != "" {
-			pipe.HSet(ctx, keyAcc, acc.FieldAppleID(), acc.AppleID)
-		}
-		if acc.GoogleID != "" {
-			pipe.HSet(ctx, keyAcc, acc.FieldGoogleID(), acc.GoogleID)
-		}
-		if acc.FbID != "" {
-			pipe.HSet(ctx, keyAcc, acc.FieldFBID(), acc.FbID)
-		}
-		if acc.Device != "" {
-			pipe.HSet(ctx, keyAcc, acc.FieldDevice(), acc.Device)
-		}
-
+		pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldBinds(), acc.MarshalBinds())
 		pipe.Expire(ctx, keyAcc, expiration)
 		pipe.Set(ctx, keyBind, acc.AccID, expiration)
 

@@ -2,19 +2,24 @@ package auth
 
 import (
 	"context"
+	"server/api/pb"
 	"server/internal/share/model"
 	"server/pkg/db"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 func TestAccountSave(t *testing.T) {
 	ctx := context.Background()
 
 	acc := &Account{
-		AccID:  33,
-		Device: "test",
+		AccID: 33,
+		Binds: []string{FormatBindKey(pb.SdkType_Guest, "test")},
 	}
-	db.Redis.HSet(ctx, model.KeyAccount(acc.AccID), acc.FieldDevice(), acc.Device)
+
+	db.Redis.HSet(ctx, model.KeyAccount(acc.AccID), acc.FieldBinds(), acc.MarshalBinds())
 
 	success, err := acc.SaveLoginData(ctx, 0)
 	if err != nil {
@@ -65,5 +70,74 @@ func TestAccount_CAS_Lock(t *testing.T) {
 	success, err = acc.ClearGameID(ctx, 2) // 拿着正确的 Seq=2 去清空
 	if err != nil || !success {
 		t.Fatal("ClearGameID should succeed")
+	}
+}
+
+func TestAccountSaveDB(t *testing.T) {
+	ctx := context.Background()
+
+	accs := make([]*Account, 0)
+	accs = append(accs, &Account{
+		AccID: 111,
+		Binds: []string{FormatBindKey(pb.SdkType_Guest, "test_device1"), FormatBindKey(pb.SdkType_Google, "test_google1")},
+	})
+	accs = append(accs, &Account{
+		AccID: 222,
+		Binds: []string{FormatBindKey(pb.SdkType_Guest, "test_device2"), FormatBindKey(pb.SdkType_Google, "test_google2")},
+	})
+	accs = append(accs, &Account{
+		AccID: 333,
+		Binds: []string{FormatBindKey(pb.SdkType_Guest, "test_device3"), FormatBindKey(pb.SdkType_Google, "test_google3")},
+	})
+
+	for _, acc := range accs {
+		_, err := db.MongoDB().Collection(acc.CollectionName()).InsertOne(ctx, acc)
+		require.NoError(t, err)
+	}
+}
+
+func TestAccountLoadFromDB(t *testing.T) {
+	ctx := context.Background()
+	acc := &Account{}
+
+	binds := []string{FormatBindKey(pb.SdkType_Guest, "test_device1")}
+	filter := bson.M{"binds": bson.M{"$in": binds}}
+	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, filter).Decode(acc)
+	require.NoError(t, err)
+	require.Equal(t, acc.AccID, uint64(111))
+
+	binds = []string{FormatBindKey(pb.SdkType_Google, "test_google2")}
+	filter = bson.M{"binds": bson.M{"$in": binds}}
+	err = db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, filter).Decode(acc)
+	require.NoError(t, err)
+	require.Equal(t, acc.AccID, uint64(222))
+
+	binds = []string{FormatBindKey(pb.SdkType_Guest, "test_device3")}
+	filter = bson.M{"binds": bson.M{"$in": binds}}
+	err = db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, filter).Decode(acc)
+	require.NoError(t, err)
+	require.Equal(t, acc.AccID, uint64(333))
+
+	binds = []string{FormatBindKey(pb.SdkType_Guest, "test_device4")}
+	filter = bson.M{"binds": bson.M{"$in": binds}}
+	err = db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, filter).Decode(acc)
+	require.Error(t, err)
+
+	binds = []string{FormatBindKey(pb.SdkType_Facebook, "test_device1")}
+	filter = bson.M{"binds": bson.M{"$in": binds}}
+	err = db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, filter).Decode(acc)
+	require.Error(t, err)
+
+	binds = []string{FormatBindKey(pb.SdkType_Google, "test_google2"),
+		FormatBindKey(pb.SdkType_Guest, "test_device1"),
+		FormatBindKey(pb.SdkType_Guest, "test_device3"),
+	}
+	filter = bson.M{"binds": bson.M{"$in": binds}}
+	ret, err := db.MongoDB().Collection(acc.CollectionName()).Find(ctx, filter)
+	require.NoError(t, err)
+	for ret.Next(ctx) {
+		err = ret.Decode(&acc)
+		require.NoError(t, err)
+		t.Log(acc.AccID)
 	}
 }
