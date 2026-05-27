@@ -46,12 +46,11 @@ func (l *AccountLoader) run(ctx context.Context) {
 			seen := make(map[string]bool)
 
 			for _, req := range batch {
-				cacheKey := FormatBindKey(req.Req.SdkType, req.Req.Account)
-				if seen[cacheKey] {
+				if seen[req.BindAcc] {
 					sendLoginFailure(req, pb.LoginCode_LCServerBusy)
 					continue
 				}
-				seen[cacheKey] = true
+				seen[req.BindAcc] = true
 				uniqueRequests = append(uniqueRequests, req)
 			}
 			l.loadAccountsFromCache(uniqueRequests)
@@ -83,7 +82,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
-		pipeBind.Get(ctx, model.KeyAccBind(FormatBindKey(op.Req.SdkType, op.Req.Account)))
+		pipeBind.Get(ctx, model.KeyAccBind(op.BindAcc))
 	}
 	cmdBind, err := pipeBind.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
@@ -146,8 +145,7 @@ type accWrap struct {
 func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SReqLogin) {
 	bindKeys := make([]string, 0, len(batch))
 	for _, op := range batch {
-		bindKey := FormatBindKey(op.Req.SdkType, op.Req.Account)
-		bindKeys = append(bindKeys, bindKey)
+		bindKeys = append(bindKeys, op.BindAcc)
 	}
 	filter := bson.M{"binds": bson.M{"$in": bindKeys}}
 
@@ -197,10 +195,9 @@ func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SR
 	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
-		bindKey := FormatBindKey(op.Req.SdkType, op.Req.Account)
-		if r, ok := result[bindKey]; ok {
+		if r, ok := result[op.BindAcc]; ok {
 			dispatchEvent(Event{Op: OpAfterSDKCheck, Login: op, Acc: r})
-			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, BindKey: bindKey})
+			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, BindKey: op.BindAcc})
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
@@ -246,10 +243,9 @@ func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2S
 			continue
 		}
 
-		bindKey := FormatBindKey(req.Req.SdkType, req.Req.Account)
 		acc := &Account{
 			AccID: id,
-			Binds: []string{bindKey},
+			Binds: []string{req.BindAcc},
 		}
 
 		zap.L().Debug("db insert", zap.Any("acc", acc))
@@ -267,7 +263,7 @@ func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2S
 		}
 
 		keyAcc := model.KeyAccount(acc.AccID)
-		keyBind := model.KeyAccBind(FormatBindKey(req.Req.SdkType, req.Req.Account))
+		keyBind := model.KeyAccBind(req.BindAcc)
 
 		pipe.HSet(ctx, keyAcc, acc.FieldAccID(), acc.AccID, acc.FieldBinds(), acc.MarshalBinds())
 		pipe.Expire(ctx, keyAcc, expiration)

@@ -88,6 +88,11 @@ func dispatchEvent(e Event) {
 }
 
 func HandleLoginRequest(req *pb.S2SReqLogin) {
+	if req.Req == nil {
+		return
+	}
+	req.BindAcc = FormatBindKey(req.Req.SdkType, req.Req.Account)
+
 	DebugAddWait()
 
 	dispatchEvent(Event{

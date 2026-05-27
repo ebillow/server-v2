@@ -6,6 +6,7 @@ import (
 	"server/pkg/flag"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -15,13 +16,19 @@ import (
 var Q DataBus
 
 type DataBus struct {
-	conn     *nats.Conn
-	rpcConn  *nats.Conn
-	serType  uint8
-	serID    uint8
-	pubIdx   sync.Map
-	pubGroup sync.Map
-	pubAll   sync.Map
+	conn    *nats.Conn
+	rpcConn *nats.Conn
+	serType uint8
+	serID   uint8
+
+	pubIDXs   [64][256]atomic.Pointer[PubBatcher]
+	pubIDXMtx sync.Mutex
+
+	pubGroup    [64]atomic.Pointer[PubBatcher]
+	pubGroupMtx sync.Mutex
+
+	pubAll    [64]atomic.Pointer[PubBatcher]
+	pubAllMtx sync.Mutex
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options ...nats.Option) error {
@@ -79,8 +86,8 @@ func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, er
 
 var rpcSubCache sync.Map
 
-func getRpcIdxSubject(serType pb.Server, serID uint8) string {
-	key := (uint64(serType) << 32) | uint64(uint32(serID))
+func rpcIdxSubjectName(serType pb.Server, serID uint8) string {
+	key := (uint64(serType) << 32) | uint64(serID)
 	if val, ok := rpcSubCache.Load(key); ok {
 		return val.(string)
 	}
@@ -90,14 +97,14 @@ func getRpcIdxSubject(serType pb.Server, serID uint8) string {
 	return str
 }
 
-func getIndexSubject(serType pb.Server, serID uint8) string {
+func idxSubjectName(serType pb.Server, serID uint8) string {
 	return "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
 }
 
-func getGroupSubject(serType pb.Server) string {
+func groupSubjectName(serType pb.Server) string {
 	return "msg." + flag.SrvName(serType) + ".group"
 }
 
-func getAllSubject(serType pb.Server) string {
+func allSubjectName(serType pb.Server) string {
 	return "msg." + flag.SrvName(serType) + ".all"
 }

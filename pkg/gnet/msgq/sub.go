@@ -12,14 +12,9 @@ import (
 
 func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
 	err := bs.subscribe(bs.getSubjects(pb.Server(bs.serType), bs.serID), func(msg *nats.Msg) {
-		ctxs, err := BatchDecode(msg.Data)
+		err := BatchDecodeAndHandle(msg, callback)
 		if err != nil {
 			zap.L().Error("batch decode error", zap.Error(err))
-		} else {
-			for _, ctx := range ctxs {
-				ctx.Raw = msg
-				callback(ctx)
-			}
 		}
 	})
 	if err != nil {
@@ -30,6 +25,8 @@ func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
 }
 
 func (bs *DataBus) Close() {
+	bs.flushAllBatchers()
+
 	err := bs.conn.Drain()
 	if err != nil {
 		zap.S().Warn("Failed to drain connection", zap.Error(err))
@@ -39,18 +36,26 @@ func (bs *DataBus) Close() {
 
 func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg)) error {
 	for sub, queue := range subs {
+		var subObj *nats.Subscription
+		var err error
 		if queue != "" {
-			_, err := bs.conn.QueueSubscribe(sub, queue, callback)
+			subObj, err = bs.conn.QueueSubscribe(sub, queue, callback)
 			if err != nil {
 				return err
 			}
 			zap.L().Info("queueSubscribe", zap.String("subject", sub), zap.String("queue", queue))
 		} else {
-			_, err := bs.conn.Subscribe(sub, callback)
+			subObj, err = bs.conn.Subscribe(sub, callback)
 			if err != nil {
 				return err
 			}
 			zap.L().Info("subscribe", zap.Any("subject", sub))
+		}
+		// 消息数量限制 (DefaultSubPendingMsgsLimit)：65,536 条 (64K)
+		// 消息字节限制 (DefaultSubPendingBytesLimit)：67,108,864 字节 (64MB)
+		err = subObj.SetPendingLimits(500000, 256*1024*1024)
+		if err != nil {
+			zap.L().Error("SetPendingLimits", zap.Error(err))
 		}
 	}
 	return nil
@@ -59,46 +64,47 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
 	subs := make(map[string]string) // [subject,queue]
 	// all
-	subs[getAllSubject(serType)] = ""
+	subs[allSubjectName(serType)] = ""
 	// index
-	subs[getIndexSubject(serType, serID)] = ""
+	subs[idxSubjectName(serType, serID)] = ""
 	// group
-	subs[getGroupSubject(serType)] = "msg.group"
+	subs[groupSubjectName(serType)] = "msg.group"
 	// rpc idx
-	subs[getRpcIdxSubject(serType, serID)] = ""
+	subs[rpcIdxSubjectName(serType, serID)] = ""
 
 	return subs
 }
 
-// BatchDecode 批量解码大包
-func BatchDecode(buf []byte) ([]gctx.Context, error) {
-	var ctxs []gctx.Context
+// BatchDecodeAndHandle 批量解码大包
+func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error {
+	buf := msg.Data
 	offset := 0
 
 	for offset < len(buf) {
 		// 读取 4 字节的长度前缀
 		if len(buf)-offset < 4 {
-			return nil, gerror.New("batch decode error: missing length prefix")
+			return gerror.New("batch decode error: missing length prefix")
 		}
 		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
 		offset += 4
 
 		// 截取单条消息的数据段
 		if len(buf)-offset < subSize {
-			return nil, gerror.New("batch decode error: buffer too small for sub-message")
+			return gerror.New("batch decode error: buffer too small for sub-message")
 		}
 		subBuf := buf[offset : offset+subSize]
 
 		ctx, err := Decode(subBuf)
 		if err != nil {
-			return nil, err // 或者记录错误并 continue
+			return err // 或者记录错误并 continue
 		}
 
-		ctxs = append(ctxs, ctx)
+		ctx.Raw = msg
+		callback(ctx)
 		offset += subSize
 	}
 
-	return ctxs, nil
+	return nil
 }
 
 func Decode(buf []byte) (ctx gctx.Context, err error) {

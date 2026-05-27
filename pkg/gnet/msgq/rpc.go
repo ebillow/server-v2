@@ -30,7 +30,7 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 	buf = append(buf, toSerID)
 	buf = append(buf, 0)
 
-	subStr := getRpcIdxSubject(toSer, toSerID)
+	subStr := rpcIdxSubjectName(toSer, toSerID)
 
 	marshalOpts := proto.MarshalOptions{}
 	var err error
