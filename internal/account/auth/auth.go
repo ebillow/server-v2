@@ -8,6 +8,7 @@ import (
 	"server/internal/account/sdk"
 	"server/internal/share/model"
 	"server/pkg/db"
+	"server/pkg/gnet"
 	"server/pkg/queue"
 	"server/pkg/thread"
 	"time"
@@ -248,7 +249,7 @@ func OnSDKAuthSuccess(acc *Account, req *pb.S2SReqLogin) {
 	} else {
 		req.ConnectedAcc = acc.Binds
 		DebugCheck(req, true, acc)
-		// gnet.SendToGame(acc.GameID, req, 0, 0)
+		gnet.SendToGame(acc.GameID, req, 0, 0)
 		zap.L().Info("acc login success", zap.Uint64("accID", acc.AccID), zap.Any("acc", acc))
 	}
 }
@@ -262,5 +263,5 @@ func hashAccount(acc string) uint32 {
 func sendLoginFailure(req *pb.S2SReqLogin, code pb.LoginCode) {
 	DebugCheck(req, false, nil)
 	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
-	// gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
+	gnet.SendToRole(&pb.S2CLogin{Code: code}, req.SesID, 0)
 }

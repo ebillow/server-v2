@@ -77,9 +77,9 @@ func (l *AccountLoader) run(ctx context.Context) {
 }
 
 func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
-	// ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
-	// defer cancel()
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+	// ctx := context.Background()
 
 	pipeBind := db.Redis.Pipeline()
 	for _, op := range batch {
