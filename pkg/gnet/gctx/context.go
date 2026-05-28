@@ -16,9 +16,9 @@ const (
 
 type Unity interface{}
 type Context struct {
-	Data []byte
+	Data []byte // 逻辑层不能持有
 	U    Unity
-	Raw  *nats.Msg
+	Raw  *nats.Msg // 逻辑层不能持有
 
 	ActorID   uint64
 	SesID     uint64

@@ -125,7 +125,7 @@ func (r *Role) Run() {
 		r.Online()
 		for {
 			<-r.Events.Sig()
-			r.Events.Range(func(evt Event) bool {
+			r.Events.Range(func(evt Event) {
 				if evt.Func != nil {
 					evt.Func(r)
 				} else {
@@ -136,8 +136,8 @@ func (r *Role) Run() {
 						cRouter().Handle(evt.Ctx)
 					}
 				}
-				return true
 			})
+
 			if r.Ctx.Err() != nil {
 				return // 自己退出
 			}

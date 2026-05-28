@@ -1,8 +1,14 @@
 package queue
 
 import (
-	"fmt"
+	"server/pkg/gerror"
 	"sync"
+	"sync/atomic"
+)
+
+var (
+	ErrQueueFull   = gerror.New("queue full")
+	ErrQueueClosed = gerror.New("queue closed")
 )
 
 type SwapQueue[T any] struct {
@@ -12,6 +18,7 @@ type SwapQueue[T any] struct {
 	sig     chan struct{}
 	maxSize int
 	size    int
+	closed  atomic.Bool
 }
 
 func NewSwapQueue[T any](size int, maxSize int) *SwapQueue[T] {
@@ -24,23 +31,27 @@ func NewSwapQueue[T any](size int, maxSize int) *SwapQueue[T] {
 	}
 }
 
-func (s *SwapQueue[T]) PushAndWake(data T) error {
-	err := s.Push(data)
+// Push 支持多生产者
+func (s *SwapQueue[T]) Push(data T) error {
+	err := s.pushData(data)
 	s.Wake()
 
 	return err
 }
 
-func (s *SwapQueue[T]) Push(data T) error {
+func (s *SwapQueue[T]) pushData(data T) error {
 	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	if s.closed.Load() {
+		return ErrQueueClosed
+	}
 
 	if len(s.write) >= s.maxSize {
-		s.mtx.Unlock()
-		return fmt.Errorf("queue is full, now=%d, max=%d", len(s.write), s.maxSize)
+		return ErrQueueFull
 	}
 
 	s.write = append(s.write, data)
-	s.mtx.Unlock() // 写入完毕，立刻解锁
 
 	return nil
 }
@@ -53,12 +64,22 @@ func (s *SwapQueue[T]) Wake() {
 	}
 }
 
+func (s *SwapQueue[T]) Close() {
+	if s.closed.CompareAndSwap(false, true) {
+		s.Wake()
+	}
+}
+
+func (s *SwapQueue[T]) IsClosed() bool {
+	return s.closed.Load()
+}
+
 func (s *SwapQueue[T]) Sig() <-chan struct{} {
 	return s.sig
 }
 
-// Range 只能在一个消费者协程中调用
-func (s *SwapQueue[T]) Range(f func(T) bool) {
+// Range 仅单消费者
+func (s *SwapQueue[T]) Range(f func(T)) {
 	s.mtx.Lock()
 	if len(s.write) == 0 {
 		s.mtx.Unlock()
@@ -69,9 +90,7 @@ func (s *SwapQueue[T]) Range(f func(T) bool) {
 	s.mtx.Unlock()
 
 	for i := 0; i < len(s.read); i++ {
-		if !f(s.read[i]) {
-			break
-		}
+		f(s.read[i])
 	}
 
 	clear(s.read)

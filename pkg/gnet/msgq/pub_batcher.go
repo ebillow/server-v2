@@ -13,64 +13,74 @@ import (
 	"go.uber.org/zap"
 )
 
-func (bs *DataBus) getIdxPubBatcher(serType pb.Server, serID uint8) *PubBatcher {
+func (bs *DataBus) getIdxPubBatcher(serType pb.Server, serID uint8) (*PubBatcher, error) {
+	if serType >= SvcTypeMax || serID >= SvcIDMax {
+		return nil, ErrArg
+	}
 	tb := bs.pubIDXs[serType][serID].Load()
 	if tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	bs.pubIDXMtx.Lock()
 	defer bs.pubIDXMtx.Unlock()
 
 	if tb = bs.pubIDXs[serType][serID].Load(); tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	subject := idxSubjectName(serType, serID)
 	tb = NewPubBatcher(subject, bs.conn)
 	bs.pubIDXs[serType][serID].Store(tb)
 
-	return tb
+	return tb, nil
 }
 
-func (bs *DataBus) getGroupPubBatcher(serType pb.Server) *PubBatcher {
+func (bs *DataBus) getGroupPubBatcher(serType pb.Server) (*PubBatcher, error) {
+	if serType >= SvcTypeMax {
+		return nil, ErrArg
+	}
 	tb := bs.pubGroup[serType].Load()
 	if tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	bs.pubGroupMtx.Lock()
 	defer bs.pubGroupMtx.Unlock()
 
 	if tb = bs.pubGroup[serType].Load(); tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	subject := groupSubjectName(serType)
 	tb = NewPubBatcher(subject, bs.conn)
 	bs.pubGroup[serType].Store(tb)
 
-	return tb
+	return tb, nil
 }
 
-func (bs *DataBus) getAllPubBatcher(serType pb.Server) *PubBatcher {
+func (bs *DataBus) getAllPubBatcher(serType pb.Server) (*PubBatcher, error) {
+	if serType >= SvcTypeMax {
+		return nil, ErrArg
+	}
+
 	tb := bs.pubAll[serType].Load()
 	if tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	bs.pubAllMtx.Lock()
 	defer bs.pubAllMtx.Unlock()
 
 	if tb = bs.pubAll[serType].Load(); tb != nil {
-		return tb
+		return tb, nil
 	}
 
 	subject := allSubjectName(serType)
 	tb = NewPubBatcher(subject, bs.conn)
 	bs.pubAll[serType].Store(tb)
 
-	return tb
+	return tb, nil
 }
 
 func (bs *DataBus) flushAllBatchers() {
@@ -120,19 +130,13 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 	return tb
 }
 
-func (tb *PubBatcher) Add(ctx gctx.Context) {
-	if tb.closed.Load() {
-		return
-	}
-
-	err := tb.queue.PushAndWake(ctx)
-	if err != nil {
-		zap.L().Warn("pub batcher swap queue full, dropped msg", zap.Error(err))
-	}
+func (tb *PubBatcher) Add(ctx gctx.Context) error {
+	return tb.queue.Push(ctx)
 }
 
 // 定时器：每 25 毫秒强制发送一次，防止消息一直积压不发
 func (tb *PubBatcher) startLoop() {
+	const maxRetainBufSize = buffSize * 2
 	tb.wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 25)
@@ -150,12 +154,16 @@ func (tb *PubBatcher) startLoop() {
 				if err != nil {
 					zap.L().Error("nats publish err", zap.Error(err))
 				}
-				buf = buf[:0] // 保留底层内存
+				if cap(buf) > maxRetainBufSize {
+					buf = make([]byte, 0, buffSize)
+				} else {
+					buf = buf[:0]
+				}
 				count = 0
 			}
 		}
 
-		processFunc := func(ctx gctx.Context) bool {
+		processFunc := func(ctx gctx.Context) {
 			subSize := headerSize + len(ctx.Data)
 
 			// 追加前缀
@@ -174,7 +182,6 @@ func (tb *PubBatcher) startLoop() {
 			if count >= batchCount || len(buf) > buffSize {
 				flush()
 			}
-			return true // 返回 true 继续遍历下一条
 		}
 
 		for {
@@ -193,6 +200,7 @@ func (tb *PubBatcher) startLoop() {
 	}()
 }
 
+// StopAndFlush 关闭并清空，关闭前通过了closed判断但还没写入queue的，可能没发出去。要解决要加RWMutex，有需求再加
 func (tb *PubBatcher) StopAndFlush() {
 	if tb.closed.CompareAndSwap(false, true) {
 		close(tb.stopCh) // 通知后台协程退出

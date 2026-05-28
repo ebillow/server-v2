@@ -167,7 +167,7 @@ func (m *Registry) onTick(now time.Time, shardIdx int) {
 	shard.mtx.RUnlock() // 尽早释放当前分片的读锁
 
 	for _, v := range metas {
-		err := v.events.PushAndWake(Event{Func: func(r *Role) {
+		err := v.events.Push(Event{Func: func(r *Role) {
 			r.OnTick(now)
 		}})
 		if err != nil {
@@ -218,7 +218,7 @@ func (m *Registry) Dispatch(roleID uint64, evt Event) error {
 	if !ok {
 		return gerror.New("role not exist")
 	}
-	if err := r.events.PushAndWake(evt); err != nil {
+	if err := r.events.Push(evt); err != nil {
 		return gerror.New("role event full")
 	}
 	return nil
@@ -229,7 +229,7 @@ func (m *Registry) DispatchBySesID(sesID uint64, evt Event) error {
 	if !ok {
 		return gerror.New("role not exist")
 	}
-	if err := r.events.PushAndWake(evt); err != nil {
+	if err := r.events.Push(evt); err != nil {
 		return gerror.New("role event full")
 	}
 	return nil

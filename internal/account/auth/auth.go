@@ -60,9 +60,8 @@ func StartService(ctx context.Context) {
 		for {
 			select {
 			case <-evt.Sig():
-				evt.Range(func(event Event) bool {
+				evt.Range(func(event Event) {
 					processEvent(event)
-					return true
 				})
 			case <-ctx.Done():
 				return
@@ -78,7 +77,7 @@ func PushToLoader(data *pb.S2SReqLogin) {
 }
 
 func dispatchEvent(e Event) {
-	err := evt.PushAndWake(e)
+	err := evt.Push(e)
 	if err != nil {
 		zap.L().Error("dispatch event failed", zap.Error(err))
 		if e.Login != nil {

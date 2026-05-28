@@ -50,13 +50,12 @@ func (a *Actor) Start(ctx context.Context, wg *sync.WaitGroup) {
 		for {
 			select {
 			case <-a.Events.Sig():
-				a.Events.Range(func(evt Event) bool {
+				a.Events.Range(func(evt Event) {
 					if evt.Func != nil {
 						evt.Func()
 					} else {
 						router.S().Handle(evt.Ctx)
 					}
-					return true
 				})
 				if ctx.Err() != nil {
 					return // 自己退出
@@ -69,5 +68,5 @@ func (a *Actor) Start(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 func (a *Actor) Post(e Event) error {
-	return a.Events.PushAndWake(e)
+	return a.Events.Push(e)
 }

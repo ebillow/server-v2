@@ -2,8 +2,10 @@ package msgq
 
 import (
 	"errors"
+	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
+	"server/pkg/gerror"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -15,29 +17,47 @@ import (
 
 var Q DataBus
 
+const (
+	SvcTypeMax = 64
+	SvcIDMax   = 64
+)
+
+const (
+	headerSize = 4 + 8 + 8 + 1 + 1 + 1 + 1 + 1
+	batchCount = 500
+	buffSize   = 1024 * batchCount
+)
+
+var (
+	ErrClosed = gerror.New("msgq closed")
+	ErrArg    = gerror.New("msgq invalid argument")
+)
+
 type DataBus struct {
 	conn    *nats.Conn
 	rpcConn *nats.Conn
 	serType uint8
 	serID   uint8
 
-	pubIDXs   [64][256]atomic.Pointer[PubBatcher]
+	closed atomic.Bool
+
+	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[PubBatcher]
 	pubIDXMtx sync.Mutex
 
-	pubGroup    [64]atomic.Pointer[PubBatcher]
+	pubGroup    [SvcTypeMax]atomic.Pointer[PubBatcher]
 	pubGroupMtx sync.Mutex
 
-	pubAll    [64]atomic.Pointer[PubBatcher]
+	pubAll    [SvcTypeMax]atomic.Pointer[PubBatcher]
 	pubAllMtx sync.Mutex
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options ...nats.Option) error {
-	conn, err := setupNatsConn(connStr, options...)
+	conn, err := setupNatsConn(connStr, serType, serID, options...)
 	if err != nil {
 		return err
 	}
 	bs.conn = conn
-	conn, err = setupNatsConn(connStr, options...)
+	conn, err = setupNatsConn(connStr, serType, serID, options...)
 	if err != nil {
 		return err
 	}
@@ -47,10 +67,15 @@ func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options 
 	return nil
 }
 
-func setupNatsConn(connectString string, options ...nats.Option) (*nats.Conn, error) {
+func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options ...nats.Option) (*nats.Conn, error) {
 	natsOptions := append(
 		options,
+		nats.Name(fmt.Sprintf("%s-%d", flag.SrvName(svcType), svcID)),
 		nats.PingInterval(time.Second*12), nats.MaxPingsOutstanding(3),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+		nats.Timeout(3*time.Second),
+		nats.RetryOnFailedConnect(true),
 		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
 			zap.S().Errorf("disconnected from nats! Reason: %q\n", err)
 		}),

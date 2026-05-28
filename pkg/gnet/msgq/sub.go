@@ -25,13 +25,26 @@ func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
 }
 
 func (bs *DataBus) Close() {
+	if !bs.closed.CompareAndSwap(false, true) {
+		return
+	}
+
 	bs.flushAllBatchers()
 
-	err := bs.conn.Drain()
-	if err != nil {
-		zap.S().Warn("Failed to drain connection", zap.Error(err))
+	if bs.conn != nil {
+		err := bs.conn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		bs.conn.Close()
 	}
-	bs.conn.Close()
+	if bs.rpcConn != nil {
+		err := bs.rpcConn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		bs.rpcConn.Close()
+	}
 }
 
 func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg)) error {
@@ -96,7 +109,7 @@ func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error 
 
 		ctx, err := Decode(subBuf)
 		if err != nil {
-			return err // 或者记录错误并 continue
+			continue // 或者记录错误并 continue
 		}
 
 		ctx.Raw = msg

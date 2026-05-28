@@ -23,6 +23,10 @@ func New(msg string) error {
 	return crerr.New(msg)
 }
 
+func Newf(msg string, args ...interface{}) error {
+	return crerr.Newf(msg, args...)
+}
+
 // From 仅赋予 ErrorCode，保留原始错误链和堆栈
 func From(code pb.ErrorCode, err error) error {
 	if err == nil {

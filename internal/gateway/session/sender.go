@@ -15,7 +15,7 @@ import (
 
 // SendBytes 发送数据给客户端
 func (s *Session) SendBytes(msgID uint32, data []byte) {
-	err := s.out.PushAndWake(MsgSend{
+	err := s.out.Push(MsgSend{
 		ID:   msgID,
 		Data: data,
 	})
@@ -72,12 +72,11 @@ func (s *Session) sendLoop(ctx context.Context) {
 		select {
 		case <-s.out.Sig():
 			_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
-			s.out.Range(func(v MsgSend) bool {
+			s.out.Range(func(v MsgSend) {
 				w, err := s.conn.NextWriter(websocket.BinaryMessage)
 				if err != nil {
 					zap.L().Warn("NextWriter error", zap.Error(err))
 					s.Close(pb.DisconnectReason_NetErr)
-					return false // 发生致命网络错误，退出循环并断开
 				}
 
 				binary.BigEndian.PutUint32(headerBuf[0:4], v.ID)
@@ -90,10 +89,8 @@ func (s *Session) sendLoop(ctx context.Context) {
 				_ = w.Close()
 
 				if err != nil {
-					return false
+					return
 				}
-
-				return true
 			})
 
 		case <-ctx.Done():
