@@ -27,13 +27,24 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 		return
 	}
 	serID := GateIDFromSesID(sesID)
-	msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
-
+	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
+	if err != nil {
+		zap.L().Warn("send to role error",
+			zap.Error(err),
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid2.MsgIDS2C_name[int32(msgID)]),
+			zap.Any("msg", msg),
+			zap.Any("to", pb.Server_Gateway),
+			zap.Uint8("idx", serID),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("roleID", roleID))
+		return
+	}
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
 		zap.L().Info(">>> msg.send: ",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid2.MsgIDS2C_name[int32(msgID)]),
-			zap.Any("data", msg),
+			zap.Any("msg", msg),
 			zap.Any("to", pb.Server_Gateway),
 			zap.Uint8("idx", serID),
 			zap.Uint64("sessID", sesID),
@@ -53,8 +64,19 @@ func SendToSrv(serType pb.Server, serID uint8, msg proto.Message, actorID uint64
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
 		return
 	}
-	msgq.Q.Send(serType, serID, msgID, data, actorID, sesID)
-
+	err = msgq.Q.Send(serType, serID, msgID, data, actorID, sesID)
+	if err != nil {
+		zap.L().Warn(">>> send to srv error",
+			zap.Error(err),
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid2.MsgIDS2S_name[int32(msgID)]),
+			zap.Any("data", msg),
+			zap.Any("to", serType),
+			zap.Uint8("idx", serID),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("actorID", actorID))
+		return
+	}
 	if trace.Rule.ShouldLog(msgID, actorID, sesID) {
 		zap.L().Info(">>> msg.send: ",
 			zap.Uint32("msgID", msgID),
@@ -79,8 +101,18 @@ func SendToSrvAll(serType pb.Server, msg proto.Message, actorID uint64, sesID ui
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
 		return
 	}
-	msgq.Q.SendAll(serType, msgID, data, actorID, sesID)
-
+	err = msgq.Q.SendAll(serType, msgID, data, actorID, sesID)
+	if err != nil {
+		zap.L().Warn(">>> send to all error: ",
+			zap.Error(err),
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid2.MsgIDS2S_name[int32(msgID)]),
+			zap.Any("data", msg),
+			zap.Any("to", serType),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("actorID", actorID))
+		return
+	}
 	if trace.Rule.ShouldLog(msgID, actorID, sesID) {
 		zap.L().Info(">>> msg.sendAll: ",
 			zap.Uint32("msgID", msgID),

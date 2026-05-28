@@ -24,29 +24,6 @@ func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
 	return nil
 }
 
-func (bs *DataBus) Close() {
-	if !bs.closed.CompareAndSwap(false, true) {
-		return
-	}
-
-	bs.flushAllBatchers()
-
-	if bs.conn != nil {
-		err := bs.conn.Drain()
-		if err != nil {
-			zap.S().Warn("Failed to drain connection", zap.Error(err))
-		}
-		bs.conn.Close()
-	}
-	if bs.rpcConn != nil {
-		err := bs.rpcConn.Drain()
-		if err != nil {
-			zap.S().Warn("Failed to drain connection", zap.Error(err))
-		}
-		bs.rpcConn.Close()
-	}
-}
-
 func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg)) error {
 	for sub, queue := range subs {
 		var subObj *nats.Subscription
@@ -74,28 +51,17 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 	return nil
 }
 
-func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
-	subs := make(map[string]string) // [subject,queue]
-	// all
-	subs[allSubjectName(serType)] = ""
-	// index
-	subs[idxSubjectName(serType, serID)] = ""
-	// group
-	subs[groupSubjectName(serType)] = "msg.group"
-	// rpc idx
-	subs[rpcIdxSubjectName(serType, serID)] = ""
-
-	return subs
-}
-
 // BatchDecodeAndHandle 批量解码大包
 func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error {
 	buf := msg.Data
 	offset := 0
 
+	sm := GetSubMetrics(msg.Subject)
+
 	for offset < len(buf) {
 		// 读取 4 字节的长度前缀
 		if len(buf)-offset < 4 {
+			sm.DecodeErr.Inc()
 			return gerror.New("batch decode error: missing length prefix")
 		}
 		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
@@ -103,14 +69,19 @@ func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error 
 
 		// 截取单条消息的数据段
 		if len(buf)-offset < subSize {
+			sm.DecodeErr.Inc()
 			return gerror.New("batch decode error: buffer too small for sub-message")
 		}
 		subBuf := buf[offset : offset+subSize]
 
 		ctx, err := Decode(subBuf)
 		if err != nil {
+			sm.DecodeErr.Inc()
+			offset += subSize
 			continue // 或者记录错误并 continue
 		}
+
+		sm.GetMsgCounter(ctx.MsgID).Inc()
 
 		ctx.Raw = msg
 		callback(ctx)
@@ -154,4 +125,41 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	ctx.Data = buf[offset:]
 
 	return ctx, nil
+}
+
+func (bs *DataBus) Close() {
+	if !bs.closed.CompareAndSwap(false, true) {
+		return
+	}
+
+	bs.flushAllBatchers()
+
+	if bs.conn != nil {
+		err := bs.conn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		bs.conn.Close()
+	}
+	if bs.rpcConn != nil {
+		err := bs.rpcConn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		bs.rpcConn.Close()
+	}
+}
+
+func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
+	subs := make(map[string]string) // [subject,queue]
+	// all
+	subs[allSubjectName(serType)] = ""
+	// index
+	subs[idxSubjectName(serType, serID)] = ""
+	// group
+	subs[groupSubjectName(serType)] = "msg.group"
+	// rpc idx
+	subs[rpcIdxSubjectName(serType, serID)] = ""
+
+	return subs
 }

@@ -4,8 +4,7 @@ import (
 	"context"
 	_ "net/http/pprof"
 	"server/internal/robot/clinet"
-	"server/internal/robot/logic/monitor"
-	robot2 "server/internal/robot/logic/robot"
+	"server/internal/robot/logic/robot"
 	"sync"
 
 	"go.uber.org/zap"
@@ -19,8 +18,7 @@ func Init(ctx context.Context) error {
 	// 	BeginID:    begin,
 	// 	LoginOnly:  false,
 	// }
-	monitor.Register()
-	robot2.RegisteMsgHandle()
+	robot.RegisteMsgHandle()
 
 	return nil
 }
@@ -33,6 +31,6 @@ func UnInit(ctx context.Context) {
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	zap.S().Info("start run")
-	robot2.InitRobots(robot2.Setup.Cnt, robot2.Setup.BeginID)
+	robot.InitRobots(robot.Setup.Cnt, robot.Setup.BeginID)
 	return nil
 }

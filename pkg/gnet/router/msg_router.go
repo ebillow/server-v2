@@ -3,6 +3,7 @@ package router
 import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/msgq"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -57,17 +58,11 @@ func (rt *MsgRouter) handleMsg(c gctx.Context, logFunc func(message proto.Messag
 	}
 
 	logFunc(msgPB)
-	begin := time.Now()
+	begin := time.Now() // todo 优化
 
 	node.HandleFunc(c, msgPB)
 
-	span := time.Since(begin)
-	if span.Milliseconds() > 200 {
-		// zap.L().Warn("handle msg timeout:",
-		// 	zap.Inline(c),
-		// 	zap.Duration("cost", span),
-		// )
-	}
+	msgq.GetHandlerLatencyMetric(c.MsgID).Update(float64(time.Since(begin).Milliseconds()))
 
 	return nil
 }

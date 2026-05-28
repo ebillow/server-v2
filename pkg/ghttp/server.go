@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,10 @@ func NewEngine(usePprof bool) *gin.Engine {
 			Code: 0,
 			Data: "replay",
 		})
+	})
+
+	r.GET("/metrics", func(context *gin.Context) {
+		metrics.WritePrometheus(context.Writer, true)
 	})
 
 	// 注入 pprof; 访问 http//host:port/debug/pprof

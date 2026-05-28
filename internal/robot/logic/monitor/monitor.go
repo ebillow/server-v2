@@ -1,11 +1,9 @@
 package monitor
 
 import (
-	"server/pkg/ghttp"
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
-	"github.com/gin-gonic/gin"
 )
 
 var (
@@ -32,9 +30,10 @@ func Fail() {
 	errTotal.Inc()
 }
 
-// Register 启动监控接口
-func Register() {
-	ghttp.EG().GET("/metrics", func(context *gin.Context) {
-		metrics.WritePrometheus(context.Writer, true)
-	})
-}
+//
+// // Register 启动监控接口
+// func Register() {
+// 	ghttp.EG().GET("/metrics", func(context *gin.Context) {
+// 		metrics.WritePrometheus(context.Writer, true)
+// 	})
+// }

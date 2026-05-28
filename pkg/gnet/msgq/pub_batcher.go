@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/VictoriaMetrics/metrics"
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
@@ -115,6 +116,12 @@ type PubBatcher struct {
 	closed atomic.Bool
 	stopCh chan struct{}
 	wg     sync.WaitGroup
+
+	metricDrop         *metrics.Counter
+	metricAdd          *metrics.Counter
+	metricFlush        *metrics.Counter
+	metricBatchSizeMsg *metrics.Histogram
+	// metricNatsPubLatency *metrics.Histogram
 }
 
 func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
@@ -123,6 +130,12 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 		conn:    conn,
 		stopCh:  make(chan struct{}),
 		queue:   queue.NewSwapQueue[gctx.Context](4096, 40960),
+
+		metricDrop:         MetricPubDrop(subject),
+		metricBatchSizeMsg: MetricBatchSizeMsg(subject),
+		metricAdd:          MetricPubMsg(subject),
+		metricFlush:        MetricBatchFlush(subject),
+		// metricNatsPubLatency: MetricNatsPubLatency(subject),
 	}
 
 	tb.startLoop()
@@ -131,7 +144,14 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 }
 
 func (tb *PubBatcher) Add(ctx gctx.Context) error {
-	return tb.queue.Push(ctx)
+	err := tb.queue.Push(ctx)
+	if err != nil {
+		tb.metricDrop.Inc()
+		return err
+	}
+	tb.metricAdd.Inc()
+
+	return err
 }
 
 // 定时器：每 25 毫秒强制发送一次，防止消息一直积压不发
@@ -160,6 +180,8 @@ func (tb *PubBatcher) startLoop() {
 					buf = buf[:0]
 				}
 				count = 0
+				tb.metricFlush.Add(count)
+				tb.metricBatchSizeMsg.Update(float64(count))
 			}
 		}
 

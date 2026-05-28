@@ -76,10 +76,13 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 		nats.ReconnectWait(2*time.Second),
 		nats.Timeout(3*time.Second),
 		nats.RetryOnFailedConnect(true),
-		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			SetNatsConnStatus(nc.ConnectedUrl(), 0)
 			zap.S().Errorf("disconnected from nats! Reason: %q\n", err)
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
+			SetNatsConnStatus(nc.ConnectedUrl(), 1)
+			IncNatsReconnect(nc.ConnectedUrl())
 			zap.S().Infof("reconnected to nats server %s with address %s in cluster %s!", nc.ConnectedServerName(), nc.ConnectedAddr(), nc.ConnectedClusterName())
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
@@ -93,6 +96,7 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			if errors.Is(err, nats.ErrSlowConsumer) {
+				IncSlowConsumer(sub.Subject)
 				dropped, _ := sub.Dropped()
 				zap.S().Warnf("nats slow consumer on subject %q: dropped %d messages\n",
 					sub.Subject, dropped)
@@ -106,6 +110,7 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 	if err != nil {
 		return nil, err
 	}
+	SetNatsConnStatus(connectString, 1)
 	return nc, nil
 }
 
