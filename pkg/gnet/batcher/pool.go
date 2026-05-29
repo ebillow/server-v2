@@ -1,6 +1,12 @@
-package msgq
+package batcher
 
 import "sync"
+
+const (
+	HeaderSize = 4 + 8 + 8 + 1 + 1 + 1 + 1 + 1
+	batchCount = 500
+	buffSize   = 1024 * batchCount
+)
 
 // bufPool 序列化 Buffer 对象池
 //

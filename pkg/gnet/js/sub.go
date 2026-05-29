@@ -7,6 +7,7 @@ import (
 	"server/api/pb"
 	"server/pkg/flag"
 	"server/pkg/gerror"
+	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/gctx"
 
 	"strings"
@@ -67,7 +68,7 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 		Durable:       consumerName,                // 持久化消费者名称
 		AckPolicy:     jetstream.AckExplicitPolicy, // 显式确认
 		FilterSubject: subject,                     // 只过滤出当前需要的 subject
-		MaxAckPending: 2000,                        // 流量控制
+		MaxAckPending: 10000,                       // 流量控制
 		AckWait:       time.Minute,
 	})
 	if err != nil {
@@ -77,10 +78,8 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 
 	// 开始消费消息
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		ctxs, err := BatchDecode(msgRaw.Data())
-		for _, v := range ctxs {
-			cb(v)
-		}
+		err = BatchDecodeAndHandle(msgRaw.Data(), cb)
+
 		// 处理完成，Ack 确认
 		if err = msgRaw.Ack(); err != nil {
 			zap.L().Error("Ack failed", zap.Error(err))
@@ -95,39 +94,40 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 	return nil
 }
 
-// BatchDecode 批量解码大包
-func BatchDecode(buf []byte) ([]gctx.Context, error) {
-	var ctxs []gctx.Context
+// BatchDecodeAndHandle 批量解码大包
+func BatchDecodeAndHandle(buf []byte, cb func(msg gctx.Context)) error {
 	offset := 0
 
 	for offset < len(buf) {
 		// 读取 4 字节的长度前缀
 		if len(buf)-offset < 4 {
-			return nil, gerror.New("batch decode error: missing length prefix")
+			return gerror.New("batch decode error: missing length prefix")
 		}
 		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
 		offset += 4
 
 		// 截取单条消息的数据段
 		if len(buf)-offset < subSize {
-			return nil, gerror.New("batch decode error: buffer too small for sub-message")
+			return gerror.New("batch decode error: buffer too small for sub-message")
 		}
 		subBuf := buf[offset : offset+subSize]
 
 		ctx, err := Decode(subBuf)
 		if err != nil {
-			return nil, err // 或者记录错误并 continue
+			offset += subSize
+			continue
 		}
 
-		ctxs = append(ctxs, ctx)
+		cb(ctx)
+
 		offset += subSize
 	}
 
-	return ctxs, nil
+	return nil
 }
 
 func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < headerSize {
+	if len(buf) < batcher.HeaderSize {
 		return ctx, gerror.New("decode error: buffer too small for header")
 	}
 

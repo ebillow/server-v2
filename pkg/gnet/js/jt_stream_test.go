@@ -89,12 +89,10 @@ func TestPull(t *testing.T) {
 	p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
 	require.NoError(t, err)
 	wg := sync.WaitGroup{}
-	p.Start(context.Background(), func(contexts []gctx.Context) error {
-		for _, v := range contexts {
-			t.Log(v, string(v.Data))
-			wg.Done()
-		}
-		return nil
+	p.Start(context.Background(), func(ctx gctx.Context) {
+
+		t.Log(ctx, string(ctx.Data))
+		wg.Done()
 	})
 
 	cnt := 10
@@ -114,13 +112,11 @@ func TestPullMulti(t *testing.T) {
 		recv[i] = &atomic.Int32{}
 		p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
 		require.NoError(t, err)
-		p.Start(context.Background(), func(contexts []gctx.Context) error {
-			for range contexts {
-				// t.Log(i, v, string(v.Data))
-				recv[i].Add(1)
-				wg.Done()
-			}
-			return nil
+		p.Start(context.Background(), func(ctx gctx.Context) {
+			// t.Log(i, v, string(v.Data))
+			recv[i].Add(1)
+			wg.Done()
+
 		})
 	}
 

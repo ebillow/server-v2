@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"server/api/pb"
 	"server/pkg/gerror"
+	"server/pkg/gnet/batcher"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -12,13 +13,13 @@ import (
 
 // RpcCall 远程调用，注意最好保持单向调用，否则可能出现互相等待
 func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, toSer pb.Server, toSerID uint8, actorID uint64, sesID uint64, timeOut time.Duration) error {
-	bufPtr := GetBuffer()
-	defer FreeBuffer(bufPtr)
+	bufPtr := batcher.GetBuffer()
+	defer batcher.FreeBuffer(bufPtr)
 
 	buf := (*bufPtr)[:0]
 
 	reqSize := proto.Size(req)
-	subSize := headerSize + reqSize
+	subSize := batcher.HeaderSize + reqSize
 
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
 	buf = binary.LittleEndian.AppendUint32(buf, msgID)
@@ -53,8 +54,8 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 }
 
 func RpcRespond(msg *nats.Msg, ack proto.Message) error {
-	bufPtr := GetBuffer()
-	defer FreeBuffer(bufPtr)
+	bufPtr := batcher.GetBuffer()
+	defer batcher.FreeBuffer(bufPtr)
 
 	buf := (*bufPtr)[:0]
 	marshalOpts := proto.MarshalOptions{}

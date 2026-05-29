@@ -7,12 +7,18 @@ import (
 	"server/pkg/flag"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+)
+
+const (
+	SvcTypeMax = 64
+	SvcIDMax   = 64
 )
 
 type JetStream struct {
@@ -22,8 +28,16 @@ type JetStream struct {
 	serType uint8
 	serID   uint8
 
-	pubIdx   sync.Map
-	pubGroup sync.Map
+	closed atomic.Bool
+
+	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[PubBatcher]
+	pubIDXMtx sync.Mutex
+
+	pubGroup    [SvcTypeMax]atomic.Pointer[PubBatcher]
+	pubGroupMtx sync.Mutex
+
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 var S JetStream
@@ -32,6 +46,8 @@ var S JetStream
 func (jt *JetStream) Init(serType pb.Server, serID uint8, natsURL string, options ...nats.Option) error {
 	jt.serType = uint8(serType)
 	jt.serID = serID
+
+	jt.ctx, jt.cancel = context.WithCancel(context.Background())
 
 	opts := append(
 		options,
@@ -61,6 +77,12 @@ func (jt *JetStream) Init(serType pb.Server, serID uint8, natsURL string, option
 }
 
 func (jt *JetStream) Shutdown() {
+	if !jt.closed.CompareAndSwap(false, true) {
+		return
+	}
+
+	jt.flushAllBatchers()
+
 	if jt.JS != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -74,6 +96,7 @@ func (jt *JetStream) Shutdown() {
 	for _, c := range jt.consContext {
 		c.Stop()
 	}
+	jt.cancel()
 }
 
 // 获取统一的 Stream 名称 (例如: Stream_game)

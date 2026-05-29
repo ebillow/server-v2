@@ -43,7 +43,7 @@ func NewPullConsumer(ctx context.Context, jt *JetStream, subject string) (*PullC
 }
 
 // Start 开始阻塞拉取并写入
-func (c *PullConsumer) Start(ctx context.Context, cb func([]gctx.Context) error) {
+func (c *PullConsumer) Start(ctx context.Context, cb func(gctx.Context)) {
 	go func() {
 		for {
 			select {
@@ -62,39 +62,24 @@ func (c *PullConsumer) Start(ctx context.Context, cb func([]gctx.Context) error)
 					continue
 				}
 
-				var allLogs []gctx.Context
 				var natsMsgs []jetstream.Msg
 
 				// 遍历拉取到的大包并解包
 				for msg := range msgBatch.Messages() {
-					ctxs, err := BatchDecode(msg.Data())
+					err = BatchDecodeAndHandle(msg.Data(), cb)
 					if err != nil {
 						zap.L().Error("DBLog batch decode error", zap.Error(err))
 						msg.Ack() // 脏数据直接 Ack 丢弃
 						continue
 					}
 
-					allLogs = append(allLogs, ctxs...)
 					natsMsgs = append(natsMsgs, msg)
-				}
-
-				if len(allLogs) == 0 {
-					continue
-				}
-
-				err = cb(allLogs)
-				if err != nil {
-					zap.L().Error("Failed to write to ClickHouse", zap.Error(err))
-					// 写入失败不 Ack，等待 AckWait 超时后 NATS 会自动重发
-					time.Sleep(2 * time.Second)
-					continue
 				}
 
 				// 写入成功，批量 Ack NATS 的大包
 				for _, msg := range natsMsgs {
 					msg.Ack()
 				}
-				zap.L().Info("Successfully wrote logs to ClickHouse", zap.Int("log_count", len(allLogs)))
 			}
 		}
 	}()

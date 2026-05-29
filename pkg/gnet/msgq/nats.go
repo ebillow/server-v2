@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/gerror"
+	"server/pkg/gnet/gmetrics"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -15,22 +15,13 @@ import (
 	"go.uber.org/zap"
 )
 
+// todo pubPatcher 根据不同类型参数配置化
+
 var Q DataBus
 
 const (
 	SvcTypeMax = 64
 	SvcIDMax   = 64
-)
-
-const (
-	headerSize = 4 + 8 + 8 + 1 + 1 + 1 + 1 + 1
-	batchCount = 500
-	buffSize   = 1024 * batchCount
-)
-
-var (
-	ErrClosed = gerror.New("msgq closed")
-	ErrArg    = gerror.New("msgq invalid argument")
 )
 
 type DataBus struct {
@@ -77,12 +68,12 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 		nats.Timeout(3*time.Second),
 		nats.RetryOnFailedConnect(true),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			SetNatsConnStatus(nc.ConnectedUrl(), 0)
+			gmetrics.SetNatsConnStatus(nc.ConnectedUrl(), 0)
 			zap.S().Errorf("disconnected from nats! Reason: %q\n", err)
 		}),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			SetNatsConnStatus(nc.ConnectedUrl(), 1)
-			IncNatsReconnect(nc.ConnectedUrl())
+			gmetrics.SetNatsConnStatus(nc.ConnectedUrl(), 1)
+			gmetrics.IncNatsReconnect(nc.ConnectedUrl())
 			zap.S().Infof("reconnected to nats server %s with address %s in cluster %s!", nc.ConnectedServerName(), nc.ConnectedAddr(), nc.ConnectedClusterName())
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
@@ -96,7 +87,7 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 		}),
 		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
 			if errors.Is(err, nats.ErrSlowConsumer) {
-				IncSlowConsumer(sub.Subject)
+				gmetrics.IncSlowConsumer(sub.Subject)
 				dropped, _ := sub.Dropped()
 				zap.S().Warnf("nats slow consumer on subject %q: dropped %d messages\n",
 					sub.Subject, dropped)
@@ -110,7 +101,7 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 	if err != nil {
 		return nil, err
 	}
-	SetNatsConnStatus(connectString, 1)
+	gmetrics.SetNatsConnStatus(connectString, 1)
 	return nc, nil
 }
 

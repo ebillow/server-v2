@@ -4,7 +4,9 @@ import (
 	"encoding/binary"
 	"server/api/pb"
 	"server/pkg/gerror"
+	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmetrics"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
@@ -56,7 +58,7 @@ func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error 
 	buf := msg.Data
 	offset := 0
 
-	sm := GetSubMetrics(msg.Subject)
+	sm := gmetrics.GetSubMetrics(msg.Subject)
 
 	for offset < len(buf) {
 		// 读取 4 字节的长度前缀
@@ -92,7 +94,7 @@ func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error 
 }
 
 func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < headerSize {
+	if len(buf) < batcher.HeaderSize {
 		return ctx, gerror.New("decode error: buffer too small for header")
 	}
 

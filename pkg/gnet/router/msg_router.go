@@ -3,7 +3,7 @@ package router
 import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
-	"server/pkg/gnet/msgq"
+	"server/pkg/gnet/gmetrics"
 	"time"
 
 	"google.golang.org/protobuf/proto"
@@ -62,7 +62,7 @@ func (rt *MsgRouter) handleMsg(c gctx.Context, logFunc func(message proto.Messag
 
 	node.HandleFunc(c, msgPB)
 
-	msgq.GetHandlerLatencyMetric(c.MsgID).Update(float64(time.Since(begin).Milliseconds()))
+	gmetrics.GetHandlerLatencyMetric(c.MsgID).Update(float64(time.Since(begin).Milliseconds()))
 
 	return nil
 }
