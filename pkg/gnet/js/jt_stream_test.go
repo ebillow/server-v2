@@ -44,6 +44,7 @@ func TestSub(t *testing.T) {
 			// }
 			// ret[msg.RoleID] = i
 			// mtx.Unlock()
+			t.Log(msg, string(msg.Data))
 			wg.Done()
 		})
 		require.NoError(t, err)

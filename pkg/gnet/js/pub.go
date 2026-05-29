@@ -117,8 +117,8 @@ func (jt *JetStream) flushAllBatchers() {
 }
 
 type Ack struct {
-	Future jetstream.PubAckFuture
-	PBuf   *[]byte
+	Future  jetstream.PubAckFuture
+	Subject string
 }
 
 // PubBatcher 针对单个目标服务器的流式批处理器
@@ -136,24 +136,29 @@ func NewPubBatcher(ctx context.Context, subject string, js jetstream.JetStream) 
 		ack:     make(chan Ack, 40960),
 	}
 
-	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, p *[]byte, count int) {
-		if p == nil {
+	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, pBuf *[]byte, count int) {
+		defer func() {
+			if pBuf != nil {
+				batcher.FreeBuffer(pBuf)
+			}
+		}()
+
+		if len(data) == 0 {
 			return
 		}
+
 		ackF, err := tb.JS.PublishMsgAsync(&nats.Msg{
 			Subject: tb.subject,
 			Data:    data,
 		})
 		if err != nil {
 			zap.L().Error("js publish msg", zap.Error(err))
-			batcher.FreeBuffer(p)
 			return
 		}
 		select {
-		case tb.ack <- Ack{Future: ackF, PBuf: p}:
+		case tb.ack <- Ack{Future: ackF, Subject: subject}:
 		default:
 			zap.L().Warn("js publish msg chan full")
-			batcher.FreeBuffer(p)
 		}
 	})
 
@@ -178,17 +183,14 @@ func (tb *PubBatcher) ackWorker(ctx context.Context) {
 }
 
 func (tb *PubBatcher) waitAck(task Ack) {
-	defer func() {
-		if task.PBuf != nil {
-			batcher.FreeBuffer(task.PBuf)
-		}
-	}()
+	timer := time.NewTimer(time.Second * 3)
+	defer timer.Stop()
 
 	select {
 	case <-task.Future.Ok():
 	case err := <-task.Future.Err():
 		zap.L().Error("NATS async pub error", zap.Error(err), zap.String("subject", tb.subject))
-	case <-time.After(3 * time.Second):
+	case <-timer.C:
 		zap.L().Error("NATS async pub timeout", zap.String("subject", tb.subject))
 	}
 }

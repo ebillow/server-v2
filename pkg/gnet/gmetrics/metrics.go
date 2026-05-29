@@ -80,7 +80,7 @@ func GetHandlerLatencyMetric(msgID uint32) *metrics.Histogram {
 
 func SetNatsConnStatus(server string, status float64) {
 	// Gauge 直接 Set 值
-	metrics.GetOrCreateGauge(fmt.Sprintf(`msgq_nats_conn_status{server="%s"}`, server), func() float64 { return 0 }).Set(status)
+	metrics.GetOrCreateGauge(fmt.Sprintf(`msgq_nats_conn_status{server="%s"}`, server), nil).Set(status)
 }
 
 func IncNatsReconnect(server string) {

@@ -101,7 +101,8 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 	}
 	tb.mtx.Unlock()
 
-	for _, t := range tasks {
+	for i := 0; i < taskN; i++ {
+		t := tasks[i]
 		tb.flushFn(t.data, t.bp, t.count)
 		tb.wg.Done()
 	}
