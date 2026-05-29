@@ -97,7 +97,7 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 	}
 
 	if taskN > 0 {
-		tb.wg.Add(len(tasks))
+		tb.wg.Add(taskN)
 	}
 	tb.mtx.Unlock()
 
