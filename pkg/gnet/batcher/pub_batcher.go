@@ -1,24 +1,12 @@
 package batcher
 
 import (
-	"encoding/binary"
 	"server/pkg/gnet/dep"
 	"server/pkg/gnet/gctx"
 	"sync"
 	"sync/atomic"
 	"time"
 )
-
-type batcherState int32
-
-const (
-	BStateRunning batcherState = iota
-	BStateClosing
-	BStateStopped
-)
-
-// FlushFunc 是由具体的 NATS / JetStream 实现的发送回调
-type FlushFunc func(data []byte, p *[]byte, count int)
 
 // BaseBatcher 针对单个目标服务器的流式批处理器
 type BaseBatcher struct {
@@ -103,7 +91,10 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 
 	for i := 0; i < taskN; i++ {
 		t := tasks[i]
-		tb.flushFn(t.data, t.bp, t.count)
+		tb.flushFn(t.data, t.count)
+		if t.bp != nil {
+			FreeBuffer(t.bp)
+		}
 		tb.wg.Done()
 	}
 
@@ -114,19 +105,6 @@ type flushTask struct {
 	data  []byte
 	bp    *[]byte // 如果是 nil，说明是临时大包，不需要回收到 pool
 	count int
-}
-
-func SerializeFrame(dst []byte, msgSize int, ctx gctx.Context) {
-	binary.LittleEndian.PutUint32(dst[0:], uint32(msgSize))
-	binary.LittleEndian.PutUint32(dst[4:], ctx.MsgID)
-	binary.LittleEndian.PutUint64(dst[8:], ctx.ActorID)
-	binary.LittleEndian.PutUint64(dst[16:], ctx.SesID)
-	dst[24] = ctx.FromSer
-	dst[25] = ctx.FromSerID
-	dst[26] = ctx.ToSer
-	dst[27] = ctx.ToSerID
-	dst[28] = ctx.Flag
-	copy(dst[29:], ctx.Data)
 }
 
 // 定时器：每 25 毫秒强制发送一次，防止消息一直积压不发
@@ -165,7 +143,8 @@ func (tb *BaseBatcher) forceFlush() {
 	tb.mtx.Unlock()
 
 	if count > 0 {
-		tb.flushFn(flushData, flushBp, count)
+		tb.flushFn(flushData, count)
+		FreeBuffer(flushBp)
 		tb.wg.Done()
 	}
 }
@@ -181,84 +160,3 @@ func (tb *BaseBatcher) StopAndFlush() {
 	tb.wg.Wait()
 	tb.state.Store(int32(BStateStopped))
 }
-
-// ------------------------actor 版本-------------------------
-// 优点：Add锁小，并发快
-// 缺点：异步持有了数据，外层不好做池化
-
-// func (tb *PubBatcher) Add(ctx gctx.Context) error {
-// 	err := tb.queue.Push(ctx)
-// 	if err != nil {
-// 		return err
-// 	}
-//
-// 	return err
-// }
-//
-// // 定时器：每 25 毫秒强制发送一次，防止消息一直积压不发
-// func (tb *PubBatcher) startLoop() {
-// 	const maxRetainBufSize = buffSize * 2
-// 	tb.wg.Add(1)
-// 	go func() {
-// 		ticker := time.NewTicker(time.Millisecond * 25)
-// 		defer func() {
-// 			ticker.Stop()
-// 			defer tb.wg.Done()
-// 		}()
-//
-// 		buf := make([]byte, 0, buffSize)
-// 		count := 0
-//
-// 		flush := func() {
-// 			if count > 0 {
-// 				err := tb.conn.Publish(tb.subject, buf)
-// 				if err != nil {
-// 					zap.L().Error("nats publish err", zap.Error(err))
-// 				}
-// 				if cap(buf) > maxRetainBufSize {
-// 					buf = make([]byte, 0, buffSize)
-// 				} else {
-// 					buf = buf[:0]
-// 				}
-// 				count = 0
-// 				tb.metricFlush.Add(count)
-// 				tb.metricBatchSizeMsg.Update(float64(count))
-// 			}
-// 		}
-//
-// 		processFunc := func(ctx gctx.Context) {
-// 			subSize := headerSize + len(ctx.Data)
-//
-// 			// 追加前缀
-// 			buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
-//
-// 			// 追加主体
-// 			buf = binary.LittleEndian.AppendUint32(buf, ctx.MsgID)
-// 			buf = binary.LittleEndian.AppendUint64(buf, ctx.ActorID)
-// 			buf = binary.LittleEndian.AppendUint64(buf, ctx.SesID)
-// 			buf = append(buf, ctx.FromSer, ctx.FromSerID, ctx.ToSer, ctx.ToSerID, ctx.Flag)
-// 			buf = append(buf, ctx.Data...)
-//
-// 			count++
-//
-// 			// 如果在 Range 遍历期间达到了批处理上限，直接触发发送
-// 			if count >= batchCount || len(buf) > buffSize {
-// 				flush()
-// 			}
-// 		}
-//
-// 		for {
-// 			select {
-// 			case <-tb.queue.Sig():
-// 				tb.queue.Range(processFunc)
-// 			case <-ticker.C:
-// 				tb.queue.Range(processFunc)
-// 				flush()
-// 			case <-tb.stopCh:
-// 				tb.queue.Range(processFunc)
-// 				flush()
-// 				return
-// 			}
-// 		}
-// 	}()
-// }

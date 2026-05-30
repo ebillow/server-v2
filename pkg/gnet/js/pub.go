@@ -136,13 +136,7 @@ func NewPubBatcher(ctx context.Context, subject string, js jetstream.JetStream) 
 		ack:     make(chan Ack, 40960),
 	}
 
-	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, pBuf *[]byte, count int) {
-		defer func() {
-			if pBuf != nil {
-				batcher.FreeBuffer(pBuf)
-			}
-		}()
-
+	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, count int) {
 		if len(data) == 0 {
 			return
 		}

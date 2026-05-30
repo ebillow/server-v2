@@ -15,7 +15,7 @@ type SwapQueue[T any] struct {
 	mtx     sync.Mutex
 	write   []T
 	read    []T
-	sig     chan struct{}
+	sig     chan bool
 	maxSize int
 	size    int
 	closed  atomic.Bool
@@ -25,7 +25,7 @@ func NewSwapQueue[T any](size int, maxSize int) *SwapQueue[T] {
 	return &SwapQueue[T]{
 		write:   make([]T, 0, size),
 		read:    make([]T, 0, size),
-		sig:     make(chan struct{}, 1), // 必须是容量为 1 的缓冲通道
+		sig:     make(chan bool, 1), // 必须是容量为 1 的缓冲通道
 		maxSize: maxSize,
 		size:    size,
 	}
@@ -59,7 +59,7 @@ func (s *SwapQueue[T]) pushData(data T) error {
 func (s *SwapQueue[T]) Wake() {
 	// 唤醒消费者：如果通道满了(已有信号)，直接丢弃，消费者醒着自然会去读
 	select {
-	case s.sig <- struct{}{}:
+	case s.sig <- !s.closed.Load():
 	default:
 	}
 }
@@ -74,7 +74,7 @@ func (s *SwapQueue[T]) IsClosed() bool {
 	return s.closed.Load()
 }
 
-func (s *SwapQueue[T]) Sig() <-chan struct{} {
+func (s *SwapQueue[T]) Sig() <-chan bool {
 	return s.sig
 }
 

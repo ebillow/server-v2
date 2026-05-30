@@ -249,14 +249,10 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 		metricFlush:        gmetrics.MetricBatchFlush(subject),
 	}
 
-	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, p *[]byte, count int) {
+	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, count int) {
 		err := tb.conn.Publish(tb.subject, data)
 		if err != nil {
 			zap.L().Error("publish err", zap.Error(err))
-		}
-
-		if p != nil {
-			batcher.FreeBuffer(p)
 		}
 
 		tb.metricFlush.Add(count)
