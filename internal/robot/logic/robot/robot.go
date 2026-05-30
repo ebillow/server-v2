@@ -6,7 +6,6 @@ import (
 	"server/api/pb/msgid"
 	clinet2 "server/internal/robot/clinet"
 	"server/pkg/crypt/dh"
-	"slices"
 	"sync/atomic"
 	"time"
 
@@ -232,9 +231,9 @@ func (r *Robot) onLoginSuccess(msg *pb.S2CLogin) {
 	r.s.U = r
 	r.ReconnToken = msg.Token
 
-	if !slices.Contains(msg.ConnectAcc, r.acc) {
-		panic("connect acc not exist")
-	}
+	// if !slices.Contains(msg.ConnectAcc, r.acc) {
+	// 	panic("connect acc not exist")
+	// }
 	// r.Send(pb.MsgIDC2S_C2SCilentReady, nil)
 	// worldId := share.GetWorldFromGuid(r.Data.Guid)
 	zap.S().Infof("%s %s %d %s login into success", r.acc, r.Data.Name, r.Data.ID, r.s.String())

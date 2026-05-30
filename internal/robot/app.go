@@ -5,19 +5,20 @@ import (
 	_ "net/http/pprof"
 	"server/internal/robot/clinet"
 	"server/internal/robot/logic/robot"
+	"server/pkg/flag"
 	"sync"
 
 	"go.uber.org/zap"
 )
 
 func Init(ctx context.Context) error {
-	// begin := int(flag.SvcIndex) * 100000
-	// robot2.Setup = &robot2.ServerCfg{
-	// 	ServerAddr: Addr,
-	// 	Cnt:        Count,
-	// 	BeginID:    begin,
-	// 	LoginOnly:  false,
-	// }
+	begin := int(flag.SvcIndex) * 100000
+	robot.Setup = &robot.ServerCfg{
+		ServerAddr: "127.0.0.1:30001",
+		Cnt:        10000,
+		BeginID:    begin,
+		LoginOnly:  false,
+	}
 	robot.RegisteMsgHandle()
 
 	return nil
