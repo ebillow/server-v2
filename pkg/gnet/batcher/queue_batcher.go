@@ -4,6 +4,7 @@ import (
 	"server/pkg/gnet/dep"
 	"server/pkg/gnet/gctx"
 	"server/pkg/queue"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -14,6 +15,7 @@ type QueueBatcher struct {
 	queue   *queue.SwapQueue[gctx.Context]
 	state   atomic.Int32
 	flushFn FlushFunc
+	wg      sync.WaitGroup
 }
 
 func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
@@ -40,10 +42,11 @@ func (tb *QueueBatcher) Add(ctx gctx.Context) error {
 }
 
 func (tb *QueueBatcher) startLoop() {
-	const maxRetainBufSize = buffSize * 2
+	tb.wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 25)
 		defer func() {
+			tb.wg.Done()
 			ticker.Stop()
 		}()
 
@@ -53,7 +56,7 @@ func (tb *QueueBatcher) startLoop() {
 		flush := func() {
 			if count > 0 {
 				tb.flushFn(buf, count)
-				if cap(buf) > maxRetainBufSize {
+				if cap(buf) > buffSize {
 					buf = make([]byte, 0, buffSize)
 				} else {
 					buf = buf[:0]
@@ -63,7 +66,7 @@ func (tb *QueueBatcher) startLoop() {
 		}
 
 		processFunc := func(ctx gctx.Context) {
-			msgSize := HeaderSize + len(ctx.Data)
+			msgSize := FrameBodyHeadSize + len(ctx.Data)
 			frameSize := 4 + msgSize
 			if len(buf)+frameSize > cap(buf) && len(buf) > 0 {
 				flush()
@@ -71,9 +74,11 @@ func (tb *QueueBatcher) startLoop() {
 			if frameSize > cap(buf) {
 				monsterBuf := make([]byte, frameSize)
 				SerializeFrame(monsterBuf, msgSize, ctx)
-				flush()
+				tb.flushFn(monsterBuf, 1)
 			} else {
-				SerializeFrame(buf, msgSize, ctx)
+				pos := len(buf)
+				buf = buf[:pos+frameSize]
+				SerializeFrame(buf[pos:pos+frameSize], msgSize, ctx)
 				count++
 				// 如果在 Range 遍历期间达到了批处理上限，直接触发发送
 				if count >= batchCount || len(buf) > buffSize {
@@ -84,15 +89,18 @@ func (tb *QueueBatcher) startLoop() {
 
 		for {
 			select {
-			case ok := <-tb.queue.Sig():
+			case <-tb.queue.Sig():
 				tb.queue.Range(processFunc)
-				if !ok {
-					flush()
-					return
-				}
+
 			case <-ticker.C:
 				tb.queue.Range(processFunc)
 				flush()
+			}
+
+			if tb.queue.IsClosed() {
+				tb.queue.Range(processFunc)
+				flush()
+				return
 			}
 		}
 	}()
@@ -103,7 +111,6 @@ func (tb *QueueBatcher) StopAndFlush() {
 	if !tb.state.CompareAndSwap(int32(BStateRunning), int32(BStateClosing)) {
 		return
 	}
-
-	tb.queue.Close()
+	tb.wg.Wait()
 	tb.state.Store(int32(BStateStopped))
 }

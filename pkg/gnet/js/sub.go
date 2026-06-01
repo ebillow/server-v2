@@ -127,7 +127,7 @@ func BatchDecodeAndHandle(buf []byte, cb func(msg gctx.Context)) error {
 }
 
 func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < batcher.HeaderSize {
+	if len(buf) < batcher.FrameBodyHeadSize {
 		return ctx, gerror.New("decode error: buffer too small for header")
 	}
 

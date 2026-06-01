@@ -19,7 +19,7 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 	buf := (*bufPtr)[:0]
 
 	reqSize := proto.Size(req)
-	subSize := batcher.HeaderSize + reqSize
+	subSize := batcher.FrameBodyHeadSize + reqSize
 
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
 	buf = binary.LittleEndian.AppendUint32(buf, msgID)

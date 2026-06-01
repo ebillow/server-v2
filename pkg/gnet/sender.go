@@ -107,7 +107,7 @@ func SendToSrvAll(serType pb.Server, msg proto.Message, actorID uint64, sesID ui
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid2.MsgIDS2S_name[int32(msgID)]),
-			zap.Any("data", msg),
+			zap.Any("data", msg), // todo 有反射
 			zap.Any("to", serType),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("actorID", actorID))
