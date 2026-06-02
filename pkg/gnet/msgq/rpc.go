@@ -16,20 +16,29 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 	bufPtr := batcher.GetBuffer()
 	defer batcher.FreeBuffer(bufPtr)
 
-	buf := (*bufPtr)[:0]
-
 	reqSize := proto.Size(req)
-	subSize := batcher.FrameBodyHeadSize + reqSize
+	bodySize := batcher.FrameBodyHeadSize + reqSize
+	buf := (*bufPtr)[:batcher.FrameLenSize+batcher.FrameBodyHeadSize]
 
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
-	buf = binary.LittleEndian.AppendUint32(buf, msgID)
-	buf = binary.LittleEndian.AppendUint64(buf, actorID)
-	buf = binary.LittleEndian.AppendUint64(buf, sesID)
-	buf = append(buf, bs.serType)
-	buf = append(buf, bs.serID)
-	buf = append(buf, uint8(toSer))
-	buf = append(buf, toSerID)
-	buf = append(buf, 0)
+	binary.LittleEndian.PutUint32(buf[0:], uint32(bodySize))
+	binary.LittleEndian.PutUint32(buf[4:], msgID)
+	binary.LittleEndian.PutUint64(buf[8:], actorID)
+	binary.LittleEndian.PutUint64(buf[16:], sesID)
+	buf[24] = bs.serType
+	buf[25] = bs.serID
+	buf[26] = uint8(toSer)
+	buf[27] = toSerID
+	buf[28] = 0
+
+	// buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
+	// buf = binary.LittleEndian.AppendUint32(buf, msgID)
+	// buf = binary.LittleEndian.AppendUint64(buf, actorID)
+	// buf = binary.LittleEndian.AppendUint64(buf, sesID)
+	// buf = append(buf, bs.serType)
+	// buf = append(buf, bs.serID)
+	// buf = append(buf, uint8(toSer))
+	// buf = append(buf, toSerID)
+	// buf = append(buf, 0)
 
 	subStr := rpcIdxSubjectName(toSer, toSerID)
 

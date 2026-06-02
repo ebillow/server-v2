@@ -68,7 +68,10 @@ function gen_proto() {
     msg_player.proto
     msg_server.proto
   )
-  protoc --go_out=${OUTDIR} --plugin= -I ${OUTDIR}/proto "${protoList[@]}"
+  protoc --go_out=${OUTDIR} \
+          --go-vtproto_out=${OUTDIR} \
+          --go-vtproto_opt=features=marshal+unmarshal+size \
+          --plugin= -I ${OUTDIR}/proto "${protoList[@]}"
 }
 
 function gen_msg_id() {

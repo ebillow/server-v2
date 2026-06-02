@@ -16,8 +16,8 @@ const (
 // FlushFunc 是由具体的 NATS / JetStream 实现的发送回调
 type FlushFunc func(data []byte, count int)
 
-func SerializeFrame(dst []byte, msgSize int, ctx gctx.Context) {
-	binary.LittleEndian.PutUint32(dst[0:], uint32(msgSize))
+func SerializeFrame(dst []byte, bodySize int, ctx gctx.Context) {
+	binary.LittleEndian.PutUint32(dst[0:], uint32(bodySize))
 	binary.LittleEndian.PutUint32(dst[4:], ctx.MsgID)
 	binary.LittleEndian.PutUint64(dst[8:], ctx.ActorID)
 	binary.LittleEndian.PutUint64(dst[16:], ctx.SesID)

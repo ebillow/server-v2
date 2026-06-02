@@ -16,18 +16,27 @@ func GateIDFromSesID(gateID uint64) uint8 {
 }
 
 func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
-	data, err := proto.Marshal(msg)
+	pBuf := Get()
+	var err error
+
+	*pBuf, err = proto.MarshalOptions{}.MarshalAppend((*pBuf)[:0], msg)
 	if err != nil {
+		Put(pBuf)
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
+
 	msgID, err := pb.GetMsgIDS2C(msg)
 	if err != nil {
+		Put(pBuf)
 		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
 	serID := GateIDFromSesID(sesID)
-	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, data, roleID, sesID)
+	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, *pBuf, roleID, sesID)
+
+	Put(pBuf)
+
 	if err != nil {
 		zap.L().Warn("send to role error",
 			zap.Error(err),
@@ -54,17 +63,26 @@ func SendToRole(msg proto.Message, sesID uint64, roleID uint64) {
 }
 
 func SendToSrv(serType pb.Server, serID uint8, msg proto.Message, actorID uint64, sesID uint64) {
-	data, err := proto.Marshal(msg)
+	pBuf := Get()
+	var err error
+
+	*pBuf, err = proto.MarshalOptions{}.MarshalAppend((*pBuf)[:0], msg)
 	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
+		Put(pBuf)
+		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
+
 	msgID, err := pb.GetMsgIDS2S(msg)
 	if err != nil {
+		Put(pBuf)
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType), zap.Uint8("serID", serID))
 		return
 	}
-	err = msgq.Q.Send(serType, serID, msgID, data, actorID, sesID)
+	err = msgq.Q.Send(serType, serID, msgID, *pBuf, actorID, sesID)
+
+	Put(pBuf)
+
 	if err != nil {
 		zap.L().Warn(">>> send to srv error",
 			zap.Error(err),
@@ -91,17 +109,26 @@ func SendToSrv(serType pb.Server, serID uint8, msg proto.Message, actorID uint64
 }
 
 func SendToSrvAll(serType pb.Server, msg proto.Message, actorID uint64, sesID uint64) {
-	data, err := proto.Marshal(msg)
+	pBuf := Get()
+	var err error
+
+	*pBuf, err = proto.MarshalOptions{}.MarshalAppend((*pBuf)[:0], msg)
 	if err != nil {
-		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
+		Put(pBuf)
+		zap.L().Warn("send to role error", zap.Error(err))
 		return
 	}
+
 	msgID, err := pb.GetMsgIDS2S(msg)
 	if err != nil {
+		Put(pBuf)
 		zap.L().Warn("send msg error", zap.Error(err), zap.Any("serName", serType))
 		return
 	}
-	err = msgq.Q.SendAll(serType, msgID, data, actorID, sesID)
+	err = msgq.Q.SendAll(serType, msgID, *pBuf, actorID, sesID)
+
+	Put(pBuf)
+
 	if err != nil {
 		zap.L().Warn(">>> send to all error: ",
 			zap.Error(err),
