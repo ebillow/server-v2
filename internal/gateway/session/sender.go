@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	pb "server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gnet/trace"
@@ -33,9 +34,9 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 
 // Send 发送proto数据给客户端
 func (s *Session) Send(msg proto.Message) bool {
-	msgID, err := pb.GetMsgIDS2C(msg)
-	if err != nil {
-		zap.L().Warn("send error", zap.Error(err), zap.Inline(s))
+	msgID, ok := pb.GetMsgIDS2C(msg)
+	if !ok {
+		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return false
 	}
 	return s.SendPB(msgid.MsgIDS2C(msgID), msg)

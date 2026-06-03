@@ -3,7 +3,6 @@ package account
 import (
 	"context"
 	_ "net/http/pprof"
-	"server/api/pb"
 	"server/internal/account/acc_db"
 	"server/internal/account/auth"
 	"server/pkg/db"
@@ -11,6 +10,8 @@ import (
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"sync"
+
+	"go.uber.org/zap"
 )
 
 func Init(ctx context.Context) error {
@@ -29,10 +30,11 @@ func UnInit(ctx context.Context) {
 
 }
 
-func OnServerMsg(ctx gctx.Context) {
-	if ctx.FromSer == uint8(pb.Server_Gateway) {
-		router.C().Handle(ctx)
-	} else {
-		router.S().Handle(ctx)
+func OnServerMsg(c gctx.Context) {
+	err := router.R().Handle(c)
+	if err != nil {
+		zap.L().Info("<<< msg.recv:",
+			zap.Inline(&c),
+		)
 	}
 }

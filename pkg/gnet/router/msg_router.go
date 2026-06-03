@@ -1,8 +1,8 @@
 package router
 
 import (
+	"fmt"
 	"server/api/pb"
-	"server/api/pb/msgid"
 	"server/pkg/flag"
 	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
@@ -41,11 +41,11 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 		return gerror.New("must register before action")
 	}
 	if msgID >= uint32(len(rt.handlers)) {
-		return gerror.New("msg id out of range")
+		return gerror.Newf("msg id[%d] out of range", msgID)
 	}
 
 	if rt.handlers[msgID] != nil {
-		return gerror.New("msg id already register")
+		return gerror.Newf("msg id[%d] already register", msgID)
 	}
 
 	node := &MsgHandler{
@@ -65,7 +65,7 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 	return nil
 }
 
-// HandleMsg 处理消息
+// Handle 处理消息
 func (rt *MsgRouter) Handle(c gctx.Context) error {
 	node, err := rt.getHandler(c.MsgID)
 	if err != nil {
@@ -86,7 +86,7 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 	if trace.Rule.ShouldLog(c.MsgID, c.ActorID, c.SesID) {
 		str, _ := sonic.MarshalString(msgPB)
 		zap.L().Info("<<< msg.recv:",
-			zap.String("msgName", msgid.MsgIDS2S_name[int32(c.MsgID)]),
+			zap.String("type", fmt.Sprintf("%T", msgPB)),
 			zap.String("data", str),
 			zap.Inline(&c),
 		)
@@ -107,12 +107,12 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 
 func (rt *MsgRouter) getHandler(id uint32) (n *MsgHandler, err error) {
 	if id >= uint32(len(rt.handlers)) {
-		err = gerror.New("msg id out of range")
+		err = gerror.Newf("msg id[%d] out of range", id)
 		return
 	}
 	n = rt.handlers[id]
 	if nil == n {
-		err = gerror.New("msg handler not found")
+		err = gerror.Newf("msg handler[%d] not found", id)
 		return
 	}
 	return

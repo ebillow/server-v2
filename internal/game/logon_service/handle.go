@@ -10,10 +10,10 @@ import (
 )
 
 func init() {
-	router.OnS2S(onLogin) // 角色登录
-	router.OnS2S(onDisconnect)
+	router.On(onLogin) // 角色登录
+	router.On(onDisconnect)
 
-	role.OnC2SUsePool(onHeartBeat) // 心跳
+	role.OnP(onHeartBeat) // 心跳
 }
 
 /*-------------------角色消息-----------------*/

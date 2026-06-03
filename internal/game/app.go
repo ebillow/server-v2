@@ -41,39 +41,41 @@ func UnInit(ctx context.Context) {
 
 func inject() {
 	role.InjectLoginMgr(&logon_service.Mgr)
-	role.InjectCRouter(router.C())
-	role.InjectSRouter(router.S())
+	role.InjectRouter(router.R())
 	role.InjectCompCreate(&component.Create)
 }
 
-func OnServerMsg(ctx gctx.Context) {
-	if ctx.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
-		err := role.Mgr.Dispatch(ctx.ActorID, role.Event{
-			Ctx: ctx,
+func OnServerMsg(c gctx.Context) {
+	if c.SesID != 0 { // 客户端消息
+		err := role.Mgr.DispatchBySesID(c.SesID, role.Event{
+			Ctx: c,
 		})
 		if err != nil {
-			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("role", ctx.ActorID))
+			zap.L().Error("PostEvent", zap.Error(err), zap.Inline(&c))
 		}
 		return
 	}
 
-	if ctx.ActorID > 0 { // 服务器发来的公共模块消息
-		err := actor.Actors.Post(ctx.ActorID, actor.Event{Ctx: ctx})
-		if err != nil {
-			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("actor", ctx.ActorID), zap.String("actor", pb.ActorID_name[int32(ctx.ActorID)]))
-		}
-		return
-	}
-
-	if ctx.SesID != 0 { // 客户端消息
-		err := role.Mgr.DispatchBySesID(ctx.SesID, role.Event{
-			Ctx: ctx,
+	if c.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
+		err := role.Mgr.Dispatch(c.ActorID, role.Event{
+			Ctx: c,
 		})
 		if err != nil {
-			zap.L().Error("PostEvent", zap.Error(err), zap.Uint64("session", ctx.SesID))
+			zap.L().Error("PostEvent", zap.Error(err), zap.Inline(&c))
 		}
 		return
 	}
 
-	router.S().Handle(ctx) // todo 丢到协程里处理
+	if c.ActorID > 0 { // 服务器发来的公共模块消息
+		err := actor.Actors.Dispatch(c.ActorID, actor.Event{Ctx: c})
+		if err != nil {
+			zap.L().Error("PostEvent", zap.Error(err), zap.Inline(&c), zap.String("actor", pb.ActorID_name[int32(c.ActorID)]))
+		}
+		return
+	}
+
+	// 不能处理逻辑，只分发
+	if err := router.R().Handle(c); err != nil {
+		zap.L().Error("Handle", zap.Error(err), zap.Inline(&c))
+	}
 }

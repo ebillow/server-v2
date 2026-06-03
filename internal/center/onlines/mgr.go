@@ -23,7 +23,7 @@ type roleShard struct {
 }
 
 func init() {
-	router.OnS2S(onLoginOrLogout)
+	router.On(onLoginOrLogout)
 
 	for i := 0; i < shardCount; i++ {
 		roleShards[i] = &roleShard{

@@ -7,9 +7,8 @@ import (
 )
 
 func init() {
-	router.OnC2S(onLogin)
-
-	router.OnS2S(onClearRole)
+	router.On(onLogin)
+	router.On(onClearRole)
 }
 
 func onLogin(c gctx.Context, req *pb.C2SLogin) {

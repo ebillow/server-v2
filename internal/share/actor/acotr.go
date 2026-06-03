@@ -54,7 +54,7 @@ func (a *Actor) Start(ctx context.Context, wg *sync.WaitGroup) {
 					if evt.Func != nil {
 						evt.Func()
 					} else {
-						router.S().Handle(evt.Ctx)
+						router.R().Handle(evt.Ctx)
 					}
 				})
 				if ctx.Err() != nil {

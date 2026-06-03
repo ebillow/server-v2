@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	router.OnS2S(OnTest)
+	router.On(OnTest)
 }
 
 func OnTest(ctx gctx.Context, req *pb.S2SEcho) {

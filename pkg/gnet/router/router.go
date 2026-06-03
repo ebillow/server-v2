@@ -16,47 +16,35 @@ var (
 )
 
 var (
-	cliMsgRouter = NewMsgRouter(int32(msgid.MsgIDMax_C2SMax))
-	serMsgRouter = NewMsgRouter(int32(msgid.MsgIDMax_S2SMax))
+	msgRouter = NewMsgRouter(int32(msgid.MsgIDMax_C2SMax))
 )
 
-func S() *MsgRouter {
-	return serMsgRouter
+func R() *MsgRouter {
+	return msgRouter
 }
 
-func C() *MsgRouter {
-	return cliMsgRouter
+func On[T pb.VTMessage](df func(c gctx.Context, req T)) {
+	register(false, df)
 }
 
-func OnC2S[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	onC2S(false, df)
+// OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
+func OnP[T pb.VTMessage](df func(c gctx.Context, req T)) {
+	register(true, df)
 }
 
-// OnC2SUsePool 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnC2SUsePool[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	onC2S(true, df)
-}
-
-func OnS2S[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	onS2S(false, df)
-}
-
-// OnS2SUsePool 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnS2SUsePool[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	onS2S(true, df)
-}
-
-func onS2S[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
+func register[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
 	var zero T
 	msgType := reflect.TypeOf(zero)
-	msgID, err := pb.GetMsgIDS2S(zero)
-	if err != nil {
-		zap.L().Fatal("RegisterC2S failed: message type not found in TypeMeta",
-			zap.String("type", msgType.String()),
-			zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2S(zero)
+	if !ok {
+		msgID, ok = pb.GetMsgIDC2S(zero)
+	}
+	if !ok {
+		zap.L().Fatal("Register failed: message type not found in TypeMeta",
+			zap.String("type", msgType.String()))
 	}
 
-	// 提取出指针底层的结构体 Type (例如 pb.C2SMoveReq)
+	// 提取出指针底层的结构体
 	elemType := msgType.Elem()
 
 	createFunc := func() pb.VTMessage {
@@ -64,43 +52,13 @@ func onS2S[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
 	}
 
 	handleFunc := func(c gctx.Context, msg proto.Message) {
-		// 框架层直接进行 O(1) 的类型断言 (Type Assertion)，没有任何性能损耗
 		df(c, msg.(T))
 	}
 
-	err = S().Register(msgID, createFunc, usePool, handleFunc)
+	err := R().Register(msgID, createFunc, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("RegisterS2S failed: duplicate register",
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
-	}
-}
-
-func onC2S[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
-	var zero T
-	msgType := reflect.TypeOf(zero)
-	msgID, err := pb.GetMsgIDC2S(zero)
-	if err != nil {
-		zap.L().Fatal("RegisterC2S failed: message type not found in TypeMeta",
-			zap.String("type", msgType.String()),
-			zap.Error(err))
-	}
-
-	// 提取出指针底层的结构体 Type (例如 pb.C2SMoveReq)
-	elemType := msgType.Elem()
-
-	createFunc := func() pb.VTMessage {
-		return reflect.New(elemType).Interface().(pb.VTMessage)
-	}
-
-	handleFunc := func(c gctx.Context, msg proto.Message) {
-		// 框架层直接进行 O(1) 的类型断言 (Type Assertion)，没有任何性能损耗
-		df(c, msg.(T))
-	}
-
-	err = C().Register(msgID, createFunc, usePool, handleFunc)
-	if err != nil {
-		zap.L().Fatal("RegisterC2S failed: duplicate register",
+		zap.L().Fatal("Register failed: duplicate register",
+			zap.String("msgType", msgType.String()),
 			zap.Uint32("msgID", msgID),
 			zap.Error(err))
 	}

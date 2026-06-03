@@ -33,13 +33,15 @@ func (m *ActorMgr) Init(id uint64, a ISubActor, evtChanSize int) error {
 		return gerror.New(fmt.Sprintf("actor id %d repeated", id))
 	}
 	ac := NewActor(a, evtChanSize)
-	ac.sub.Init()
-
+	err := ac.sub.Init()
+	if err != nil {
+		return err
+	}
 	m.actors[id] = ac
 	return nil
 }
 
-func (m *ActorMgr) Run() {
+func (m *ActorMgr) Start() {
 	for _, v := range m.actors {
 		v.Start(m.ctx, &m.wg)
 	}
@@ -60,7 +62,7 @@ func (m *ActorMgr) get(id uint64) (*Actor, bool) {
 	return a, ok
 }
 
-func (m *ActorMgr) Post(id uint64, e Event) error {
+func (m *ActorMgr) Dispatch(id uint64, e Event) error {
 	a, ok := m.get(id)
 	if !ok {
 		return gerror.New(fmt.Sprintf("actor id %d not found", id))

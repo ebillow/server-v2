@@ -170,10 +170,9 @@ func SendToSrvAll[T pb.VTMessage](
 
 func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 	if util.Debug {
-		realMsgID, err := pb.GetMsgIDS2C(msg)
-		if err != nil {
+		realMsgID, ok := pb.GetMsgIDS2C(msg)
+		if !ok {
 			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.Error(err),
 				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
@@ -193,10 +192,9 @@ func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 
 func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID uint64, actorID uint64) {
 	if util.Debug {
-		realMsgID, err := pb.GetMsgIDS2S(msg)
-		if err != nil {
-			zap.L().Error("[SendT] GetMsgIDS2S error",
-				zap.Error(err),
+		realMsgID, ok := pb.GetMsgIDS2S(msg)
+		if !ok {
+			zap.L().Error("[SendT] GetMsgIDS2C error",
 				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
@@ -216,10 +214,9 @@ func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID 
 
 func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
 	if util.Debug {
-		realMsgID, err := pb.GetMsgIDS2S(msg)
-		if err != nil {
-			zap.L().Error("[SendT] GetMsgIDS2S error",
-				zap.Error(err),
+		realMsgID, ok := pb.GetMsgIDS2S(msg)
+		if !ok {
+			zap.L().Error("[SendT] GetMsgIDS2C error",
 				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
@@ -239,10 +236,9 @@ func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
 
 func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorID) {
 	if util.Debug {
-		realMsgID, err := pb.GetMsgIDS2S(msg)
-		if err != nil {
-			zap.L().Error("[SendT] GetMsgIDS2S error",
-				zap.Error(err),
+		realMsgID, ok := pb.GetMsgIDS2S(msg)
+		if !ok {
+			zap.L().Error("[SendT] GetMsgIDS2C error",
 				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
@@ -261,36 +257,36 @@ func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorI
 }
 
 func SendToGateS[T pb.VTMessage](msg T, sesID uint64) {
-	msgID, err := pb.GetMsgIDS2S(msg)
-	if err != nil {
-		zap.L().Error("send msg error", zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2S(msg)
+	if !ok {
+		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
 	SendToSrv(pb.Server_Gateway, GateIDFromSesID(sesID), msgID, msg, 0, sesID)
 }
 
 func SendToGameS[T pb.VTMessage](serID uint8, msg T, sesID uint64, actorID uint64) {
-	msgID, err := pb.GetMsgIDS2S(msg)
-	if err != nil {
-		zap.L().Error("send msg error", zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2S(msg)
+	if !ok {
+		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
 	SendToSrv(pb.Server_Game, serID, msgID, msg, actorID, sesID)
 }
 
 func SendToAccountS[T pb.VTMessage](msg T) {
-	msgID, err := pb.GetMsgIDS2S(msg)
-	if err != nil {
-		zap.L().Error("send msg error", zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2S(msg)
+	if !ok {
+		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
 	SendToSrv(pb.Server_Account, 0, msgID, msg, 0, 0)
 }
 
 func SendToCenterS[T pb.VTMessage](msg T, actorID pb.ActorID) {
-	msgID, err := pb.GetMsgIDS2S(msg)
-	if err != nil {
-		zap.L().Error("send msg error", zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2S(msg)
+	if !ok {
+		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
 	SendToSrv(pb.Server_Center, 0, msgID, msg, uint64(actorID), 0)

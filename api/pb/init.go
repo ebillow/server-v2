@@ -1,7 +1,6 @@
 package pb
 
 import (
-	"fmt"
 	"reflect"
 	msgid2 "server/api/pb/msgid"
 
@@ -49,13 +48,11 @@ func (t *TypeMeta) NewFunc(msgID uint32) func() VTMessage {
 	return nil
 }
 
-func (t *TypeMeta) MsgID(msg interface{}) (uint32, error) {
+func (t *TypeMeta) MsgID(msg interface{}) (uint32, bool) {
 	itype := reflect.TypeOf(msg).Elem()
-	if v, ok := t.typeByID[itype]; ok {
-		return v, nil
-	}
+	v, ok := t.typeByID[itype]
 
-	return 0, fmt.Errorf("msg id for %s no exist", reflect.TypeOf(msg))
+	return v, ok
 }
 
 var (
@@ -99,14 +96,14 @@ func NewFuncS2S(msgID msgid2.MsgIDS2S) func() VTMessage {
 	return s2s.NewFunc(uint32(msgID))
 }
 
-func GetMsgIDC2S(msg proto.Message) (uint32, error) {
+func GetMsgIDC2S(msg proto.Message) (uint32, bool) {
 	return c2s.MsgID(msg)
 }
 
-func GetMsgIDS2C(msg proto.Message) (uint32, error) {
+func GetMsgIDS2C(msg proto.Message) (uint32, bool) {
 	return s2c.MsgID(msg)
 }
 
-func GetMsgIDS2S(msg proto.Message) (uint32, error) {
+func GetMsgIDS2S(msg proto.Message) (uint32, bool) {
 	return s2s.MsgID(msg)
 }

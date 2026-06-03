@@ -50,15 +50,20 @@ func loadNetCfg() *session.Config {
 	return cfg
 }
 
-func OnServerMsg(ctx gctx.Context) {
-	if ctx.Flag == gctx.Forward {
-		ses := session.Get(ctx.SesID)
+func OnServerMsg(c gctx.Context) {
+	if c.Flag == gctx.Forward {
+		ses := session.Get(c.SesID)
 		if ses == nil {
 			return
 		}
-		ses.SendBytes(ctx.MsgID, ctx.Data)
+		ses.SendBytes(c.MsgID, c.Data)
 		return
 	}
 
-	router.S().Handle(ctx)
+	err := router.R().Handle(c)
+	if err != nil {
+		zap.L().Info("<<< msg.recv:",
+			zap.Inline(&c),
+		)
+	}
 }

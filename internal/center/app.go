@@ -23,7 +23,7 @@ func Init(ctx context.Context) error {
 }
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
-	actor.Actors.Run()
+	actor.Actors.Start()
 	return nil
 }
 
@@ -31,21 +31,24 @@ func UnInit(ctx context.Context) {
 	actor.Actors.StopAndWait()
 }
 
-func OnServerMsg(ctx gctx.Context) {
-	if ctx.Flag == gctx.Forward {
-		gameID, ok := onlines.GetGameID(ctx.ActorID)
+func OnServerMsg(c gctx.Context) {
+	if c.Flag == gctx.Forward {
+		gameID, ok := onlines.GetGameID(c.ActorID)
 		if ok {
-			msgq.Q.Send(pb.Server(ctx.ToSer), gameID, ctx.MsgID, ctx.Data, ctx.ActorID, ctx.SesID)
+			err := msgq.Q.Send(pb.Server(c.ToSer), gameID, c.MsgID, c.Data, c.ActorID, c.SesID)
+			if err != nil {
+				zap.L().Warn("relay err", zap.Error(err), zap.Inline(&c))
+			}
 		}
-	} else if ctx.ActorID > 0 {
-		err := actor.Actors.Post(ctx.ActorID, actor.Event{Ctx: ctx})
+	} else if c.ActorID > 0 {
+		err := actor.Actors.Dispatch(c.ActorID, actor.Event{Ctx: c})
 		if err != nil {
-			zap.L().Error("pos msg error", zap.Error(err))
+			zap.L().Error("pos msg error", zap.Error(err), zap.Inline(&c))
 		}
 	} else {
-		err := actor.Actors.Post(uint64(pb.ActorID_IDGlobal), actor.Event{Ctx: ctx})
+		err := actor.Actors.Dispatch(uint64(pb.ActorID_IDGlobal), actor.Event{Ctx: c})
 		if err != nil {
-			zap.L().Error("pos msg error", zap.Error(err))
+			zap.L().Error("pos msg error", zap.Error(err), zap.Inline(&c))
 		}
 	}
 }

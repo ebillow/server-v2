@@ -24,10 +24,9 @@ type IRouter interface {
 
 // ---------------------------------------------------------
 var (
-	loginMgr     ILoginMgr
-	cliMsgRouter IRouter
-	serMsgRouter IRouter
-	compCreate   ICompCreate
+	loginMgr   ILoginMgr
+	msgRouter  IRouter
+	compCreate ICompCreate
 )
 
 // LoginMgr ---------------------------------------------------------
@@ -39,20 +38,13 @@ func InjectLoginMgr(mgr ILoginMgr) {
 	loginMgr = mgr
 }
 
-// cRouter 客户端消息路由---MsgRouter ---------------------------------------------------------
-func cRouter() IRouter {
-	return cliMsgRouter
+// Router 客户端消息路由---MsgRouter ---------------------------------------------------------
+func Router() IRouter {
+	return msgRouter
 }
 
-func InjectCRouter(rt IRouter) {
-	cliMsgRouter = rt
-}
-func sRouter() IRouter {
-	return serMsgRouter
-}
-
-func InjectSRouter(rt IRouter) {
-	serMsgRouter = rt
+func InjectRouter(rt IRouter) {
+	msgRouter = rt
 }
 
 func InjectCompCreate(rt ICompCreate) {

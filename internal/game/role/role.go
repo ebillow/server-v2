@@ -131,14 +131,8 @@ func (r *Role) Run() {
 					evt.Func(r)
 				} else {
 					evt.Ctx.U = r
-					if evt.Ctx.ActorID > 0 {
-						if err := sRouter().Handle(evt.Ctx); err != nil {
-							zap.L().Warn("handle err", zap.Error(err))
-						}
-					} else {
-						if err := cRouter().Handle(evt.Ctx); err != nil {
-							zap.L().Warn("handle err", zap.Error(err))
-						}
+					if err := Router().Handle(evt.Ctx); err != nil {
+						zap.L().Warn("handle err", zap.Error(err))
 					}
 				}
 			})
@@ -335,9 +329,9 @@ func (r *Role) GetComp(t pb.TypeComp) IComp {
 
 // SendS	发送数据给客户端,存在反射,逃逸
 func (r *Role) SendS(msg pb.VTMessage) {
-	msgID, err := pb.GetMsgIDS2C(msg)
-	if err != nil {
-		zap.L().Error("[sendS] GetMsgIDS2C error", zap.Error(err))
+	msgID, ok := pb.GetMsgIDS2C(msg)
+	if !ok {
+		zap.L().Error("[sendS] GetMsgIDS2C error")
 		return
 	}
 	gnet.SendToRole(msgID, msg, r.SesID, r.ID)
@@ -346,10 +340,9 @@ func (r *Role) SendS(msg pb.VTMessage) {
 // Send	发送数据给客户端,热路径建议使用SendT
 func Send[T pb.VTMessage](r *Role, msgID msgid.MsgIDS2C, msg T) {
 	if util.Debug {
-		realMsgID, err := pb.GetMsgIDS2C(msg)
-		if err != nil {
+		realMsgID, ok := pb.GetMsgIDS2C(msg)
+		if !ok {
 			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.Error(err),
 				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
