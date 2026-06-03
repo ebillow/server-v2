@@ -2,12 +2,9 @@ package onlines
 
 import (
 	"server/api/pb"
-	"server/api/pb/msgid"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"sync"
-
-	"google.golang.org/protobuf/proto"
 )
 
 const shardCount = 640
@@ -26,7 +23,7 @@ type roleShard struct {
 }
 
 func init() {
-	router.S().OnG(msgid.MsgIDS2S_S2SReqLoginOrLogout, onLoginOrLogout)
+	router.OnS2S(onLoginOrLogout)
 
 	for i := 0; i < shardCount; i++ {
 		roleShards[i] = &roleShard{
@@ -74,11 +71,10 @@ func Count() int {
 	return count
 }
 
-func onLoginOrLogout(ctx gctx.Context, msgBase proto.Message) {
-	msg := msgBase.(*pb.S2SReqLoginOrLogout)
-	if msg.Login {
-		Add(msg.RoleID, Data{SesID: msg.SesID, GameID: uint8(msg.GameID)})
+func onLoginOrLogout(ctx gctx.Context, req *pb.S2SReqLoginOrLogout) {
+	if req.Login {
+		Add(req.RoleID, Data{SesID: req.SesID, GameID: uint8(req.GameID)})
 	} else {
-		Remove(msg.RoleID)
+		Remove(req.RoleID)
 	}
 }

@@ -2,7 +2,9 @@ package role
 
 import (
 	"context"
+	"fmt"
 	"server/api/pb"
+	"server/api/pb/msgid"
 	"server/internal/share/model"
 	"server/pkg/cfg"
 	"server/pkg/flag"
@@ -13,12 +15,11 @@ import (
 	"server/pkg/util"
 	"sync"
 
+	"time"
+
 	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"google.golang.org/protobuf/proto"
-
-	"time"
 )
 
 type DataToSave struct {
@@ -131,9 +132,13 @@ func (r *Role) Run() {
 				} else {
 					evt.Ctx.U = r
 					if evt.Ctx.ActorID > 0 {
-						sRouter().Handle(evt.Ctx)
+						if err := sRouter().Handle(evt.Ctx); err != nil {
+							zap.L().Warn("handle err", zap.Error(err))
+						}
 					} else {
-						cRouter().Handle(evt.Ctx)
+						if err := cRouter().Handle(evt.Ctx); err != nil {
+							zap.L().Warn("handle err", zap.Error(err))
+						}
 					}
 				}
 			})
@@ -161,7 +166,7 @@ func (r *Role) Online() {
 	// 有些数据datareset需要先处理在发给客户端，避免客户端有1s收到头一天的数据
 	r.OnTick(now)
 
-	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
+	gnet.SendToCenter(msgid.MsgIDS2S_S2SReqLoginOrLogout, &pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		SesID:  r.SesID,
@@ -173,7 +178,7 @@ func (r *Role) Online() {
 		}
 	}
 
-	gnet.SendToGate(&pb.S2SResLogin{
+	gnet.SendToGate(msgid.MsgIDS2S_S2SResLogin, &pb.S2SResLogin{
 		Res: &pb.S2CLogin{
 			Player:     r.Data,
 			ConnectAcc: r.ConnectAcc,
@@ -204,7 +209,7 @@ func (r *Role) Offline() {
 	// 通知其它服务器
 	r.Disconnect(pb.DisconnectReason_Kick)
 
-	gnet.SendToCenter(&pb.S2SReqLoginOrLogout{
+	gnet.SendToCenter(msgid.MsgIDS2S_S2SReqLoginOrLogout, &pb.S2SReqLoginOrLogout{
 		RoleID: r.ID,
 		GameID: uint32(flag.SvcIndex),
 		Login:  false,
@@ -213,7 +218,7 @@ func (r *Role) Offline() {
 }
 
 func (r *Role) Disconnect(why pb.DisconnectReason) {
-	gnet.SendToGate(&pb.S2SS2GtDisconnect{
+	gnet.SendToGate(msgid.MsgIDS2S_S2SS2GtDisconnect, &pb.S2SS2GtDisconnect{
 		SesID: r.SesID,
 		Why:   why,
 	}, r.SesID)
@@ -328,9 +333,39 @@ func (r *Role) GetComp(t pb.TypeComp) IComp {
 	return r.Comps[t]
 }
 
-// Send	发送数据给客户端
-func (r *Role) Send(msg proto.Message) {
-	gnet.SendToRole(msg, r.SesID, r.ID)
+// SendS	发送数据给客户端,存在反射,逃逸
+func (r *Role) SendS(msg pb.VTMessage) {
+	msgID, err := pb.GetMsgIDS2C(msg)
+	if err != nil {
+		zap.L().Error("[sendS] GetMsgIDS2C error", zap.Error(err))
+		return
+	}
+	gnet.SendToRole(msgID, msg, r.SesID, r.ID)
+}
+
+// Send	发送数据给客户端,热路径建议使用SendT
+func Send[T pb.VTMessage](r *Role, msgID msgid.MsgIDS2C, msg T) {
+	if util.Debug {
+		realMsgID, err := pb.GetMsgIDS2C(msg)
+		if err != nil {
+			zap.L().Error("[SendT] GetMsgIDS2C error",
+				zap.Error(err),
+				zap.String("type", fmt.Sprintf("%T", msg)),
+			)
+			return
+		}
+		if realMsgID != uint32(msgID) {
+			zap.L().Error("[SendT] msgID mismatch",
+				zap.Uint32("argMsgID", uint32(msgID)),
+				zap.Uint32("realMsgID", realMsgID),
+				zap.String("argMsgName", msgid.MsgIDS2C_name[int32(msgID)]),
+				zap.String("type", fmt.Sprintf("%T", msg)),
+			)
+			return
+		}
+	}
+
+	gnet.SendToRole(uint32(msgID), msg, r.SesID, r.ID)
 }
 
 func (r *Role) SetDirty() {

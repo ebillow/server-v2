@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	pb "server/api/pb"
+	"server/api/pb/msgid"
 	"server/pkg/gnet"
 	"server/pkg/idgen"
 	"server/pkg/queue"
@@ -49,7 +50,7 @@ func (s *Session) Close(why pb.DisconnectReason) {
 		s.cancel()
 
 		Remove(s.Id)
-		gnet.SendToGame(s.getSerID(pb.Server_Game), &pb.S2SGt2SDisconnect{
+		gnet.SendToGame(s.getSerID(pb.Server_Game), msgid.MsgIDS2S_S2SGt2SDisconnect, &pb.S2SGt2SDisconnect{
 			SesID: s.Id,
 			Why:   pb.DisconnectReason(s.disConnReason.Load()),
 		}, 0, 0)

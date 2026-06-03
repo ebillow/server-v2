@@ -4,9 +4,9 @@ option optimize_for = LITE_RUNTIME;
 option go_package = "./msgid";
 package msgid;
 
+//范围【100000，999999)
 enum MsgIDC2S {
-    C2SGateHandle = 0;
-    C2SInit = 1;
+    C2SNone = 0;
     C2SAccountHandle = 100000;
     C2SLogin = 100001;
     C2SGameHandle = 200000;

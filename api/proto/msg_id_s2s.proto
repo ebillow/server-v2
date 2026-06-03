@@ -10,7 +10,7 @@ enum MsgIDMax {
     S2SMax = 100000;
 }
 
-
+//范围[1，100000)
 enum MsgIDS2S {
     S2SNone = 0;
     S2SReqLogin = 1;
@@ -26,4 +26,5 @@ enum MsgIDS2S {
     S2SGt2SDisconnect = 19;
     S2SS2GtDisconnect = 20;
     S2SRoleClear = 21;
+    S2SEcho = 22;
 }

@@ -44,7 +44,6 @@ func main() {
 package pb
 
 import (
-	"google.golang.org/protobuf/proto"
 	"server/api/pb/msgid"
 	"reflect"
 )
@@ -52,7 +51,7 @@ import (
 func registerAllC2SMsg()  {
 	{{range $i, $v := .C2S}} registerC2SMsg(msgid.MsgIDC2S_{{$v.Id}}, &messageMeta{
 		MessageType:reflect.TypeOf({{$v.Value}}{}),
-		NewMessage: func() proto.Message { return &{{$v.Value}}{} },
+		NewMessage: func() VTMessage { return &{{$v.Value}}{} },
 	})
 	
 	{{end}}}
@@ -60,7 +59,7 @@ func registerAllC2SMsg()  {
 func registerAllS2CMsg()  {
 	{{range $i, $v := .S2C}} registerS2CMsg(msgid.MsgIDS2C_{{$v.Id}}, &messageMeta{
 		MessageType:reflect.TypeOf({{$v.Value}}{}),
-		NewMessage: func() proto.Message { return &{{$v.Value}}{} },
+		NewMessage: func() VTMessage { return &{{$v.Value}}{} },
 	})
 	
 	{{end}}}
@@ -68,7 +67,7 @@ func registerAllS2CMsg()  {
 func registerAllS2SMsg()  {
 {{range $i, $v := .S2S}} registerS2SMsg(msgid.MsgIDS2S_{{$v.Id}}, &messageMeta{
 		MessageType:reflect.TypeOf({{$v.Value}}{}),
-		NewMessage: func() proto.Message { return &{{$v.Value}}{} },
+		NewMessage: func() VTMessage { return &{{$v.Value}}{} },
 	})
 	
 	{{end}}}`)

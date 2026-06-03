@@ -6,7 +6,6 @@ package msgid;
 
 enum MsgIDS2C {
     S2CNone = 0;
-    S2CInit = 1;
     S2CHeartBeat = 2;
     S2CGateHandle = 100;
     S2CLogin = 101;

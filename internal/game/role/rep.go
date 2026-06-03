@@ -2,7 +2,6 @@ package role
 
 import (
 	"server/api/pb"
-	msgid2 "server/api/pb/msgid"
 	"server/pkg/gnet/gctx"
 
 	"google.golang.org/protobuf/proto"
@@ -18,22 +17,16 @@ type ILoginMgr interface {
 	SaveRole(data *DataToSave, saveBoth bool)
 }
 
-type ICRouter interface {
-	On(msgID msgid2.MsgIDC2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(ctx gctx.Context)
-}
-
-type ISRouter interface {
-	OnG(msgID msgid2.MsgIDS2S, df func(c gctx.Context, msg proto.Message))
-	On(msgID msgid2.MsgIDS2S, df func(c gctx.Context, msg proto.Message, r *Role))
-	Handle(ctx gctx.Context)
+type IRouter interface {
+	Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg proto.Message)) error
+	Handle(c gctx.Context) error
 }
 
 // ---------------------------------------------------------
 var (
 	loginMgr     ILoginMgr
-	cliMsgRouter ICRouter
-	serMsgRouter ISRouter
+	cliMsgRouter IRouter
+	serMsgRouter IRouter
 	compCreate   ICompCreate
 )
 
@@ -47,18 +40,18 @@ func InjectLoginMgr(mgr ILoginMgr) {
 }
 
 // cRouter 客户端消息路由---MsgRouter ---------------------------------------------------------
-func cRouter() ICRouter {
+func cRouter() IRouter {
 	return cliMsgRouter
 }
 
-func InjectCRouter(rt ICRouter) {
+func InjectCRouter(rt IRouter) {
 	cliMsgRouter = rt
 }
-func sRouter() ISRouter {
+func sRouter() IRouter {
 	return serMsgRouter
 }
 
-func InjectSRouter(rt ISRouter) {
+func InjectSRouter(rt IRouter) {
 	serMsgRouter = rt
 }
 

@@ -2,55 +2,49 @@
 package pb
 
 import (
-	"google.golang.org/protobuf/proto"
 	"reflect"
 	"server/api/pb/msgid"
 )
 
 func registerAllC2SMsg() {
-	registerC2SMsg(msgid.MsgIDC2S_C2SGateHandle, &messageMeta{
-		MessageType: reflect.TypeOf(C2SGateHandle{}),
-		NewMessage:  func() proto.Message { return &C2SGateHandle{} },
-	})
-
-	registerC2SMsg(msgid.MsgIDC2S_C2SInit, &messageMeta{
-		MessageType: reflect.TypeOf(C2SInit{}),
-		NewMessage:  func() proto.Message { return &C2SInit{} },
+	registerC2SMsg(msgid.MsgIDC2S_C2SNone, &messageMeta{
+		MessageType: reflect.TypeOf(C2SNone{}),
+		NewMessage:  func() VTMessage { return &C2SNone{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SAccountHandle, &messageMeta{
 		MessageType: reflect.TypeOf(C2SAccountHandle{}),
-		NewMessage:  func() proto.Message { return &C2SAccountHandle{} },
+		NewMessage:  func() VTMessage { return &C2SAccountHandle{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SLogin, &messageMeta{
 		MessageType: reflect.TypeOf(C2SLogin{}),
-		NewMessage:  func() proto.Message { return &C2SLogin{} },
+		NewMessage:  func() VTMessage { return &C2SLogin{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SGameHandle, &messageMeta{
 		MessageType: reflect.TypeOf(C2SGameHandle{}),
-		NewMessage:  func() proto.Message { return &C2SGameHandle{} },
+		NewMessage:  func() VTMessage { return &C2SGameHandle{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SClientReady, &messageMeta{
 		MessageType: reflect.TypeOf(C2SClientReady{}),
-		NewMessage:  func() proto.Message { return &C2SClientReady{} },
+		NewMessage:  func() VTMessage { return &C2SClientReady{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SHeartBeat, &messageMeta{
 		MessageType: reflect.TypeOf(C2SHeartBeat{}),
-		NewMessage:  func() proto.Message { return &C2SHeartBeat{} },
+		NewMessage:  func() VTMessage { return &C2SHeartBeat{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SWithoutRole, &messageMeta{
 		MessageType: reflect.TypeOf(C2SWithoutRole{}),
-		NewMessage:  func() proto.Message { return &C2SWithoutRole{} },
+		NewMessage:  func() VTMessage { return &C2SWithoutRole{} },
 	})
 
 	registerC2SMsg(msgid.MsgIDC2S_C2SEcho, &messageMeta{
 		MessageType: reflect.TypeOf(C2SEcho{}),
-		NewMessage:  func() proto.Message { return &C2SEcho{} },
+		NewMessage:  func() VTMessage { return &C2SEcho{} },
 	})
 
 }
@@ -58,47 +52,42 @@ func registerAllC2SMsg() {
 func registerAllS2CMsg() {
 	registerS2CMsg(msgid.MsgIDS2C_S2CNone, &messageMeta{
 		MessageType: reflect.TypeOf(S2CNone{}),
-		NewMessage:  func() proto.Message { return &S2CNone{} },
-	})
-
-	registerS2CMsg(msgid.MsgIDS2C_S2CInit, &messageMeta{
-		MessageType: reflect.TypeOf(S2CInit{}),
-		NewMessage:  func() proto.Message { return &S2CInit{} },
+		NewMessage:  func() VTMessage { return &S2CNone{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CHeartBeat, &messageMeta{
 		MessageType: reflect.TypeOf(S2CHeartBeat{}),
-		NewMessage:  func() proto.Message { return &S2CHeartBeat{} },
+		NewMessage:  func() VTMessage { return &S2CHeartBeat{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CGateHandle, &messageMeta{
 		MessageType: reflect.TypeOf(S2CGateHandle{}),
-		NewMessage:  func() proto.Message { return &S2CGateHandle{} },
+		NewMessage:  func() VTMessage { return &S2CGateHandle{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CLogin, &messageMeta{
 		MessageType: reflect.TypeOf(S2CLogin{}),
-		NewMessage:  func() proto.Message { return &S2CLogin{} },
+		NewMessage:  func() VTMessage { return &S2CLogin{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CKickRole, &messageMeta{
 		MessageType: reflect.TypeOf(S2CKickRole{}),
-		NewMessage:  func() proto.Message { return &S2CKickRole{} },
+		NewMessage:  func() VTMessage { return &S2CKickRole{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CDayChange, &messageMeta{
 		MessageType: reflect.TypeOf(S2CDayChange{}),
-		NewMessage:  func() proto.Message { return &S2CDayChange{} },
+		NewMessage:  func() VTMessage { return &S2CDayChange{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CDataReset, &messageMeta{
 		MessageType: reflect.TypeOf(S2CDataReset{}),
-		NewMessage:  func() proto.Message { return &S2CDataReset{} },
+		NewMessage:  func() VTMessage { return &S2CDataReset{} },
 	})
 
 	registerS2CMsg(msgid.MsgIDS2C_S2CEcho, &messageMeta{
 		MessageType: reflect.TypeOf(S2CEcho{}),
-		NewMessage:  func() proto.Message { return &S2CEcho{} },
+		NewMessage:  func() VTMessage { return &S2CEcho{} },
 	})
 
 }
@@ -106,72 +95,77 @@ func registerAllS2CMsg() {
 func registerAllS2SMsg() {
 	registerS2SMsg(msgid.MsgIDS2S_S2SNone, &messageMeta{
 		MessageType: reflect.TypeOf(S2SNone{}),
-		NewMessage:  func() proto.Message { return &S2SNone{} },
+		NewMessage:  func() VTMessage { return &S2SNone{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SReqLogin, &messageMeta{
 		MessageType: reflect.TypeOf(S2SReqLogin{}),
-		NewMessage:  func() proto.Message { return &S2SReqLogin{} },
+		NewMessage:  func() VTMessage { return &S2SReqLogin{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SReqLoginOrLogout, &messageMeta{
 		MessageType: reflect.TypeOf(S2SReqLoginOrLogout{}),
-		NewMessage:  func() proto.Message { return &S2SReqLoginOrLogout{} },
+		NewMessage:  func() VTMessage { return &S2SReqLoginOrLogout{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SResLoginOrLogout, &messageMeta{
 		MessageType: reflect.TypeOf(S2SResLoginOrLogout{}),
-		NewMessage:  func() proto.Message { return &S2SResLoginOrLogout{} },
+		NewMessage:  func() VTMessage { return &S2SResLoginOrLogout{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SReqConfig, &messageMeta{
 		MessageType: reflect.TypeOf(S2SReqConfig{}),
-		NewMessage:  func() proto.Message { return &S2SReqConfig{} },
+		NewMessage:  func() VTMessage { return &S2SReqConfig{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SResConfig, &messageMeta{
 		MessageType: reflect.TypeOf(S2SResConfig{}),
-		NewMessage:  func() proto.Message { return &S2SResConfig{} },
+		NewMessage:  func() VTMessage { return &S2SResConfig{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SKickAcc, &messageMeta{
 		MessageType: reflect.TypeOf(S2SKickAcc{}),
-		NewMessage:  func() proto.Message { return &S2SKickAcc{} },
+		NewMessage:  func() VTMessage { return &S2SKickAcc{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SKickRole, &messageMeta{
 		MessageType: reflect.TypeOf(S2SKickRole{}),
-		NewMessage:  func() proto.Message { return &S2SKickRole{} },
+		NewMessage:  func() VTMessage { return &S2SKickRole{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SRelayToRole, &messageMeta{
 		MessageType: reflect.TypeOf(S2SRelayToRole{}),
-		NewMessage:  func() proto.Message { return &S2SRelayToRole{} },
+		NewMessage:  func() VTMessage { return &S2SRelayToRole{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SOfflineEvt, &messageMeta{
 		MessageType: reflect.TypeOf(S2SOfflineEvt{}),
-		NewMessage:  func() proto.Message { return &S2SOfflineEvt{} },
+		NewMessage:  func() VTMessage { return &S2SOfflineEvt{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SResLogin, &messageMeta{
 		MessageType: reflect.TypeOf(S2SResLogin{}),
-		NewMessage:  func() proto.Message { return &S2SResLogin{} },
+		NewMessage:  func() VTMessage { return &S2SResLogin{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SGt2SDisconnect, &messageMeta{
 		MessageType: reflect.TypeOf(S2SGt2SDisconnect{}),
-		NewMessage:  func() proto.Message { return &S2SGt2SDisconnect{} },
+		NewMessage:  func() VTMessage { return &S2SGt2SDisconnect{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SS2GtDisconnect, &messageMeta{
 		MessageType: reflect.TypeOf(S2SS2GtDisconnect{}),
-		NewMessage:  func() proto.Message { return &S2SS2GtDisconnect{} },
+		NewMessage:  func() VTMessage { return &S2SS2GtDisconnect{} },
 	})
 
 	registerS2SMsg(msgid.MsgIDS2S_S2SRoleClear, &messageMeta{
 		MessageType: reflect.TypeOf(S2SRoleClear{}),
-		NewMessage:  func() proto.Message { return &S2SRoleClear{} },
+		NewMessage:  func() VTMessage { return &S2SRoleClear{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SEcho, &messageMeta{
+		MessageType: reflect.TypeOf(S2SEcho{}),
+		NewMessage:  func() VTMessage { return &S2SEcho{} },
 	})
 
 }

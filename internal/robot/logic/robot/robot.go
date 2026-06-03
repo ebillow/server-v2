@@ -5,7 +5,6 @@ import (
 	pb "server/api/pb"
 	"server/api/pb/msgid"
 	clinet2 "server/internal/robot/clinet"
-	"server/pkg/crypt/dh"
 	"sync/atomic"
 	"time"
 
@@ -161,20 +160,6 @@ func (r *Robot) Send(msgId msgid.MsgIDC2S, msg proto.Message) {
 	if r.s != nil {
 		r.s.SendPB(msgId, msg)
 	}
-}
-
-func (r *Robot) SendInitMsg() {
-	c2SPrivateKey, c2sPublicKey := dh.Exchange()
-	r.s.C2sPrivate = c2SPrivateKey
-
-	s2cPrivateKey, s2cPublicKey := dh.Exchange()
-	r.s.S2cPrivate = s2cPrivateKey
-	msg := &pb.C2SInit{
-		S2CPublic: s2cPublicKey.String(),
-		C2SPublic: c2sPublicKey.String(),
-	}
-	r.Send(msgid.MsgIDC2S_C2SInit, msg)
-	// zap.S().Infof("%s %s send init msg", r.acc, r.s.String())
 }
 
 func (r *Robot) Login() {

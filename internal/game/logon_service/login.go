@@ -3,6 +3,7 @@ package logon_service
 import (
 	"context"
 	"server/api/pb"
+	"server/api/pb/msgid"
 	"server/internal/game/role"
 	"server/pkg/gnet"
 	"server/pkg/thread"
@@ -190,7 +191,7 @@ func (m *LogonService) cleanup() {
 			m.saveOne(opSaveData{ID: k, Data: v.Cache, Both: true}, v)
 		}
 		if v.State == stateCanDel && now-v.StateTime > Interval {
-			gnet.SendToAccount(&pb.S2SRoleClear{
+			gnet.SendToAccount(msgid.MsgIDS2S_S2SRoleClear, &pb.S2SRoleClear{
 				RoleID: k,
 				Seq:    v.LoginSeq,
 			})

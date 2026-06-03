@@ -7,22 +7,19 @@ import (
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
 	"time"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	router.S().OnG(msgid.MsgIDS2S_S2SReqLogin, onLogin) // 角色登录
-	router.S().OnG(msgid.MsgIDS2S_S2SGt2SDisconnect, onDisconnect)
+	router.OnS2S(onLogin) // 角色登录
+	router.OnS2S(onDisconnect)
 
-	router.C().On(msgid.MsgIDC2S_C2SHeartBeat, onHeartBeat) // 心跳
+	role.OnC2SUsePool(onHeartBeat) // 心跳
 }
 
 /*-------------------角色消息-----------------*/
-func onHeartBeat(_ gctx.Context, msgIn proto.Message, r *role.Role) {
-	msg := msgIn.(*pb.C2SHeartBeat)
+func onHeartBeat(_ gctx.Context, msg *pb.C2SHeartBeat, r *role.Role) {
 	now := time.Now()
-	r.Send(&pb.S2CHeartBeat{
+	role.Send(r, msgid.MsgIDS2C_S2CHeartBeat, &pb.S2CHeartBeat{
 		CliTime: msg.CliTime,
 		SerTime: now.Unix(),
 	})
@@ -31,12 +28,10 @@ func onHeartBeat(_ gctx.Context, msgIn proto.Message, r *role.Role) {
 }
 
 /*-------------------非角色消息-----------------*/
-func onLogin(_ gctx.Context, msgBase proto.Message) {
-	msg := msgBase.(*pb.S2SReqLogin)
+func onLogin(_ gctx.Context, msg *pb.S2SReqLogin) {
 	Mgr.Login(msg)
 }
 
-func onDisconnect(_ gctx.Context, msgBase proto.Message) {
-	msg := msgBase.(*pb.S2SGt2SDisconnect)
+func onDisconnect(_ gctx.Context, msg *pb.S2SGt2SDisconnect) {
 	role.Mgr.Kick(msg.SesID)
 }

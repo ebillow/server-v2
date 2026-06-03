@@ -2,36 +2,27 @@ package auth
 
 import (
 	"server/api/pb"
-	msgid2 "server/api/pb/msgid"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	router.C().OnG(msgid2.MsgIDC2S_C2SLogin, onLogin)
+	router.OnC2S(onLogin)
 
-	router.S().OnG(msgid2.MsgIDS2S_S2SRoleClear, onClearRole)
+	router.OnS2S(onClearRole)
 }
 
-func onLogin(c gctx.Context, msgBase proto.Message) {
-	msg := msgBase.(*pb.C2SLogin)
-	if msg == nil {
-		return
-	}
-
+func onLogin(c gctx.Context, req *pb.C2SLogin) {
 	msgS := &pb.S2SReqLogin{
-		Req:   msg,
+		Req:   req,
 		SesID: c.SesID,
 	}
 	HandleLoginRequest(msgS)
 }
 
-func onClearRole(_ gctx.Context, msgBase proto.Message) {
-	msg := msgBase.(*pb.S2SRoleClear)
+func onClearRole(_ gctx.Context, req *pb.S2SRoleClear) {
 	dispatchEvent(Event{
 		Op:    OpRoleClear,
-		Clear: msg,
+		Clear: req,
 	})
 }

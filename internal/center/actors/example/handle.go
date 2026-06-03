@@ -1,16 +1,14 @@
 package example
 
 import (
-	"server/api/pb/msgid"
+	"server/api/pb"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/router"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
-	router.S().OnG(msgid.MsgIDS2S_S2SOfflineEvt, OnTest)
+	router.OnS2S(OnTest)
 }
 
-func OnTest(ctx gctx.Context, msgBase proto.Message) {
+func OnTest(ctx gctx.Context, req *pb.S2SEcho) {
 }

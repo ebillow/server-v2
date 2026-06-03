@@ -51,12 +51,6 @@ func (s *Session) onRecvCliMsg(data []byte) {
 	msgID := p.GetMsgID()
 	// seqNum := p.GetSeqNum() //only c2s
 
-	if msgID != uint32(msgid2.MsgIDC2S_C2SInit) && !s.flag.Has(SesInit) {
-		zap.S().Errorf("%s not init", s.String())
-		s.Close()
-		return
-	}
-
 	if !cliMsgHandler.Handle(msgID, p.GetData(), s) {
 	}
 }

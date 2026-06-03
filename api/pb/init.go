@@ -8,9 +8,16 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type VTMessage interface {
+	proto.Message
+	SizeVT() int
+	MarshalToSizedBufferVT([]byte) (int, error)
+	UnmarshalVT([]byte) error
+}
+
 type messageMeta struct {
 	MessageType reflect.Type
-	NewMessage  func() proto.Message
+	NewMessage  func() VTMessage
 }
 
 type TypeMeta struct {
@@ -35,7 +42,7 @@ func (t *TypeMeta) New(msgID uint32) proto.Message {
 	return nil
 }
 
-func (t *TypeMeta) NewFunc(msgID uint32) func() proto.Message {
+func (t *TypeMeta) NewFunc(msgID uint32) func() VTMessage {
 	if v, ok := t.idByType[msgID]; ok {
 		return v.NewMessage
 	}
@@ -80,15 +87,15 @@ func registerS2SMsg(id msgid2.MsgIDS2S, meta *messageMeta) {
 	s2s.Register(uint32(id), meta)
 }
 
-func NewFuncC2S(msgID msgid2.MsgIDC2S) func() proto.Message {
+func NewFuncC2S(msgID msgid2.MsgIDC2S) func() VTMessage {
 	return c2s.NewFunc(uint32(msgID))
 }
 
-func NewFuncS2C(msgID msgid2.MsgIDS2C) func() proto.Message {
+func NewFuncS2C(msgID msgid2.MsgIDS2C) func() VTMessage {
 	return s2c.NewFunc(uint32(msgID))
 }
 
-func NewFuncS2S(msgID msgid2.MsgIDS2S) func() proto.Message {
+func NewFuncS2S(msgID msgid2.MsgIDS2S) func() VTMessage {
 	return s2s.NewFunc(uint32(msgID))
 }
 

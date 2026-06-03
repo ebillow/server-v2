@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.44.0
 	github.com/VictoriaMetrics/metrics v1.43.1
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/bytedance/sonic v1.15.0
 	github.com/cockroachdb/errors v1.12.0
 	github.com/emicklei/proto v1.14.3
@@ -16,6 +17,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/ip2location/ip2location-go/v9 v9.8.0
 	github.com/nats-io/nats.go v1.49.0
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/redis/go-redis/v9 v9.18.0
 	github.com/sony/sonyflake/v2 v2.2.0
 	github.com/spf13/cobra v1.10.2
@@ -41,7 +43,6 @@ require (
 	cloud.google.com/go/firestore v1.21.0 // indirect
 	cloud.google.com/go/longrunning v0.8.0 // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
-	github.com/alicebob/miniredis/v2 v2.38.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect

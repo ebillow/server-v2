@@ -7,25 +7,14 @@ import "msg_player.proto";
 
 package pb;
 
-message C2SGateHandle{}
 message C2SAccountHandle{}
 message C2SGameHandle{}
 
 message S2CNone{}
 message S2SNone{}
+message C2SNone{}
 
 message S2CGateHandle{}
-
-message C2SInit{
-	string S2CPublic = 1;
-	string C2SPublic = 2;
-}
-
-message S2CInit{
-	string S2CPublic = 1;
-	string C2SPublic = 2;
-	bool   Crypto = 3;
-}
 
 message C2SHeartBeat{
 	sint64 CliTime = 1;

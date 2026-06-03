@@ -6,6 +6,7 @@ import (
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
 	"server/pkg/logger"
+	"server/pkg/util"
 	"sync"
 	"testing"
 
@@ -57,4 +58,43 @@ func TestSendAndServe(t *testing.T) {
 	}
 	wait.Wait()
 	t.Log("run ", cnt)
+}
+
+func TestVTProto(t *testing.T) {
+	for i := 0; i < 10000; i++ {
+		data := pb.S2SReqLogin{
+			Req: &pb.C2SLogin{
+				SdkType: 111,
+				Account: "31231",
+				Token:   "23dsfadf",
+				Channel: util.RandRange(uint32(1000), 100000),
+				Dev:     "adfadsf",
+				Area:    123,
+				Version: "1.0.0",
+			},
+			SesID:       2220,
+			RoleID:      1231230,
+			ReConnToken: util.RandRange(uint64(1000), 100000),
+			Seq:         11111,
+			BindAcc:     "23123",
+		}
+		b, err := proto.Marshal(&data)
+		require.NoError(t, err)
+
+		d2 := pb.S2SReqLogin{}
+		err = d2.UnmarshalVT(b)
+		require.NoError(t, err)
+		require.Equal(t, data.ReConnToken, d2.ReConnToken)
+		require.Equal(t, data.Req.Channel, d2.Req.Channel)
+
+		b2, err := data.MarshalVT()
+		require.NoError(t, err)
+
+		d3 := pb.S2SReqLogin{}
+		err = proto.Unmarshal(b2, &d3)
+		require.NoError(t, err)
+
+		require.Equal(t, data.ReConnToken, d3.ReConnToken)
+		require.Equal(t, data.Req.Channel, d3.Req.Channel)
+	}
 }
