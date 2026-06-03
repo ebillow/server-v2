@@ -100,10 +100,23 @@ func (s *Session) forwardToSrv(src []byte) {
 		return
 	}
 
+	if msgID <= uint32(msgid.MsgIDMax_S2SMax) {
+		zap.L().Debug("invalid msg id", zap.Uint32("msgID", msgID), zap.Inline(s))
+		return
+	}
+
 	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
-	msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
-
+	err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
+	if err != nil {
+		zap.L().Warn("send to server err"+msgid.MsgIDC2S_name[int32(msgID)],
+			zap.Uint32("msgID", msgID),
+			zap.String("to", serType.String()),
+			zap.Uint8("idx", serID),
+			zap.Inline(s),
+		)
+		return
+	}
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
