@@ -8,6 +8,8 @@ import (
 	"server/pkg/thread"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type ISubActor interface {
@@ -54,7 +56,10 @@ func (a *Actor) Start(ctx context.Context, wg *sync.WaitGroup) {
 					if evt.Func != nil {
 						evt.Func()
 					} else {
-						router.R().Handle(evt.Ctx)
+						err := router.R().Handle(evt.Ctx)
+						if err != nil {
+							zap.L().Warn("actor hand err", zap.Error(err))
+						}
 					}
 				})
 				if ctx.Err() != nil {

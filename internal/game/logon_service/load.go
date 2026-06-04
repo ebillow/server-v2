@@ -18,16 +18,18 @@ import (
 )
 
 type loader struct {
-	loading chan *Operator
+	loading chan *EvtLogin
+	mgr     *LogonService
 }
 
-func newLoader() *loader {
+func newLoader(mgr *LogonService) *loader {
 	return &loader{
-		loading: make(chan *Operator, OpChanSize),
+		loading: make(chan *EvtLogin, opChanSize),
+		mgr:     mgr,
 	}
 }
 
-func (l *loader) post(op *Operator) {
+func (l *loader) post(op *EvtLogin) {
 	l.loading <- op
 }
 
@@ -37,7 +39,7 @@ func (l *loader) run(ctx context.Context, wait *sync.WaitGroup) {
 		flushInterval = 50 * time.Millisecond
 	)
 
-	batch := make([]*Operator, 0, batchSize)
+	batch := make([]*EvtLogin, 0, batchSize)
 	t := time.NewTicker(flushInterval)
 	defer func() {
 		t.Stop()
@@ -67,16 +69,13 @@ func (l *loader) run(ctx context.Context, wait *sync.WaitGroup) {
 	}
 }
 
-func (l *loader) loadBatch(batch []*Operator) {
+func (l *loader) loadBatch(batch []*EvtLogin) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
 	pipe := db.Redis.Pipeline()
 	for _, op := range batch {
-		op.Data = &role.DataToSave{
-			ID: op.Login.RoleID,
-		}
-		pipe.HGetAll(ctx, model.KeyRole(op.Data.ID))
+		pipe.HGetAll(ctx, model.KeyRole(op.Login.RoleID))
 	}
 	cmd, err := pipe.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
@@ -84,14 +83,18 @@ func (l *loader) loadBatch(batch []*Operator) {
 		return
 	}
 
-	batchFromDB := make([]*Operator, 0, len(cmd))
+	batchFromDB := make([]*EvtLogin, 0, len(cmd))
 	for i, c := range cmd {
 		data := c.(*redis.MapStringStringCmd).Val()
 		if /*c.Err() == nil*/ len(data) > 0 { // 加载成功
 			op := batch[i]
-			op.Op = OpUnmarshal
-			op.Data.Data = data
-			postOp(op)
+			l.mgr.postDBLoaded(&EvtDBLoaded{
+				Login: op.Login,
+				Data: &role.DataToSave{
+					RoleID: op.Login.RoleID,
+					Data:   data,
+				},
+			})
 		} else /*if errors.Is(c.Err(), redis.Nil)*/ { // redis里没有
 			batchFromDB = append(batchFromDB, batch[i])
 		}
@@ -102,10 +105,10 @@ func (l *loader) loadBatch(batch []*Operator) {
 	}
 }
 
-func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
+func (l *loader) loadFromDBBatch(ctx context.Context, batch []*EvtLogin) {
 	ids := make([]uint64, 0, len(batch))
 	for _, op := range batch {
-		ids = append(ids, op.Data.ID)
+		ids = append(ids, op.Login.RoleID)
 	}
 
 	filter := bson.M{"id": bson.M{"$in": ids}}
@@ -125,18 +128,20 @@ func (l *loader) loadFromDBBatch(ctx context.Context, batch []*Operator) {
 	}
 	result := make(map[uint64]*role.DataToSave, len(roles))
 	for _, r := range roles {
-		result[r.ID] = r
+		result[r.RoleID] = r
 	}
 
 	for _, op := range batch {
-		op.Op = OpUnmarshal
+		var rData *role.DataToSave
 		if r, ok := result[op.Login.RoleID]; ok {
-			op.Data = r
+			rData = r
 		} else {
-			rd, _ := newRoleDBData(op.Login.RoleID)
-			op.Data.Data = rd.Data
+			rData, _ = newRoleDBData(op.Login.RoleID)
 		}
-		postOp(op)
+		l.mgr.postDBLoaded(&EvtDBLoaded{
+			Login: op.Login,
+			Data:  rData,
+		})
 	}
 }
 
@@ -148,8 +153,8 @@ func newRoleDBData(roleID uint64) (*role.DataToSave, error) {
 	}
 
 	rd := &role.DataToSave{
-		ID:   roleID,
-		Data: make(map[string]string),
+		RoleID: roleID,
+		Data:   make(map[string]string),
 	}
 
 	str, err := sonic.MarshalString(&rData)

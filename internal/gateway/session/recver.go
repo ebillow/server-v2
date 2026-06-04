@@ -10,6 +10,7 @@ import (
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -28,16 +29,19 @@ func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 		waitGroup.Done()
 	}()
 
+	if cfg.ReadDeadline > 0 {
+		_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
+	}
+
 	for {
-		// if cfg.ReadDeadline > 0 {
-		// 	_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
-		// }
 		mt, r, err := s.conn.NextReader()
 		if err != nil {
 			zap.L().Warn("NextReader err", zap.Inline(s), zap.Error(err))
 			return
 		}
-
+		if cfg.ReadDeadline > 0 {
+			_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
+		}
 		if mt == websocket.CloseMessage {
 			return
 		} else if mt != websocket.BinaryMessage {

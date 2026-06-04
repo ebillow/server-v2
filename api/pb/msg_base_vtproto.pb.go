@@ -764,14 +764,7 @@ func (m *S2SRoleClear) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.RoleID != 0 {
 		i = protohelpers.EncodeVarint(dAtA, i, uint64(m.RoleID))
 		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.Acc) > 0 {
-		i -= len(m.Acc)
-		copy(dAtA[i:], m.Acc)
-		i = protohelpers.EncodeVarint(dAtA, i, uint64(len(m.Acc)))
-		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -1750,10 +1743,6 @@ func (m *S2SRoleClear) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	l = len(m.Acc)
-	if l > 0 {
-		n += 1 + l + protohelpers.SizeOfVarint(uint64(l))
-	}
 	if m.RoleID != 0 {
 		n += 1 + protohelpers.SizeOfVarint(uint64(m.RoleID))
 	}
@@ -3718,38 +3707,6 @@ func (m *S2SRoleClear) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Acc", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return protohelpers.ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return protohelpers.ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Acc = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field RoleID", wireType)
 			}

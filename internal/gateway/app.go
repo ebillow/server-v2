@@ -21,14 +21,12 @@ func Init(ctx context.Context) error {
 
 func Action(ctx context.Context, wait *sync.WaitGroup) error {
 	cfg := loadNetCfg()
-	go session.StartWSServer("0.0.0.0:"+util.IToString(flag.TcpPort), cfg)
-
-	zap.S().Infof("listen on ws:%d", flag.TcpPort)
+	session.StartWSServer("0.0.0.0:"+util.IToString(flag.TcpPort), cfg)
 	return nil
 }
 
 func UnInit(ctx context.Context) {
-	session.Close()
+	session.GracefulStop()
 	zap.S().Info("server closed")
 }
 

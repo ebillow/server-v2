@@ -170,7 +170,7 @@ func TestBsonSave(t *testing.T) {
 // }
 
 func TestBatchSave(t *testing.T) {
-	s := newSaver()
+	s := newSaver(&Mgr)
 	batch := make(map[uint64]opSaveData)
 	for i := 1; i < 10; i++ {
 		batch[uint64(i)] = opSaveData{

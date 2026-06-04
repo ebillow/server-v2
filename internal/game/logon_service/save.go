@@ -29,11 +29,13 @@ func (d *opSaveData) Values() []interface{} {
 
 type saver struct {
 	save chan opSaveData
+	mgr  *LogonService
 }
 
-func newSaver() *saver {
+func newSaver(mgr *LogonService) *saver {
 	return &saver{
-		save: make(chan opSaveData, OpChanSize),
+		save: make(chan opSaveData, opChanSize),
+		mgr:  mgr,
 	}
 }
 
@@ -141,10 +143,13 @@ func (s *saver) saveToDB(ctx context.Context, toDB []opSaveData) error {
 		return err
 	}
 
-	op := &Operator{Op: OpSaveSuccess}
-	for i := range toDB {
-		op.IDs = append(op.IDs, toDB[i].ID)
+	evt := &EvtSaveSuccess{
+		IDs: make([]uint64, 0, len(toDB)),
 	}
-	postOp(op)
+	for i := range toDB {
+		evt.IDs = append(evt.IDs, toDB[i].ID)
+	}
+	s.mgr.postEvent(evt)
+
 	return nil
 }

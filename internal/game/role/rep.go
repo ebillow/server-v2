@@ -11,7 +11,7 @@ type ICompCreate interface {
 type ILoginMgr interface {
 	Login(msg *pb.S2SReqLogin)
 	Logout(data *DataToSave)
-	SaveRole(data *DataToSave, saveBoth bool)
+	SaveRole(data *DataToSave, saveBoth bool) bool
 }
 
 // ---------------------------------------------------------

@@ -24,8 +24,8 @@ import (
 )
 
 type DataToSave struct {
-	ID   uint64
-	Data map[string]string
+	RoleID uint64
+	Data   map[string]string
 }
 
 func (d *DataToSave) Get(comID pb.TypeComp) string {
@@ -82,7 +82,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	}
 
 	r := &Role{
-		ID:         data.ID,
+		ID:         data.RoleID,
 		Data:       dataBase,
 		SesID:      login.SesID,
 		Comps:      make([]IComp, pb.TypeComp_TCMax),
@@ -196,10 +196,9 @@ func (r *Role) Offline() {
 	Mgr.Unregister(r.ID, r.SesID)
 
 	data, err := r.marshal(true)
-	if err != nil {
-		return
+	if err == nil {
+		LoginMgr().Logout(data) // offline时在mgr里保存,批量存
 	}
-	LoginMgr().Logout(data) // offline时在mgr里保存,批量存
 
 	// 通知其它服务器
 	r.Disconnect(pb.DisconnectReason_Kick)
@@ -368,8 +367,8 @@ func (r *Role) SetDirty() {
 
 func (r *Role) marshal(force bool) (*DataToSave, error) {
 	rd := &DataToSave{
-		ID:   r.ID,
-		Data: make(map[string]string),
+		RoleID: r.ID,
+		Data:   make(map[string]string),
 	}
 
 	if force || r.dirty {
@@ -380,7 +379,6 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 		}
 
 		rd.Set(pb.TypeComp_TCBase, str)
-		r.dirty = false
 	}
 
 	for i, v := range r.Comps {
@@ -412,5 +410,14 @@ func (r *Role) save(both bool) {
 		return
 	}
 
-	LoginMgr().SaveRole(data, both) // offline时在mgr里保存,批量存
+	if LoginMgr().SaveRole(data, both) {
+		r.dirty = false
+		for _, v := range r.Comps {
+			if v != nil && v.IsDirty() {
+				v.ClearDirty()
+			}
+		}
+	} else {
+		zap.L().Warn("[save] role save failed")
+	}
 }

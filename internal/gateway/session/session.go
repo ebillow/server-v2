@@ -2,7 +2,7 @@ package session
 
 import (
 	"context"
-	pb "server/api/pb"
+	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gnet"
 	"server/pkg/idgen"
@@ -43,7 +43,7 @@ func (s *Session) UpdateSerId(gameID int32) {
 	s.GameID.Store(gameID)
 }
 
-// Close 关闭,线程安全
+// GracefulStop 关闭,线程安全
 func (s *Session) Close(why pb.DisconnectReason) {
 	s.closeOnce.Do(func() {
 		s.disConnReason.Store(int32(why))

@@ -100,8 +100,7 @@ message S2SS2GtDisconnect{
 }
 
 message S2SRoleClear{
-	string Acc = 1;
-	uint64 RoleID = 2;
+	uint64 RoleID = 1;
 	uint32 Seq = 3;
 }
 

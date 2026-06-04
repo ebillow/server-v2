@@ -9,8 +9,10 @@ import (
 	"time"
 )
 
+// 现在gateway做了池化，不要用这个方案
+
 // QueueBatcher  优点：Add锁小，并发快
-// 缺点：异步持有了数据，外层不好做池化
+// 缺点：异步持有了数据，外层不好做池化,
 type QueueBatcher struct {
 	queue   *queue.SwapQueue[gctx.Context]
 	state   atomic.Int32

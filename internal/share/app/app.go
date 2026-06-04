@@ -82,7 +82,7 @@ func (a *App) init(ctx context.Context) error {
 }
 
 func (a *App) initLog(conf *cfg.Config) {
-	filePath := filepath.Join("./bin/logs", fmt.Sprintf("%s_%d.logger", flag.SrvName(flag.SrvType), flag.SvcIndex))
+	filePath := filepath.Join("./bin/logs", fmt.Sprintf("%s_%d.log", flag.SrvName(flag.SrvType), flag.SvcIndex))
 	logger.NewZapLog(filePath, conf.LogInfo)
 }
 

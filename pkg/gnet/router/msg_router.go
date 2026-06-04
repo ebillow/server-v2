@@ -49,7 +49,6 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 	}
 
 	node := &MsgHandler{
-		createFunc: cf,
 		HandleFunc: df,
 	}
 
@@ -59,6 +58,8 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 				return cf()
 			},
 		}
+	} else {
+		node.createFunc = cf
 	}
 	rt.handlers[msgID] = node
 
@@ -72,9 +73,15 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 		return err
 	}
 
-	msgObj := node.pool.Get()
-	msgPB := msgObj.(pb.VTMessage)
-	proto.Reset(msgPB)
+	var msgPB pb.VTMessage
+	var msgObj any
+	if node.createFunc == nil {
+		msgObj = node.pool.Get()
+		msgPB = msgObj.(pb.VTMessage)
+		proto.Reset(msgPB)
+	} else {
+		msgPB = node.createFunc()
+	}
 
 	if len(c.Data) > 0 {
 		err = msgPB.UnmarshalVT(c.Data)
@@ -95,7 +102,9 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 
 	node.HandleFunc(c, msgPB)
 
-	node.pool.Put(msgObj)
+	if node.createFunc == nil {
+		node.pool.Put(msgObj)
+	}
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {

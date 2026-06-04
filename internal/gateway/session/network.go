@@ -1,8 +1,10 @@
 package session
 
 import (
+	"context"
 	"net"
 	"net/http"
+	"server/api/pb"
 	"server/pkg/thread"
 	"sync"
 	"time"
@@ -21,20 +23,30 @@ type Config struct {
 }
 
 var (
-	shutDown  = make(chan struct{})
 	waitGroup sync.WaitGroup
 	netCfg    *Config
+
+	httpSrv *http.Server
 )
 
 // StartWSServer 开始服务
 func StartWSServer(listenEndPoint string, cfg *Config) {
 	netCfg = cfg
-	http.HandleFunc("/", handleClient)
-	err := http.ListenAndServe(listenEndPoint, nil)
-	if err != nil {
-		zap.S().Errorf("listen err:%v", err)
-		return
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleClient)
+
+	httpSrv = &http.Server{
+		Addr:    listenEndPoint,
+		Handler: mux,
 	}
+
+	go func() {
+		zap.S().Infof("WS Server starting at %s", listenEndPoint)
+		// 当 Shutdown 被调用时，ListenAndServe 会返回 http.ErrServerClosed
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			zap.S().Fatalf("listen err: %v", err)
+		}
+	}()
 }
 
 func handleClient(w http.ResponseWriter, r *http.Request) {
@@ -72,10 +84,34 @@ func handleClient(w http.ResponseWriter, r *http.Request) {
 	s.start()
 }
 
-// Close 关闭，并等待所有goroutine退出
-func Close() {
-	close(shutDown)
+// GracefulStop 关闭，并等待所有goroutine退出
+func GracefulStop() {
+	zap.S().Info("Shutting down WS Server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := httpSrv.Shutdown(ctx); err != nil {
+		zap.S().Errorf("HTTP Server Shutdown Error: %v", err)
+	}
+
+	zap.S().Info("Kicking all connected clients...")
+	for _, shard := range shards {
+		shard.mtx.RLock() //  s.Close() 内部会去调 Remove，Remove 要拿写锁
+		// 为了防止 s.Close() 时发生死锁 (读锁未释放又去申请写锁)，先克隆一份 session 列表
+		clientsToClose := make([]*Session, 0, len(shard.data))
+		for _, s := range shard.data {
+			clientsToClose = append(clientsToClose, s)
+		}
+		shard.mtx.RUnlock()
+
+		// 在无锁状态下执行踢人逻辑
+		for _, s := range clientsToClose {
+			s.Close(pb.DisconnectReason_ShutDown)
+		}
+	}
 	waitGroup.Wait()
+	zap.S().Info("WS Server gracefully stopped.")
 }
 
 /************************************************************/
