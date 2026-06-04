@@ -2,6 +2,7 @@ package gnet
 
 import (
 	pb "server/api/pb"
+	"server/api/pb/msgid"
 	"server/pkg/cfg"
 	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/msgq"
@@ -48,8 +49,14 @@ func TestSendAndServe(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 1000000; i++ {
-		wait.Add(1)
-		SendToGame(1, &pb.S2SReqLogin{
+		wait.Add(2)
+		SendToGame(1, msgid.MsgIDS2S_S2SReqLogin, &pb.S2SReqLogin{
+			SesID:       uint64(i * 2),
+			RoleID:      uint64(i),
+			ReConnToken: uint64(i * 3),
+			Seq:         uint32(i * 4),
+		}, 0, 0)
+		SendToGameS(1, &pb.S2SReqLogin{
 			SesID:       uint64(i * 2),
 			RoleID:      uint64(i),
 			ReConnToken: uint64(i * 3),

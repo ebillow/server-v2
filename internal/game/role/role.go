@@ -10,6 +10,7 @@ import (
 	"server/pkg/flag"
 	"server/pkg/gnet"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/router"
 	"server/pkg/queue"
 	"server/pkg/thread"
 	"server/pkg/util"
@@ -131,7 +132,7 @@ func (r *Role) Run() {
 					evt.Func(r)
 				} else {
 					evt.Ctx.U = r
-					if err := Router().Handle(evt.Ctx); err != nil {
+					if err := router.R().Handle(evt.Ctx); err != nil {
 						zap.L().Warn("handle err", zap.Error(err))
 					}
 				}
@@ -249,13 +250,13 @@ func (r *Role) OnTick(now time.Time) {
 	}
 
 	for _, v := range r.Comps {
-		if comp, ok := v.(ICompSecLoop); ok {
-			comp.SecLoop(now, r)
+		if comp, ok := v.(ICompTick); ok {
+			comp.OnTick(now, r)
 		}
 
 		if dayChange {
-			if comp, ok := v.(ICompDayChange); ok {
-				comp.OnDayChange(r)
+			if comp, ok := v.(ICompNewDay); ok {
+				comp.OnNewDay(r)
 			}
 		}
 
@@ -265,8 +266,8 @@ func (r *Role) OnTick(now time.Time) {
 			}
 
 			if monthChange {
-				if comp, ok := v.(ICompMonthChange); ok {
-					comp.OnMonthChange(r)
+				if comp, ok := v.(ICompNewMonth); ok {
+					comp.OnNewMonth(r)
 				}
 			}
 		}
@@ -316,8 +317,8 @@ func (r *Role) OnTick(now time.Time) {
 
 func (r *Role) MinuteLoop(now time.Time) {
 	for _, v := range r.Comps {
-		if iSec, ok := v.(ICompMinuteLoop); ok {
-			iSec.MinuteLoop(now, r)
+		if iSec, ok := v.(ICompMinute); ok {
+			iSec.OnMinute(now, r)
 		}
 	}
 }
@@ -337,7 +338,7 @@ func (r *Role) SendS(msg pb.VTMessage) {
 	gnet.SendToRole(msgID, msg, r.SesID, r.ID)
 }
 
-// Send	发送数据给客户端,热路径建议使用SendT
+// Send	发送数据给客户端,热路径建议使用Send
 func Send[T pb.VTMessage](r *Role, msgID msgid.MsgIDS2C, msg T) {
 	if util.Debug {
 		realMsgID, ok := pb.GetMsgIDS2C(msg)

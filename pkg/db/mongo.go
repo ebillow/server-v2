@@ -2,11 +2,13 @@ package db
 
 import (
 	"context"
+	"server/pkg/gerror"
+	"time"
+
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 	"go.mongodb.org/mongo-driver/v2/mongo/readpref"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Mongo struct {
@@ -44,13 +46,13 @@ func NewMongo(uri string, dbName string, minPoolSize, maxPoolSize uint64) (*Mong
 		// SetTimeout(10 * time.Second).  //由操作控制
 		SetMaxConnIdleTime(5 * time.Minute))
 	if err != nil {
-		return nil, err
+		return nil, gerror.WithStack(err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err = cli.Ping(ctx, readpref.Primary()); err != nil {
-		return nil, err
+		return nil, gerror.WithStack(err)
 	}
 
 	zap.L().Info("connect to mongo", zap.String("uri", uri))

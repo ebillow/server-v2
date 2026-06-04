@@ -4,15 +4,10 @@ import (
 	"reflect"
 	"server/api/pb"
 	"server/api/pb/msgid"
-	"server/internal/game/role"
 	"server/pkg/gnet/gctx"
 
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
-)
-
-var (
-	_ role.IRouter = &MsgRouter{}
 )
 
 var (

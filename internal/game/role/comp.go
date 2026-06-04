@@ -9,14 +9,14 @@ type IComp interface {
 	ClearDirty()   // 清除脏数据标志
 }
 
-// ICompSecLoop 如果需要每秒update，就实现该接口
-type ICompSecLoop interface {
-	SecLoop(now time.Time, r *Role) // 每秒更新
+// ICompTick 如果需要每秒update，就实现该接口
+type ICompTick interface {
+	OnTick(now time.Time, r *Role) // 每秒更新
 }
 
-// ICompMinuteLoop 如果需要每分update，就实现该接口
-type ICompMinuteLoop interface {
-	MinuteLoop(now time.Time, r *Role) // 更新
+// ICompMinute 如果需要每分update，就实现该接口
+type ICompMinute interface {
+	OnMinute(now time.Time, r *Role) // 更新
 }
 
 // ICompDataReset 如果需要每天定时重置数据，就实现该接口
@@ -24,14 +24,14 @@ type ICompDataReset interface {
 	OnDataReset(r *Role) //
 }
 
-// ICompMonthChange 跨月数据重置
-type ICompMonthChange interface {
-	OnMonthChange(r *Role) //
+// ICompNewMonth 跨月数据重置
+type ICompNewMonth interface {
+	OnNewMonth(r *Role) //
 }
 
-// ICompDayChange 如果需要跨天时处理数据，就实现该接口
-type ICompDayChange interface {
-	OnDayChange(r *Role) //
+// ICompNewDay 如果需要跨天时处理数据，就实现该接口
+type ICompNewDay interface {
+	OnNewDay(r *Role) //
 }
 
 // ICompOnline 上线的处理接口

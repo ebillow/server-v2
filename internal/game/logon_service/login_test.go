@@ -100,7 +100,7 @@ func TestLoginAndOffline(t *testing.T) {
 	})
 
 	time.Sleep(time.Second * 2)
-	role.Mgr.KickAndWait(111)
+	role.Mgr.Kick(111)
 	Mgr.Close()
 	if !checkSuccess() {
 		t.Fatal("login check fail")

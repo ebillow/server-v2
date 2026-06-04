@@ -2,9 +2,6 @@ package role
 
 import (
 	"server/api/pb"
-	"server/pkg/gnet/gctx"
-
-	"google.golang.org/protobuf/proto"
 )
 
 type ICompCreate interface {
@@ -17,15 +14,9 @@ type ILoginMgr interface {
 	SaveRole(data *DataToSave, saveBoth bool)
 }
 
-type IRouter interface {
-	Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg proto.Message)) error
-	Handle(c gctx.Context) error
-}
-
 // ---------------------------------------------------------
 var (
 	loginMgr   ILoginMgr
-	msgRouter  IRouter
 	compCreate ICompCreate
 )
 
@@ -36,15 +27,6 @@ func LoginMgr() ILoginMgr {
 
 func InjectLoginMgr(mgr ILoginMgr) {
 	loginMgr = mgr
-}
-
-// Router 客户端消息路由---MsgRouter ---------------------------------------------------------
-func Router() IRouter {
-	return msgRouter
-}
-
-func InjectRouter(rt IRouter) {
-	msgRouter = rt
 }
 
 func InjectCompCreate(rt ICompCreate) {

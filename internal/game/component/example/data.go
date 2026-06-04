@@ -52,7 +52,7 @@ func (d *Data) Offline(r *role.Role) {
 	}
 }
 
-func (d *Data) SecLoop(now time.Time, r *role.Role) {
+func (d *Data) OnTick(now time.Time, r *role.Role) {
 	d.Cnt++
 	// d.dirty = true
 }

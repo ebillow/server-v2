@@ -19,7 +19,7 @@ import (
 )
 
 func Init(ctx context.Context) error {
-	inject()
+	// inject()
 
 	db.MongoUse(flag.IID + "_game")
 	game_db.CreateIndex()
@@ -39,9 +39,8 @@ func UnInit(ctx context.Context) {
 	logon_service.Mgr.Close()
 }
 
-func inject() {
+func init() {
 	role.InjectLoginMgr(&logon_service.Mgr)
-	role.InjectRouter(router.R())
 	role.InjectCompCreate(&component.Create)
 }
 
