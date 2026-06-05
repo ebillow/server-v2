@@ -9,6 +9,7 @@ import (
 	"server/pkg/idgen"
 	"server/pkg/util"
 
+	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 )
 
@@ -37,7 +38,7 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 	buf = buf[:n]
 
 	serID := GateIDFromSesID(sesID)
-	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, *pBuf, roleID, sesID)
+	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, buf, roleID, sesID)
 
 	Put(pBuf)
 
@@ -45,20 +46,22 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 		zap.L().Warn("send to role error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
+			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
-			zap.Any("msg", msg),
-			zap.Any("to", pb.Server_Gateway),
+			zap.String("to", pb.Server_name[int32(pb.Server_Gateway)]),
 			zap.Uint8("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID))
 		return
 	}
 	if trace.Rule.ShouldLog(msgID, roleID, sesID) {
-		zap.L().Info(">>> msg.send: ",
+		str, _ := sonic.MarshalString(msg)
+		zap.L().Info("send",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
-			zap.Any("msg", msg),
-			zap.Any("to", pb.Server_Gateway),
+			zap.String("type", fmt.Sprintf("%T", msg)),
+			zap.String("msg", str),
+			zap.String("to", pb.Server_name[int32(pb.Server_Gateway)]),
 			zap.Uint8("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("roleID", roleID),
@@ -106,9 +109,14 @@ func SendToSrv[T pb.VTMessage](
 	}
 
 	if trace.Rule.ShouldLog(msgID, actorID, sesID) {
-		zap.L().Info("msg.send",
+		str, _ := sonic.MarshalString(msg)
+		zap.L().Info("send",
 			zap.Uint32("msgID", msgID),
-			zap.Uint8("serID", serID),
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
+			zap.String("type", fmt.Sprintf("%T", msg)),
+			zap.String("msg", str),
+			zap.String("to", pb.Server_name[int32(serType)]),
+			zap.Uint8("idx", serID),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("actorID", actorID),
 		)
@@ -141,7 +149,7 @@ func SendToSrvAll[T pb.VTMessage](
 		)
 		return
 	}
-	err = msgq.Q.SendAll(serType, msgID, *pBuf, actorID, sesID)
+	err = msgq.Q.SendAll(serType, msgID, buf, actorID, sesID)
 
 	Put(pBuf)
 
@@ -157,11 +165,13 @@ func SendToSrvAll[T pb.VTMessage](
 		return
 	}
 	if trace.Rule.ShouldLog(msgID, actorID, sesID) {
+		str, _ := sonic.MarshalString(msg)
 		zap.L().Info(">>> msg.sendAll: ",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
-			zap.Any("data", msg),
-			zap.Any("to", serType),
+			zap.String("type", fmt.Sprintf("%T", msg)),
+			zap.String("msg", str),
+			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("actorID", actorID),
 		)
@@ -170,7 +180,7 @@ func SendToSrvAll[T pb.VTMessage](
 
 func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 	if util.Debug {
-		realMsgID, ok := pb.GetMsgIDS2C(msg)
+		realMsgID, ok := pb.GetMsgIDS2S(msg)
 		if !ok {
 			zap.L().Error("[SendT] GetMsgIDS2C error",
 				zap.String("type", fmt.Sprintf("%T", msg)),
@@ -255,6 +265,8 @@ func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorI
 	}
 	SendToSrv(pb.Server_Center, 0, uint32(msgID), msg, uint64(actorID), 0)
 }
+
+// -------------------------非热点路径可以使用----------------------
 
 func SendToGateS[T pb.VTMessage](msg T, sesID uint64) {
 	msgID, ok := pb.GetMsgIDS2S(msg)

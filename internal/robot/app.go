@@ -11,11 +11,16 @@ import (
 	"go.uber.org/zap"
 )
 
+var (
+	Count int
+	Addr  string
+)
+
 func Init(ctx context.Context) error {
 	begin := int(flag.SvcIndex) * 100000
 	robot.Setup = &robot.ServerCfg{
-		ServerAddr: "127.0.0.1:30001",
-		Cnt:        10000,
+		ServerAddr: Addr,
+		Cnt:        Count,
 		BeginID:    begin,
 		LoginOnly:  false,
 	}

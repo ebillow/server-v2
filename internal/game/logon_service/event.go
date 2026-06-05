@@ -15,39 +15,39 @@ type baseEvent struct{}
 
 func (baseEvent) isLogonEvent() {}
 
-// 1. 登录请求事件
+// EvtLogin 登录请求事件
 type EvtLogin struct {
 	baseEvent
 	Login *pb.S2SReqLogin
 }
 
-// 2. 数据库加载完毕事件（替代原来的 OpUnmarshal）
+// EvtDBLoaded 数据库加载完毕事件（替代原来的 OpUnmarshal）
 type EvtDBLoaded struct {
 	baseEvent
 	Login *pb.S2SReqLogin
 	Data  *role.DataToSave
 }
 
-// 3. 顶号重入事件
+// EvtReentry 顶号重入事件
 type EvtReentry struct {
 	baseEvent
 	Login *pb.S2SReqLogin
 }
 
-// 4. 角色下线事件
+// EvtLogout 角色下线事件
 type EvtLogout struct {
 	baseEvent
 	Data *role.DataToSave
 }
 
-// 5. 保存角色事件
+// EvtSaveRole 保存角色事件
 type EvtSaveRole struct {
 	baseEvent
 	Data     *role.DataToSave
 	SaveBoth bool
 }
 
-// 6. 保存DB成功事件
+// EvtSaveSuccess 保存DB成功事件
 type EvtSaveSuccess struct {
 	baseEvent
 	IDs []uint64

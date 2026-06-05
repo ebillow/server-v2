@@ -53,21 +53,6 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-func checkSuccess() bool {
-	debugWait.Wait()
-	debugMtx.Lock()
-	defer debugMtx.Unlock()
-
-	ok := true
-	for k, v := range debugCheck {
-		if v == 0 {
-			ok = false
-			zap.L().Error("role login fail", zap.Uint64("role", k))
-		}
-	}
-	return ok
-}
-
 func TestLoadBatch(t *testing.T) {
 	ids := make([]uint64, 0)
 	for i := uint64(0); i < 10; i++ {
@@ -102,7 +87,7 @@ func TestLoginAndOffline(t *testing.T) {
 	time.Sleep(time.Second * 2)
 	role.Mgr.Kick(111)
 	Mgr.Close()
-	if !checkSuccess() {
+	if !debugCheckSuccess() {
 		t.Fatal("login check fail")
 	}
 }
@@ -123,7 +108,7 @@ func TestDataDelete(t *testing.T) {
 	time.Sleep(time.Second * 1)
 	role.Mgr.KickAndWait(111)
 
-	if !checkSuccess() {
+	if !debugCheckSuccess() {
 		t.Fatal("login check fail")
 	}
 }
@@ -170,7 +155,7 @@ func TestLoginAndOfflineContinue(t *testing.T) {
 	}()
 	role.Mgr.CloseAndWait()
 	Mgr.Close()
-	if !checkSuccess() {
+	if !debugCheckSuccess() {
 		t.Fatal("login check fail")
 	}
 }
@@ -189,7 +174,7 @@ func TestLoginAndOfflineBatch(t *testing.T) {
 	time.Sleep(time.Second * 3)
 	role.Mgr.CloseAndWait()
 	Mgr.Close()
-	if !checkSuccess() {
+	if !debugCheckSuccess() {
 		t.Fatal("login check fail")
 	}
 }

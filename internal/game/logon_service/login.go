@@ -7,7 +7,6 @@ import (
 	"server/internal/game/role"
 	"server/pkg/gnet"
 	"server/pkg/thread"
-	"server/pkg/util"
 	"sync"
 	"time"
 
@@ -43,21 +42,6 @@ func (l *loginData) setState(state loginState) {
 	l.StateTime = time.Now().Unix()
 }
 
-var (
-	debugCheck = make(map[uint64]uint64)
-	debugMtx   sync.RWMutex
-	debugWait  sync.WaitGroup
-)
-
-func DebugLoginOk(id uint64) {
-	if util.Debug {
-		debugMtx.Lock()
-		debugCheck[id] = id
-		debugMtx.Unlock()
-		debugWait.Done()
-	}
-}
-
 var Mgr LogonService
 
 type LogonService struct {
@@ -78,8 +62,8 @@ func (m *LogonService) Start() {
 	m.ops = make(chan ILogonEvent, opChanSize)
 	m.ctx, m.cancel = context.WithCancel(context.Background())
 
+	m.waitProducer.Add(1)
 	thread.GoSafe(func() {
-		m.waitProducer.Add(1)
 		m.run(m.ctx)
 	})
 	for i := 0; i < loadingGoCnt; i++ {
@@ -111,13 +95,7 @@ func (m *LogonService) Close() {
 
 // Login	请求角色的数据
 func (m *LogonService) Login(msg *pb.S2SReqLogin) {
-	if util.Debug {
-		debugMtx.Lock()
-		debugCheck[msg.RoleID] = 0
-		debugMtx.Unlock()
-		debugWait.Add(1)
-	}
-
+	debugLoginBegin(msg.RoleID)
 	m.ops <- &EvtLogin{Login: msg}
 }
 
@@ -153,6 +131,14 @@ func (m *LogonService) saveOne(p opSaveData, ld *loginData) {
 	m.save[idx].post(p)
 }
 
+func (m *LogonService) saveMust(p opSaveData, ld *loginData) {
+	if ld != nil {
+		ld.Cache = p.Data
+	}
+	idx := p.ID % saveGoCnt
+	m.save[idx].postMustSave(p)
+}
+
 func (m *LogonService) postDBLoaded(e *EvtDBLoaded) {
 	m.postEvent(e)
 }
@@ -169,7 +155,7 @@ func (m *LogonService) roleOffline(p *EvtLogout) {
 		ld.setState(stateOffline)
 	}
 
-	m.saveOne(opSaveData{ID: p.Data.RoleID, Data: p.Data.Data, Both: false}, ld)
+	m.saveMust(opSaveData{ID: p.Data.RoleID, Data: p.Data.Data, Both: false}, ld)
 }
 
 func (m *LogonService) saveSuccess(ids []uint64) {
@@ -272,6 +258,7 @@ func (m *LogonService) opSignIn(op *EvtLogin) {
 	case statePending:
 		now := time.Now()
 		if now.Unix()-v.StateTime < StateTimeOut {
+			// todo 返回登录失败
 			return
 		}
 		m.postToLoad(op)
@@ -311,7 +298,7 @@ func (m *LogonService) initRole(data *role.DataToSave, login *pb.S2SReqLogin) {
 
 	r.Run()
 
-	DebugLoginOk(r.ID)
+	debugLoginOk(r.ID)
 }
 
 // 处理其它设备

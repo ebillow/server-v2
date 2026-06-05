@@ -395,7 +395,6 @@ func (r *Role) marshal(force bool) (*DataToSave, error) {
 		}
 
 		rd.Set(pb.TypeComp(i), str)
-		v.ClearDirty()
 	}
 
 	return rd, nil

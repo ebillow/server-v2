@@ -10,11 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	Count int
-	Addr  string
-)
-
 func main() {
 	var a = app.App{
 		SrvType: pb.Server_Robot,
@@ -31,8 +26,8 @@ func main() {
 
 	rootCmd.Flags().SortFlags = false
 	fs := rootCmd.PersistentFlags()
-	fs.StringVar(&Addr, "addr", "127.0.0.1:30001", "gateway addr")
-	fs.IntVar(&Count, "count", 1, "数量")
+	fs.StringVar(&robot.Addr, "addr", "127.0.0.1:30001", "gateway addr")
+	fs.IntVar(&robot.Count, "count", 1, "数量")
 	flag.Init(a.SrvType, fs)
 
 	rootCmd.AddCommand(

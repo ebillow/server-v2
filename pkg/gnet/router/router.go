@@ -1,60 +1,128 @@
 package router
 
 import (
-	"reflect"
+	"fmt"
 	"server/api/pb"
-	"server/api/pb/msgid"
+	"server/pkg/flag"
+	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmetrics"
+	"server/pkg/gnet/trace"
+	"sync"
+	"time"
 
+	"github.com/bytedance/sonic"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
-var (
-	msgRouter = NewMsgRouter(int32(msgid.MsgIDMax_C2SMax))
-)
-
-func R() *MsgRouter {
-	return msgRouter
+type MsgHandler struct {
+	pool       sync.Pool
+	createFunc func() pb.VTMessage
+	HandleFunc func(gctx.Context, proto.Message)
 }
 
-func On[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	register(false, df)
+// MsgRouter 消息处理器
+type MsgRouter struct {
+	handlers []*MsgHandler
 }
 
-// OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(c gctx.Context, req T)) {
-	register(true, df)
+// NewMsgRouter createRoute
+func NewMsgRouter(max int32) *MsgRouter {
+	r := &MsgRouter{
+		make([]*MsgHandler, max),
+	}
+	return r
 }
 
-func register[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
-	var zero T
-	msgType := reflect.TypeOf(zero)
-	msgID, ok := pb.GetMsgIDS2S(zero)
-	if !ok {
-		msgID, ok = pb.GetMsgIDC2S(zero)
+// Register 注册消息
+func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg proto.Message)) error {
+	if flag.IsReady() {
+		return gerror.New("must register before action")
 	}
-	if !ok {
-		zap.L().Fatal("Register failed: message type not found in TypeMeta",
-			zap.String("type", msgType.String()))
+	if msgID >= uint32(len(rt.handlers)) {
+		return gerror.Newf("msg id[%d] out of range", msgID)
 	}
 
-	// 提取出指针底层的结构体
-	elemType := msgType.Elem()
-
-	createFunc := func() pb.VTMessage {
-		return reflect.New(elemType).Interface().(pb.VTMessage)
+	if rt.handlers[msgID] != nil {
+		return gerror.Newf("msg id[%d] already register", msgID)
 	}
 
-	handleFunc := func(c gctx.Context, msg proto.Message) {
-		df(c, msg.(T))
+	node := &MsgHandler{
+		HandleFunc: df,
 	}
 
-	err := R().Register(msgID, createFunc, usePool, handleFunc)
+	if usePool {
+		node.pool = sync.Pool{
+			New: func() any {
+				return cf()
+			},
+		}
+	} else {
+		node.createFunc = cf
+	}
+	rt.handlers[msgID] = node
+
+	return nil
+}
+
+// Handle 处理消息
+func (rt *MsgRouter) Handle(c gctx.Context) error {
+	node, err := rt.getHandler(c.MsgID)
 	if err != nil {
-		zap.L().Fatal("Register failed: duplicate register",
-			zap.String("msgType", msgType.String()),
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		return err
 	}
+
+	var msgPB pb.VTMessage
+	var msgObj any
+	if node.createFunc == nil {
+		msgObj = node.pool.Get()
+		msgPB = msgObj.(pb.VTMessage)
+		proto.Reset(msgPB)
+	} else {
+		msgPB = node.createFunc()
+	}
+
+	if len(c.Data) > 0 {
+		err = msgPB.UnmarshalVT(c.Data)
+		if err != nil {
+			return err
+		}
+	}
+
+	if trace.Rule.ShouldLog(c.MsgID, c.ActorID, c.SesID) {
+		str, _ := sonic.MarshalString(msgPB)
+		zap.L().Info("recv",
+			zap.String("type", fmt.Sprintf("%T", msgPB)),
+			zap.String("data", str),
+			zap.Inline(&c),
+		)
+	}
+	begin := time.Now() // todo 优化
+
+	node.HandleFunc(c, msgPB)
+
+	if node.createFunc == nil {
+		node.pool.Put(msgObj)
+	}
+
+	cost := time.Since(begin)
+	if cost > 10*time.Millisecond {
+		gmetrics.GetHandlerLatencyMetric(c.MsgID).Update(float64(cost.Milliseconds()))
+	}
+
+	return nil
+}
+
+func (rt *MsgRouter) getHandler(id uint32) (n *MsgHandler, err error) {
+	if id >= uint32(len(rt.handlers)) {
+		err = gerror.Newf("msg id[%d] out of range", id)
+		return
+	}
+	n = rt.handlers[id]
+	if nil == n {
+		err = gerror.Newf("msg handler[%d] not found", id)
+		return
+	}
+	return
 }
