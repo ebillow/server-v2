@@ -1,6 +1,5 @@
 syntax = "proto3";
 
-option optimize_for = LITE_RUNTIME;
 option go_package = "./pb";
 
 //该文件包含其它proto，其它不要包含该proto

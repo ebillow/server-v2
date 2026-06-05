@@ -16,9 +16,36 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+type MsgFactory interface {
+	Get() pb.VTMessage
+	Put(pb.VTMessage)
+}
+
+// 池化工厂
+type poolFactory struct {
+	pool sync.Pool
+}
+
+func (f *poolFactory) Get() pb.VTMessage {
+	msg := f.pool.Get().(pb.VTMessage)
+	proto.Reset(msg)
+	return msg
+}
+
+func (f *poolFactory) Put(msg pb.VTMessage) {
+	f.pool.Put(msg)
+}
+
+// 非池化工厂
+type newFactory struct {
+	create func() pb.VTMessage
+}
+
+func (f *newFactory) Get() pb.VTMessage { return f.create() }
+func (f *newFactory) Put(pb.VTMessage)  {} // no-op
+
 type MsgHandler struct {
-	pool       sync.Pool
-	createFunc func() pb.VTMessage
+	factory    MsgFactory
 	HandleFunc func(gctx.Context, proto.Message)
 }
 
@@ -53,13 +80,13 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 	}
 
 	if usePool {
-		node.pool = sync.Pool{
-			New: func() any {
-				return cf()
+		node.factory = &poolFactory{
+			pool: sync.Pool{
+				New: func() any { return cf() },
 			},
 		}
 	} else {
-		node.createFunc = cf
+		node.factory = &newFactory{create: cf}
 	}
 	rt.handlers[msgID] = node
 
@@ -73,15 +100,7 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 		return err
 	}
 
-	var msgPB pb.VTMessage
-	var msgObj any
-	if node.createFunc == nil {
-		msgObj = node.pool.Get()
-		msgPB = msgObj.(pb.VTMessage)
-		proto.Reset(msgPB)
-	} else {
-		msgPB = node.createFunc()
-	}
+	msgPB := node.factory.Get()
 
 	if len(c.Data) > 0 {
 		err = msgPB.UnmarshalVT(c.Data)
@@ -102,9 +121,7 @@ func (rt *MsgRouter) Handle(c gctx.Context) error {
 
 	node.HandleFunc(c, msgPB)
 
-	if node.createFunc == nil {
-		node.pool.Put(msgObj)
-	}
+	node.factory.Put(msgPB)
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {

@@ -1,5 +1,5 @@
 syntax = "proto3";
-option optimize_for = LITE_RUNTIME;
+
 option go_package = "./pb";
 import "msg_common.proto";
 package pb;

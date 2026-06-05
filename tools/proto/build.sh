@@ -71,7 +71,7 @@ function gen_proto() {
   protoc --go_out=${OUTDIR} \
           --go-vtproto_out=${OUTDIR} \
           --go-vtproto_opt=features=marshal+unmarshal+size \
-          --plugin= -I ${OUTDIR}/proto "${protoList[@]}"
+          --plugin=protoc-gen-go-vtproto=${GOPATH}/bin/protoc-gen-go-vtproto -I ${OUTDIR}/proto "${protoList[@]}"
 }
 
 function gen_msg_id() {
