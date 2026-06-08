@@ -124,7 +124,62 @@ func SendToSrv[T pb.VTMessage](
 	Put(pBuf)
 }
 
-func SendToSrvAll[T pb.VTMessage](
+func SendToAny[T pb.VTMessage](
+	serType pb.Server,
+	msgID uint32,
+	msg T,
+	actorID uint64,
+	sesID uint64,
+) {
+	pBuf := Get()
+	var err error
+
+	size := msg.SizeVT()
+	if cap(*pBuf) < size {
+		*pBuf = make([]byte, size)
+	}
+	buf := (*pBuf)[:size]
+
+	_, err = msg.MarshalToSizedBufferVT(buf)
+	if err != nil {
+		Put(pBuf)
+		zap.L().Warn("send marshal vt error",
+			zap.Error(err),
+			zap.Uint32("msgID", msgID),
+		)
+		return
+	}
+	err = msgq.Q.SendAny(serType, msgID, buf, actorID, sesID)
+
+	Put(pBuf)
+
+	if err != nil {
+		str, _ := sonic.MarshalString(msg)
+		zap.L().Warn(">>> send to all error: ",
+			zap.Error(err),
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
+			zap.String("msg", str),
+			zap.String("to", pb.Server_name[int32(serType)]),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("actorID", actorID))
+		return
+	}
+	if trace.Rule.ShouldLog(msgID, actorID, sesID) {
+		str, _ := sonic.MarshalString(msg)
+		zap.L().Info(">>> msg.sendAll: ",
+			zap.Uint32("msgID", msgID),
+			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
+			zap.String("type", fmt.Sprintf("%T", msg)),
+			zap.String("msg", str),
+			zap.String("to", pb.Server_name[int32(serType)]),
+			zap.Uint64("sessID", sesID),
+			zap.Uint64("actorID", actorID),
+		)
+	}
+}
+
+func SendToGroup[T pb.VTMessage](
 	serType pb.Server,
 	msgID uint32,
 	msg T,
@@ -154,12 +209,13 @@ func SendToSrvAll[T pb.VTMessage](
 	Put(pBuf)
 
 	if err != nil {
+		str, _ := sonic.MarshalString(msg)
 		zap.L().Warn(">>> send to all error: ",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
-			zap.Any("data", msg), // todo 有反射
-			zap.Any("to", serType),
+			zap.String("to", pb.Server_name[int32(serType)]),
+			zap.String("msg", str),
 			zap.Uint64("sessID", sesID),
 			zap.Uint64("actorID", actorID))
 		return
@@ -241,7 +297,7 @@ func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
 			return
 		}
 	}
-	SendToSrv(pb.Server_Account, 0, uint32(msgID), msg, 0, 0)
+	SendToAny(pb.Server_Account, uint32(msgID), msg, 0, 0)
 }
 
 func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorID) {
@@ -263,7 +319,7 @@ func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorI
 			return
 		}
 	}
-	SendToSrv(pb.Server_Center, 0, uint32(msgID), msg, uint64(actorID), 0)
+	SendToAny(pb.Server_Center, uint32(msgID), msg, uint64(actorID), 0)
 }
 
 // -------------------------非热点路径可以使用----------------------
@@ -292,7 +348,7 @@ func SendToAccountS[T pb.VTMessage](msg T) {
 		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
-	SendToSrv(pb.Server_Account, 0, msgID, msg, 0, 0)
+	SendToAny(pb.Server_Account, msgID, msg, 0, 0)
 }
 
 func SendToCenterS[T pb.VTMessage](msg T, actorID pb.ActorID) {
@@ -301,5 +357,5 @@ func SendToCenterS[T pb.VTMessage](msg T, actorID pb.ActorID) {
 		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
-	SendToSrv(pb.Server_Center, 0, msgID, msg, uint64(actorID), 0)
+	SendToAny(pb.Server_Center, msgID, msg, uint64(actorID), 0)
 }
