@@ -106,14 +106,16 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 		}
 	}
 
-	if trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID) {
+	shouldLog := trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID)
+	if shouldLog {
 		str, _ := sonic.MarshalString(req)
-		zap.L().Info("recv",
+		zap.L().Info("recv rpc",
 			zap.String("type", fmt.Sprintf("%T", req)),
 			zap.String("data", str),
 			zap.Inline(&c),
 		)
 	}
+
 	begin := time.Now() // todo 优化
 
 	res := h.resCreate.Get()
@@ -124,6 +126,14 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 		h.reqCreate.Put(req)
 		h.resCreate.Put(res)
 		return gerror.Wrapf(err, "respond %d", c.Head.MsgID)
+	}
+	if shouldLog {
+		str, _ := sonic.MarshalString(res)
+		zap.L().Info("respond rpc",
+			zap.String("type", fmt.Sprintf("%T", res)),
+			zap.String("data", str),
+			zap.Inline(&c),
+		)
 	}
 
 	h.reqCreate.Put(req)

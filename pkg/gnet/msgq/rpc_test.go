@@ -60,7 +60,7 @@ func TestRpcCall(t *testing.T) {
 			RoleID:      1,
 			ReConnToken: 1231231,
 			Seq:         token,
-		}, &ack, pb.Server_Game, 1, 1, 0, time.Millisecond*500)
+		}, &ack, pb.Server_Game, 1, 1, time.Millisecond*500)
 		require.NoError(t, err)
 		require.Equal(t, ack.Res.Token, token)
 		// t.Log(ack)

@@ -6,13 +6,16 @@ import (
 	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/trace"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 // RpcCall 远程调用，注意最好保持单向调用，否则可能出现互相等待
-func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, toSer pb.Server, toSerID uint8, actorID uint64, sesID uint64, timeOut time.Duration) error {
+func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, toSer pb.Server, toSerID uint8, actorID uint64, timeOut time.Duration) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
@@ -39,7 +42,6 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 
 	gctx.EncodeFrameHeader(buf, bodySize, gctx.Head{
 		ActorID:   actorID,
-		SesID:     sesID,
 		MsgID:     msgID,
 		Flag:      0,
 		FromSer:   bs.serType,
@@ -68,6 +70,18 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	err = res.UnmarshalVT(resMsg.Data)
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:unmarshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
+	}
+
+	if trace.Rule.ShouldLog(msgID, actorID, 0) {
+		reqStr, _ := sonic.MarshalString(req)
+		resStr, _ := sonic.MarshalString(res)
+		zap.L().Info("rpc call",
+			zap.String("req", reqStr),
+			zap.String("res", resStr),
+			zap.Uint64("actorID", actorID),
+			zap.String("to", pb.Server_name[int32(toSer)]),
+			zap.Uint8("to", uint8(toSer)),
+		)
 	}
 
 	return nil
