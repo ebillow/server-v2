@@ -5,11 +5,16 @@ import (
 	"server/api/pb/msgid"
 	"server/internal/game/role"
 	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/router"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func init() {
 	role.OnP(onEchoCli)
-	role.OnP(onEchoSer)
+	role.On(onEchoSer)
+
+	router.OnRpc(onEchoRpc)
 }
 
 func onEchoCli(_ gctx.Context, msg *pb.C2SEcho, r *role.Role) {
@@ -26,4 +31,8 @@ func onEchoCli(_ gctx.Context, msg *pb.C2SEcho, r *role.Role) {
 
 func onEchoSer(_ gctx.Context, msg *pb.S2SEcho, r *role.Role) {
 
+}
+
+func onEchoRpc(_ gctx.Context, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
+	res = proto.Clone(req).(*pb.S2SRpcEchoRes)
 }

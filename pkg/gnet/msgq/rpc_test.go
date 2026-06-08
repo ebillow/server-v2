@@ -3,7 +3,6 @@ package msgq
 import (
 	"os"
 	pb "server/api/pb"
-	"server/api/pb/msgid"
 	"server/pkg/cfg"
 	"server/pkg/gnet/gctx"
 	"server/pkg/logger"
@@ -56,7 +55,7 @@ func TestRpcCall(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		token := uint32(i * 10)
 		ack := pb.S2SResLogin{}
-		err := RpcCall(&Q, uint32(msgid.MsgIDS2S_S2SReqLogin), &pb.S2SReqLogin{
+		err := RpcCall(&Q, &pb.S2SReqLogin{
 			SesID:       1,
 			RoleID:      1,
 			ReConnToken: 1231231,

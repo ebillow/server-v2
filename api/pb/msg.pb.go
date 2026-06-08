@@ -291,6 +291,180 @@ func (x *S2SEcho) GetTime() int64 {
 	return 0
 }
 
+type S2SRpcEchoReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ID    uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name  string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Level uint32 `protobuf:"varint,3,opt,name=Level,proto3" json:"Level,omitempty"`
+	Exp   uint32 `protobuf:"varint,4,opt,name=Exp,proto3" json:"Exp,omitempty"`
+	Data  string `protobuf:"bytes,5,opt,name=Data,proto3" json:"Data,omitempty"`
+	Time  int64  `protobuf:"zigzag64,6,opt,name=Time,proto3" json:"Time,omitempty"`
+}
+
+func (x *S2SRpcEchoReq) Reset() {
+	*x = S2SRpcEchoReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_msg_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *S2SRpcEchoReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*S2SRpcEchoReq) ProtoMessage() {}
+
+func (x *S2SRpcEchoReq) ProtoReflect() protoreflect.Message {
+	mi := &file_msg_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use S2SRpcEchoReq.ProtoReflect.Descriptor instead.
+func (*S2SRpcEchoReq) Descriptor() ([]byte, []int) {
+	return file_msg_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *S2SRpcEchoReq) GetID() uint64 {
+	if x != nil {
+		return x.ID
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoReq) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoReq) GetLevel() uint32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoReq) GetExp() uint32 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoReq) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoReq) GetTime() int64 {
+	if x != nil {
+		return x.Time
+	}
+	return 0
+}
+
+type S2SRpcEchoRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ID    uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name  string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Level uint32 `protobuf:"varint,3,opt,name=Level,proto3" json:"Level,omitempty"`
+	Exp   uint32 `protobuf:"varint,4,opt,name=Exp,proto3" json:"Exp,omitempty"`
+	Data  string `protobuf:"bytes,5,opt,name=Data,proto3" json:"Data,omitempty"`
+	Time  int64  `protobuf:"zigzag64,6,opt,name=Time,proto3" json:"Time,omitempty"`
+}
+
+func (x *S2SRpcEchoRes) Reset() {
+	*x = S2SRpcEchoRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_msg_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *S2SRpcEchoRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*S2SRpcEchoRes) ProtoMessage() {}
+
+func (x *S2SRpcEchoRes) ProtoReflect() protoreflect.Message {
+	mi := &file_msg_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use S2SRpcEchoRes.ProtoReflect.Descriptor instead.
+func (*S2SRpcEchoRes) Descriptor() ([]byte, []int) {
+	return file_msg_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *S2SRpcEchoRes) GetID() uint64 {
+	if x != nil {
+		return x.ID
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRes) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRes) GetLevel() uint32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRes) GetExp() uint32 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRes) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRes) GetTime() int64 {
+	if x != nil {
+		return x.Time
+	}
+	return 0
+}
+
 var File_msg_proto protoreflect.FileDescriptor
 
 var file_msg_proto_rawDesc = []byte{
@@ -320,8 +494,25 @@ var file_msg_proto_rawDesc = []byte{
 	0x76, 0x65, 0x6c, 0x12, 0x10, 0x0a, 0x03, 0x45, 0x78, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d,
 	0x52, 0x03, 0x45, 0x78, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x18, 0x05, 0x20,
 	0x01, 0x28, 0x09, 0x52, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d,
-	0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x42, 0x06, 0x5a,
-	0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x22, 0x83, 0x01,
+	0x0a, 0x0d, 0x53, 0x32, 0x53, 0x52, 0x70, 0x63, 0x45, 0x63, 0x68, 0x6f, 0x52, 0x65, 0x71, 0x12,
+	0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x02, 0x49, 0x44, 0x12,
+	0x12, 0x0a, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e,
+	0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x10, 0x0a, 0x03, 0x45, 0x78, 0x70,
+	0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x45, 0x78, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x44,
+	0x61, 0x74, 0x61, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12,
+	0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x12, 0x52, 0x04, 0x54,
+	0x69, 0x6d, 0x65, 0x22, 0x83, 0x01, 0x0a, 0x0d, 0x53, 0x32, 0x53, 0x52, 0x70, 0x63, 0x45, 0x63,
+	0x68, 0x6f, 0x52, 0x65, 0x73, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x04, 0x52, 0x02, 0x49, 0x44, 0x12, 0x12, 0x0a, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x4c, 0x65, 0x76,
+	0x65, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12,
+	0x10, 0x0a, 0x03, 0x45, 0x78, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x45, 0x78,
+	0x70, 0x12, 0x12, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20,
+	0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70,
+	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -336,11 +527,13 @@ func file_msg_proto_rawDescGZIP() []byte {
 	return file_msg_proto_rawDescData
 }
 
-var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_msg_proto_goTypes = []interface{}{
-	(*C2SEcho)(nil), // 0: pb.C2SEcho
-	(*S2CEcho)(nil), // 1: pb.S2CEcho
-	(*S2SEcho)(nil), // 2: pb.S2SEcho
+	(*C2SEcho)(nil),       // 0: pb.C2SEcho
+	(*S2CEcho)(nil),       // 1: pb.S2CEcho
+	(*S2SEcho)(nil),       // 2: pb.S2SEcho
+	(*S2SRpcEchoReq)(nil), // 3: pb.S2SRpcEchoReq
+	(*S2SRpcEchoRes)(nil), // 4: pb.S2SRpcEchoRes
 }
 var file_msg_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -392,6 +585,30 @@ func file_msg_proto_init() {
 				return nil
 			}
 		}
+		file_msg_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*S2SRpcEchoReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_msg_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*S2SRpcEchoRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -399,7 +616,7 @@ func file_msg_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_msg_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -168,4 +168,14 @@ func registerAllS2SMsg() {
 		NewMessage:  func() VTMessage { return &S2SEcho{} },
 	})
 
+	registerS2SMsg(msgid.MsgIDS2S_S2SRpcEchoReq, &messageMeta{
+		MessageType: reflect.TypeOf(S2SRpcEchoReq{}),
+		NewMessage:  func() VTMessage { return &S2SRpcEchoReq{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SRpcEchoRes, &messageMeta{
+		MessageType: reflect.TypeOf(S2SRpcEchoRes{}),
+		NewMessage:  func() VTMessage { return &S2SRpcEchoRes{} },
+	})
+
 }

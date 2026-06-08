@@ -1,69 +1,28 @@
 package router
 
 import (
-	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
 	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
-	"server/pkg/gnet/gmetrics"
-	"server/pkg/gnet/trace"
 	"sync"
-	"time"
-
-	"github.com/bytedance/sonic"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
-
-type MsgFactory interface {
-	Get() pb.VTMessage
-	Put(pb.VTMessage)
-}
-
-// 池化工厂
-type poolFactory struct {
-	pool sync.Pool
-}
-
-func (f *poolFactory) Get() pb.VTMessage {
-	msg := f.pool.Get().(pb.VTMessage)
-	proto.Reset(msg)
-	return msg
-}
-
-func (f *poolFactory) Put(msg pb.VTMessage) {
-	f.pool.Put(msg)
-}
-
-// 非池化工厂
-type newFactory struct {
-	create func() pb.VTMessage
-}
-
-func (f *newFactory) Get() pb.VTMessage { return f.create() }
-func (f *newFactory) Put(pb.VTMessage)  {} // no-op
-
-type MsgHandler struct {
-	factory    MsgFactory
-	HandleFunc func(gctx.Context, proto.Message)
-}
 
 // MsgRouter 消息处理器
 type MsgRouter struct {
-	handlers []*MsgHandler
+	handlers []IHandler
 }
 
 // NewMsgRouter createRoute
 func NewMsgRouter(max int32) *MsgRouter {
 	r := &MsgRouter{
-		make([]*MsgHandler, max),
+		make([]IHandler, max),
 	}
 	return r
 }
 
 // Register 注册消息
-func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg proto.Message)) error {
+func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg pb.VTMessage)) error {
 	if flag.IsReady() {
 		return gerror.New("must register before action")
 	}
@@ -93,45 +52,51 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 	return nil
 }
 
-// Handle 处理消息
-func (rt *MsgRouter) Handle(c gctx.Context) error {
-	node, err := rt.getHandler(c.MsgID)
-	if err != nil {
-		return err
+func (rt *MsgRouter) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, createRes func() pb.VTMessage, usePool bool, df func(c gctx.Context, req pb.VTMessage, res pb.VTMessage)) error {
+	if flag.IsReady() {
+		return gerror.New("must register before action")
+	}
+	if msgID >= uint32(len(rt.handlers)) {
+		return gerror.Newf("msg id[%d] out of range", msgID)
 	}
 
-	msgPB := node.factory.Get()
+	if rt.handlers[msgID] != nil {
+		return gerror.Newf("msg id[%d] already register", msgID)
+	}
 
-	if len(c.Data) > 0 {
-		err = msgPB.UnmarshalVT(c.Data)
-		if err != nil {
-			return err
+	node := &RpcHandler{
+		HandleFunc: df,
+	}
+
+	if usePool {
+		node.reqCreate = &poolFactory{
+			pool: sync.Pool{
+				New: func() any { return createReq() },
+			},
 		}
+		node.resCreate = &poolFactory{
+			pool: sync.Pool{
+				New: func() any { return createRes() },
+			},
+		}
+	} else {
+		node.reqCreate = &newFactory{create: createReq}
+		node.resCreate = &newFactory{create: createRes}
 	}
-
-	if trace.Rule.ShouldLog(c.MsgID, c.ActorID, c.SesID) {
-		str, _ := sonic.MarshalString(msgPB)
-		zap.L().Info("recv",
-			zap.String("type", fmt.Sprintf("%T", msgPB)),
-			zap.String("data", str),
-			zap.Inline(&c),
-		)
-	}
-	begin := time.Now() // todo 优化
-
-	node.HandleFunc(c, msgPB)
-
-	node.factory.Put(msgPB)
-
-	cost := time.Since(begin)
-	if cost > 10*time.Millisecond {
-		gmetrics.GetHandlerLatencyMetric(c.MsgID).Update(float64(cost.Milliseconds()))
-	}
+	rt.handlers[msgID] = node
 
 	return nil
 }
 
-func (rt *MsgRouter) getHandler(id uint32) (n *MsgHandler, err error) {
+func (rt *MsgRouter) Handle(c gctx.Context) error {
+	handler, err := rt.getHandler(c.MsgID)
+	if err != nil {
+		return err
+	}
+	return handler.Handle(c)
+}
+
+func (rt *MsgRouter) getHandler(id uint32) (n IHandler, err error) {
 	if id >= uint32(len(rt.handlers)) {
 		err = gerror.Newf("msg id[%d] out of range", id)
 		return

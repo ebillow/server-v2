@@ -1,60 +1,61 @@
 package msgq
 
 import (
-	"encoding/binary"
 	"server/api/pb"
 	"server/pkg/gerror"
 	"server/pkg/gnet/batcher"
+	"server/pkg/gnet/dep"
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"google.golang.org/protobuf/proto"
 )
 
 // RpcCall 远程调用，注意最好保持单向调用，否则可能出现互相等待
-func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, toSer pb.Server, toSerID uint8, actorID uint64, sesID uint64, timeOut time.Duration) error {
+func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, toSer pb.Server, toSerID uint8, actorID uint64, sesID uint64, timeOut time.Duration) error {
+	if bs.closed.Load() {
+		return dep.ErrClosed
+	}
+	if bs.rpcConn == nil {
+		return gerror.New("rpc call: rpc conn nil")
+	}
+
+	msgID, ok := pb.GetMsgIDS2S(req) // 假设你之前的 TypeMeta 是全局/能访问的
+	if !ok {
+		return gerror.Newf("rpc call: msg id not found for type %T", req)
+	}
+
 	bufPtr := batcher.GetBuffer()
 	defer batcher.FreeBuffer(bufPtr)
 
-	reqSize := proto.Size(req)
+	reqSize := req.SizeVT()
 	bodySize := batcher.FrameBodyHeadSize + reqSize
-	buf := (*bufPtr)[:batcher.FrameLenSize+batcher.FrameBodyHeadSize]
+	totalSize := bodySize + batcher.FrameLenSize
 
-	binary.LittleEndian.PutUint32(buf[0:], uint32(bodySize))
-	binary.LittleEndian.PutUint32(buf[4:], msgID)
-	binary.LittleEndian.PutUint64(buf[8:], actorID)
-	binary.LittleEndian.PutUint64(buf[16:], sesID)
-	buf[24] = bs.serType
-	buf[25] = bs.serID
-	buf[26] = uint8(toSer)
-	buf[27] = toSerID
-	buf[28] = 0
+	if cap(*bufPtr) < totalSize {
+		*bufPtr = make([]byte, totalSize)
+	}
+	buf := (*bufPtr)[:totalSize]
 
-	// buf = binary.LittleEndian.AppendUint32(buf, uint32(subSize))
-	// buf = binary.LittleEndian.AppendUint32(buf, msgID)
-	// buf = binary.LittleEndian.AppendUint64(buf, actorID)
-	// buf = binary.LittleEndian.AppendUint64(buf, sesID)
-	// buf = append(buf, bs.serType)
-	// buf = append(buf, bs.serID)
-	// buf = append(buf, uint8(toSer))
-	// buf = append(buf, toSerID)
-	// buf = append(buf, 0)
+	batcher.WriteFrameHeader(buf, bodySize, msgID, actorID, sesID, bs.serType, bs.serID, uint8(toSer), toSerID, 0)
 
-	subStr := rpcIdxSubjectName(toSer, toSerID)
-
-	marshalOpts := proto.MarshalOptions{}
-	var err error
-	buf, err = marshalOpts.MarshalAppend(buf, req)
+	bodyStart := batcher.FrameLenSize + batcher.FrameBodyHeadSize
+	n, err := req.MarshalToSizedBufferVT(buf[bodyStart:])
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
 
+	buf = buf[:bodyStart+n]
+
+	subStr := rpcIdxSubjectName(toSer, toSerID)
+	if timeOut <= 0 {
+		timeOut = time.Second
+	}
 	resMsg, err := bs.rpcConn.Request(subStr, buf, timeOut)
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:request err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
 
-	err = proto.Unmarshal(resMsg.Data, ack)
+	err = res.UnmarshalVT(resMsg.Data)
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:unmarshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
 	}
@@ -62,15 +63,20 @@ func RpcCall(bs *DataBus, msgID uint32, req proto.Message, ack proto.Message, to
 	return nil
 }
 
-func RpcRespond(msg *nats.Msg, ack proto.Message) error {
+func RpcRespond[T pb.VTMessage](msg *nats.Msg, ack T) error {
 	bufPtr := batcher.GetBuffer()
 	defer batcher.FreeBuffer(bufPtr)
 
-	buf := (*bufPtr)[:0]
-	marshalOpts := proto.MarshalOptions{}
-	buf, err := marshalOpts.MarshalAppend(buf, ack)
+	size := ack.SizeVT()
+	if cap(*bufPtr) < size {
+		*bufPtr = make([]byte, size)
+	}
+	buf := (*bufPtr)[:size]
+
+	n, err := ack.MarshalToSizedBufferVT(buf)
 	if err != nil {
 		return gerror.WithStack(err)
 	}
-	return msg.Respond(buf)
+
+	return msg.Respond(buf[:n])
 }

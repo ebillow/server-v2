@@ -7,7 +7,6 @@ import (
 	"server/pkg/gnet/router"
 
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
 
 func On[T pb.VTMessage](df func(c gctx.Context, req T, r *Role)) {
@@ -38,7 +37,7 @@ func register[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T, r *Ro
 		return reflect.New(elemType).Interface().(pb.VTMessage)
 	}
 
-	handleFunc := func(c gctx.Context, msg proto.Message) {
+	handleFunc := func(c gctx.Context, msg pb.VTMessage) {
 		df(c, msg.(T), c.U.(*Role))
 	}
 
