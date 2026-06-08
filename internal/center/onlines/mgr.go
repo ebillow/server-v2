@@ -71,7 +71,7 @@ func Count() int {
 	return count
 }
 
-func onLoginOrLogout(_ gctx.Context, req *pb.S2SReqLoginOrLogout) {
+func onLoginOrLogout(_ gctx.Head, req *pb.S2SReqLoginOrLogout) {
 	if req.Login {
 		Add(req.RoleID, Data{SesID: req.SesID, GameID: uint8(req.GameID)})
 	} else {

@@ -30,8 +30,8 @@ func NewBaseBatcher(flushFn FlushFunc) *BaseBatcher {
 }
 
 func (tb *BaseBatcher) Add(ctx gctx.Context) error {
-	bodySize := FrameBodyHeadSize + len(ctx.Data)
-	frameSize := FrameLenSize + bodySize
+	bodySize := gctx.FrameBodyHeadSize + len(ctx.Data)
+	frameSize := gctx.FrameLenSize + bodySize
 	var tasks [2]flushTask
 	taskN := 0
 
@@ -57,7 +57,7 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 
 	if frameSize > cap(*tb.buf) {
 		monsterBuf := make([]byte, frameSize)
-		SerializeFrame(monsterBuf, bodySize, ctx)
+		gctx.SerializeFrame(monsterBuf, bodySize, ctx)
 
 		// bp 传 nil，表示不需要 FreeBuffer
 		tasks[taskN] = flushTask{data: monsterBuf, bp: nil, count: 1}
@@ -67,7 +67,7 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 		pos := len(buf)
 		buf = buf[:pos+frameSize]
 
-		SerializeFrame(buf[pos:pos+frameSize], bodySize, ctx)
+		gctx.SerializeFrame(buf[pos:pos+frameSize], bodySize, ctx)
 
 		*tb.buf = buf
 		tb.count++

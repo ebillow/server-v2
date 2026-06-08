@@ -24,14 +24,16 @@ func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []b
 	}
 
 	return pbt.Add(gctx.Context{
-		Data:      data,
-		ActorID:   roleID,
-		SesID:     sesID,
-		MsgID:     msgID,
-		FromSerID: jt.serID,
-		FromSer:   jt.serType,
-		ToSerID:   serID,
-		ToSer:     uint8(serType),
+		Head: gctx.Head{
+			ActorID:   roleID,
+			SesID:     sesID,
+			MsgID:     msgID,
+			FromSerID: jt.serID,
+			FromSer:   jt.serType,
+			ToSerID:   serID,
+			ToSer:     uint8(serType),
+		},
+		Data: data,
 	})
 }
 
@@ -45,12 +47,14 @@ func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleI
 	}
 
 	return pbt.Add(gctx.Context{
-		Data:      data,
-		ActorID:   roleID,
-		SesID:     sesID,
-		MsgID:     msgID,
-		FromSerID: jt.serID,
-		FromSer:   jt.serType,
+		Head: gctx.Head{
+			ActorID:   roleID,
+			SesID:     sesID,
+			MsgID:     msgID,
+			FromSerID: jt.serID,
+			FromSer:   jt.serType,
+		},
+		Data: data,
 	})
 }
 

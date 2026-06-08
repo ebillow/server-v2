@@ -32,16 +32,16 @@ func UnInit(ctx context.Context) {
 }
 
 func OnServerMsg(c gctx.Context) {
-	if c.Flag == gctx.Forward {
-		gameID, ok := onlines.GetGameID(c.ActorID)
+	if c.Head.Flag == gctx.Forward {
+		gameID, ok := onlines.GetGameID(c.Head.ActorID)
 		if ok {
-			err := msgq.Q.Send(pb.Server(c.ToSer), gameID, c.MsgID, c.Data, c.ActorID, c.SesID)
+			err := msgq.Q.Send(pb.Server(c.Head.ToSer), gameID, c.Head.MsgID, c.Data, c.Head.ActorID, c.Head.SesID)
 			if err != nil {
 				zap.L().Warn("relay err", zap.Error(err), zap.Inline(&c))
 			}
 		}
-	} else if c.ActorID > 0 {
-		err := actor.Actors.Dispatch(c.ActorID, actor.Event{Ctx: c})
+	} else if c.Head.ActorID > 0 {
+		err := actor.Actors.Dispatch(c.Head.ActorID, actor.Event{Ctx: c})
 		if err != nil {
 			zap.L().Error("pos msg error", zap.Error(err), zap.Inline(&c))
 		}

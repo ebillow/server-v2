@@ -3,10 +3,8 @@ package batcher
 import "sync"
 
 const (
-	FrameLenSize      = 4
-	FrameBodyHeadSize = 4 + 8 + 8 + 1 + 1 + 1 + 1 + 1
-	batchCount        = 500
-	buffSize          = 1024 * batchCount
+	batchCount = 500
+	buffSize   = 1024 * batchCount
 )
 
 // bufPool 序列化 Buffer 对象池

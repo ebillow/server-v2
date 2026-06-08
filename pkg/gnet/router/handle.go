@@ -44,6 +44,8 @@ type newFactory struct {
 func (f *newFactory) Get() pb.VTMessage { return f.create() }
 func (f *newFactory) Put(pb.VTMessage)  {} // no-op
 
+// --------------------------------------------------------------------
+
 type IHandler interface {
 	Handle(c gctx.Context) error
 }
@@ -64,7 +66,7 @@ func (h *MsgHandler) Handle(c gctx.Context) error {
 		}
 	}
 
-	if trace.Rule.ShouldLog(c.MsgID, c.ActorID, c.SesID) {
+	if trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID) {
 		str, _ := sonic.MarshalString(msgPB)
 		zap.L().Info("recv",
 			zap.String("type", fmt.Sprintf("%T", msgPB)),
@@ -80,7 +82,7 @@ func (h *MsgHandler) Handle(c gctx.Context) error {
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {
-		gmetrics.GetHandlerLatencyMetric(c.MsgID).Update(float64(cost.Milliseconds()))
+		gmetrics.GetHandlerLatencyMetric(c.Head.MsgID).Update(float64(cost.Milliseconds()))
 	}
 
 	return nil
@@ -104,7 +106,7 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 		}
 	}
 
-	if trace.Rule.ShouldLog(c.MsgID, c.ActorID, c.SesID) {
+	if trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID) {
 		str, _ := sonic.MarshalString(req)
 		zap.L().Info("recv",
 			zap.String("type", fmt.Sprintf("%T", req)),
@@ -121,7 +123,7 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 	if err != nil {
 		h.reqCreate.Put(req)
 		h.resCreate.Put(res)
-		return gerror.Wrapf(err, "respond %d", c.MsgID)
+		return gerror.Wrapf(err, "respond %d", c.Head.MsgID)
 	}
 
 	h.reqCreate.Put(req)
@@ -129,7 +131,7 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {
-		gmetrics.GetHandlerLatencyMetric(c.MsgID).Update(float64(cost.Milliseconds()))
+		gmetrics.GetHandlerLatencyMetric(c.Head.MsgID).Update(float64(cost.Milliseconds()))
 	}
 
 	return nil

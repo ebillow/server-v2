@@ -10,5 +10,5 @@ func init() {
 	router.On(OnTest)
 }
 
-func OnTest(ctx gctx.Context, req *pb.S2SEcho) {
+func OnTest(h gctx.Head, req *pb.S2SEcho) {
 }

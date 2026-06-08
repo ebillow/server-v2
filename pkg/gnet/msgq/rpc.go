@@ -5,6 +5,7 @@ import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
+	"server/pkg/gnet/gctx"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -28,17 +29,26 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	defer batcher.FreeBuffer(bufPtr)
 
 	reqSize := req.SizeVT()
-	bodySize := batcher.FrameBodyHeadSize + reqSize
-	totalSize := bodySize + batcher.FrameLenSize
+	bodySize := gctx.FrameBodyHeadSize + reqSize
+	totalSize := bodySize + gctx.FrameLenSize
 
 	if cap(*bufPtr) < totalSize {
 		*bufPtr = make([]byte, totalSize)
 	}
 	buf := (*bufPtr)[:totalSize]
 
-	batcher.WriteFrameHeader(buf, bodySize, msgID, actorID, sesID, bs.serType, bs.serID, uint8(toSer), toSerID, 0)
+	gctx.EncodeFrameHeader(buf, bodySize, gctx.Head{
+		ActorID:   actorID,
+		SesID:     sesID,
+		MsgID:     msgID,
+		Flag:      0,
+		FromSer:   bs.serType,
+		FromSerID: bs.serID,
+		ToSer:     uint8(toSer),
+		ToSerID:   toSerID,
+	})
 
-	bodyStart := batcher.FrameLenSize + batcher.FrameBodyHeadSize
+	bodyStart := gctx.FrameLenSize + gctx.FrameBodyHeadSize
 	n, err := req.MarshalToSizedBufferVT(buf[bodyStart:])
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %v %d", msgID, toSer, toSerID)

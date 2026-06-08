@@ -68,19 +68,19 @@ func (tb *QueueBatcher) startLoop() {
 		}
 
 		processFunc := func(ctx gctx.Context) {
-			msgSize := FrameBodyHeadSize + len(ctx.Data)
+			msgSize := gctx.FrameBodyHeadSize + len(ctx.Data)
 			frameSize := 4 + msgSize
 			if len(buf)+frameSize > cap(buf) && len(buf) > 0 {
 				flush()
 			}
 			if frameSize > cap(buf) {
 				monsterBuf := make([]byte, frameSize)
-				SerializeFrame(monsterBuf, msgSize, ctx)
+				gctx.SerializeFrame(monsterBuf, msgSize, ctx)
 				tb.flushFn(monsterBuf, 1)
 			} else {
 				pos := len(buf)
 				buf = buf[:pos+frameSize]
-				SerializeFrame(buf[pos:pos+frameSize], msgSize, ctx)
+				gctx.SerializeFrame(buf[pos:pos+frameSize], msgSize, ctx)
 				count++
 				// 如果在 Range 遍历期间达到了批处理上限，直接触发发送
 				if count >= batchCount || len(buf) > buffSize {

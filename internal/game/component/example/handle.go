@@ -17,7 +17,7 @@ func init() {
 	router.OnRpc(onEchoRpc)
 }
 
-func onEchoCli(_ gctx.Context, msg *pb.C2SEcho, r *role.Role) {
+func onEchoCli(_ gctx.Head, msg *pb.C2SEcho, r *role.Role) {
 	msgOut := pb.S2CEcho{}
 	msgOut.ID = msg.ID
 	msgOut.Name = msg.Name
@@ -29,10 +29,10 @@ func onEchoCli(_ gctx.Context, msg *pb.C2SEcho, r *role.Role) {
 	role.Send(r, msgid.MsgIDS2C_S2CEcho, &msgOut)
 }
 
-func onEchoSer(_ gctx.Context, msg *pb.S2SEcho, r *role.Role) {
+func onEchoSer(_ gctx.Head, msg *pb.S2SEcho, r *role.Role) {
 
 }
 
-func onEchoRpc(_ gctx.Context, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
+func onEchoRpc(_ gctx.Head, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
 	res = proto.Clone(req).(*pb.S2SRpcEchoRes)
 }

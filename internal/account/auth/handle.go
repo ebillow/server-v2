@@ -11,15 +11,15 @@ func init() {
 	router.On(onClearRole)
 }
 
-func onLogin(c gctx.Context, req *pb.C2SLogin) {
+func onLogin(h gctx.Head, req *pb.C2SLogin) {
 	msgS := &pb.S2SReqLogin{
 		Req:   req,
-		SesID: c.SesID,
+		SesID: h.SesID,
 	}
 	HandleLoginRequest(msgS)
 }
 
-func onClearRole(_ gctx.Context, req *pb.S2SRoleClear) {
+func onClearRole(_ gctx.Head, req *pb.S2SRoleClear) {
 	dispatchEvent(Event{
 		Op:    OpRoleClear,
 		Clear: req,

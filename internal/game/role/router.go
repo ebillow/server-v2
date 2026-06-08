@@ -9,41 +9,69 @@ import (
 	"go.uber.org/zap"
 )
 
-func On[T pb.VTMessage](df func(c gctx.Context, req T, r *Role)) {
+func On[T pb.VTMessage](df func(c gctx.Head, req T, r *Role)) {
 	register(false, df)
 }
 
-func OnP[T pb.VTMessage](df func(c gctx.Context, req T, r *Role)) {
+// OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
+func OnP[T pb.VTMessage](df func(c gctx.Head, req T, r *Role)) {
 	register(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T, r *Role)) {
-	var zero T
-	msgType := reflect.TypeOf(zero)
-	msgID, ok := pb.GetMsgIDC2S(zero)
-	if !ok {
-		msgID, ok = pb.GetMsgIDS2S(zero)
-	}
-	if !ok {
-		zap.L().Fatal("Register failed: message type not found in TypeMeta",
-			zap.String("type", msgType.String()))
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res, r *Role)) {
+	registerRpc(false, df)
+}
+
+// OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res, r *Role)) {
+	registerRpc(true, df)
+}
+
+func register[T pb.VTMessage](usePool bool, df func(c gctx.Head, req T, r *Role)) {
+	var req T
+
+	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
+	if err != nil {
+		zap.L().Error("register fail", zap.Error(err))
 		return
 	}
 
-	// 提取出指针底层的结构体 Type
-	elemType := msgType.Elem()
-
-	createFunc := func() pb.VTMessage {
-		return reflect.New(elemType).Interface().(pb.VTMessage)
-	}
-
 	handleFunc := func(c gctx.Context, msg pb.VTMessage) {
-		df(c, msg.(T), c.U.(*Role))
+		df(c.Head, msg.(T), c.U.(*Role))
 	}
 
-	err := router.R().Register(msgID, createFunc, usePool, handleFunc)
+	err = router.R().Register(msgID, reqCreate, usePool, handleFunc)
 	if err != nil {
 		zap.L().Fatal("RegisterC2S failed: duplicate register",
+			zap.Uint32("msgID", msgID),
+			zap.Error(err))
+	}
+}
+
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gctx.Head, req Req, res Res, r *Role)) {
+	var req Req
+
+	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
+	if err != nil {
+		zap.L().Error("register fail", zap.Error(err))
+		return
+	}
+
+	var res Res
+	resType := reflect.TypeOf(res)
+	resElemType := resType.Elem()
+	resCreate := func() pb.VTMessage {
+		return reflect.New(resElemType).Interface().(pb.VTMessage)
+	}
+
+	handleFunc := func(c gctx.Context, req pb.VTMessage, res pb.VTMessage) {
+		df(c.Head, req.(Req), res.(Res), c.U.(*Role))
+	}
+
+	err = router.R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)
+	if err != nil {
+		zap.L().Fatal("Register failed: duplicate register",
+			zap.String("msgType", reflect.TypeOf(req).String()),
 			zap.Uint32("msgID", msgID),
 			zap.Error(err))
 	}

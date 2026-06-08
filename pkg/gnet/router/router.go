@@ -8,21 +8,21 @@ import (
 	"sync"
 )
 
-// MsgRouter 消息处理器
-type MsgRouter struct {
+// Router 消息处理器
+type Router struct {
 	handlers []IHandler
 }
 
 // NewMsgRouter createRoute
-func NewMsgRouter(max int32) *MsgRouter {
-	r := &MsgRouter{
+func NewMsgRouter(max int32) *Router {
+	r := &Router{
 		make([]IHandler, max),
 	}
 	return r
 }
 
 // Register 注册消息
-func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg pb.VTMessage)) error {
+func (rt *Router) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gctx.Context, msg pb.VTMessage)) error {
 	if flag.IsReady() {
 		return gerror.New("must register before action")
 	}
@@ -52,7 +52,7 @@ func (rt *MsgRouter) Register(msgID uint32, cf func() pb.VTMessage, usePool bool
 	return nil
 }
 
-func (rt *MsgRouter) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, createRes func() pb.VTMessage, usePool bool, df func(c gctx.Context, req pb.VTMessage, res pb.VTMessage)) error {
+func (rt *Router) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, createRes func() pb.VTMessage, usePool bool, df func(c gctx.Context, req pb.VTMessage, res pb.VTMessage)) error {
 	if flag.IsReady() {
 		return gerror.New("must register before action")
 	}
@@ -88,15 +88,15 @@ func (rt *MsgRouter) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, cr
 	return nil
 }
 
-func (rt *MsgRouter) Handle(c gctx.Context) error {
-	handler, err := rt.getHandler(c.MsgID)
+func (rt *Router) Handle(c gctx.Context) error {
+	handler, err := rt.getHandler(c.Head.MsgID)
 	if err != nil {
 		return err
 	}
 	return handler.Handle(c)
 }
 
-func (rt *MsgRouter) getHandler(id uint32) (n IHandler, err error) {
+func (rt *Router) getHandler(id uint32) (n IHandler, err error) {
 	if id >= uint32(len(rt.handlers)) {
 		err = gerror.Newf("msg id[%d] out of range", id)
 		return

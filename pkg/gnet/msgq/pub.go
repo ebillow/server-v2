@@ -25,14 +25,16 @@ func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byt
 		return err
 	}
 	return pbt.Add(gctx.Context{
-		MsgID:     msgID,
-		Data:      data,
-		FromSerID: bs.serID,
-		FromSer:   bs.serType,
-		ToSer:     uint8(serType),
-		ToSerID:   serID,
-		ActorID:   actorID,
-		SesID:     sesID,
+		Head: gctx.Head{
+			MsgID:     msgID,
+			FromSerID: bs.serID,
+			FromSer:   bs.serType,
+			ToSer:     uint8(serType),
+			ToSerID:   serID,
+			ActorID:   actorID,
+			SesID:     sesID,
+		},
+		Data: data,
 	})
 }
 
@@ -46,15 +48,17 @@ func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, d
 		return err
 	}
 	return pbt.Add(gctx.Context{
-		MsgID:     msgID,
-		Data:      data,
-		FromSerID: bs.serID,
-		FromSer:   bs.serType,
-		ToSer:     uint8(serType),
-		ToSerID:   serID,
-		ActorID:   actorID,
-		SesID:     sesID,
-		Flag:      gctx.Forward,
+		Head: gctx.Head{
+			MsgID:     msgID,
+			FromSerID: bs.serID,
+			FromSer:   bs.serType,
+			ToSer:     uint8(serType),
+			ToSerID:   serID,
+			ActorID:   actorID,
+			SesID:     sesID,
+			Flag:      gctx.Forward,
+		},
+		Data: data,
 	})
 }
 
@@ -70,13 +74,15 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, actorID
 	}
 
 	return pbt.Add(gctx.Context{
-		MsgID:     msgID,
-		Data:      data,
-		FromSer:   bs.serType,
-		FromSerID: bs.serID,
-		ToSer:     uint8(serType),
-		ActorID:   actorID,
-		SesID:     sesID,
+		Head: gctx.Head{
+			MsgID:     msgID,
+			FromSer:   bs.serType,
+			FromSerID: bs.serID,
+			ToSer:     uint8(serType),
+			ActorID:   actorID,
+			SesID:     sesID,
+		},
+		Data: data,
 	})
 }
 
@@ -92,13 +98,15 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, actorID
 	}
 
 	return pbt.Add(gctx.Context{
-		MsgID:     msgID,
-		Data:      data,
-		FromSer:   bs.serType,
-		FromSerID: bs.serID,
-		ToSer:     uint8(serType),
-		ActorID:   actorID,
-		SesID:     sesID,
+		Head: gctx.Head{
+			MsgID:     msgID,
+			FromSer:   bs.serType,
+			FromSerID: bs.serID,
+			ToSer:     uint8(serType),
+			ActorID:   actorID,
+			SesID:     sesID,
+		},
+		Data: data,
 	})
 }
 
@@ -114,15 +122,17 @@ func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []by
 	}
 
 	return pbt.Add(gctx.Context{
-		MsgID:     msgID,
-		Data:      data,
-		FromSer:   bs.serType,
-		FromSerID: bs.serID,
-		ToSer:     uint8(serType),
-		ToSerID:   serID,
-		ActorID:   actorID,
-		SesID:     sesID,
-		Flag:      gctx.Forward,
+		Head: gctx.Head{
+			MsgID:     msgID,
+			FromSer:   bs.serType,
+			FromSerID: bs.serID,
+			ToSer:     uint8(serType),
+			ToSerID:   serID,
+			ActorID:   actorID,
+			SesID:     sesID,
+			Flag:      gctx.Forward,
+		},
+		Data: data,
 	})
 }
 

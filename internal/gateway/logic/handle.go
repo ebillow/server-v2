@@ -12,8 +12,8 @@ func init() {
 	router.On(onDisconnect)
 }
 
-func onLoginSuccess(c gctx.Context, req *pb.S2SResLogin) {
-	ses := session.Get(c.SesID)
+func onLoginSuccess(h gctx.Head, req *pb.S2SResLogin) {
+	ses := session.Get(h.SesID)
 	if ses == nil {
 		return
 	}
@@ -21,8 +21,8 @@ func onLoginSuccess(c gctx.Context, req *pb.S2SResLogin) {
 	ses.Send(req.Res)
 }
 
-func onDisconnect(c gctx.Context, req *pb.S2SS2GtDisconnect) {
-	ses := session.Get(c.SesID)
+func onDisconnect(h gctx.Head, req *pb.S2SS2GtDisconnect) {
+	ses := session.Get(h.SesID)
 	if ses == nil {
 		return
 	}

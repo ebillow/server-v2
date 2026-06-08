@@ -45,8 +45,8 @@ func init() {
 }
 
 func OnServerMsg(c gctx.Context) {
-	if c.SesID != 0 { // 客户端消息
-		err := role.Mgr.DispatchBySesID(c.SesID, role.Event{
+	if c.Head.SesID != 0 { // 客户端消息
+		err := role.Mgr.DispatchBySesID(c.Head.SesID, role.Event{
 			Ctx: c,
 		})
 		if err != nil {
@@ -55,8 +55,8 @@ func OnServerMsg(c gctx.Context) {
 		return
 	}
 
-	if c.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
-		err := role.Mgr.Dispatch(c.ActorID, role.Event{
+	if c.Head.ActorID > uint64(pb.ActorID_IDAccBegin) { // 服务器发来的角色消息
+		err := role.Mgr.Dispatch(c.Head.ActorID, role.Event{
 			Ctx: c,
 		})
 		if err != nil {
@@ -65,10 +65,10 @@ func OnServerMsg(c gctx.Context) {
 		return
 	}
 
-	if c.ActorID > 0 { // 服务器发来的公共模块消息
-		err := actor.Actors.Dispatch(c.ActorID, actor.Event{Ctx: c})
+	if c.Head.ActorID > 0 { // 服务器发来的公共模块消息
+		err := actor.Actors.Dispatch(c.Head.ActorID, actor.Event{Ctx: c})
 		if err != nil {
-			zap.L().Error("PostEvent", zap.Error(err), zap.Inline(&c), zap.String("actor", pb.ActorID_name[int32(c.ActorID)]))
+			zap.L().Error("PostEvent", zap.Error(err), zap.Inline(&c), zap.String("actor", pb.ActorID_name[int32(c.Head.ActorID)]))
 		}
 		return
 	}

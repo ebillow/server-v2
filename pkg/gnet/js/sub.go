@@ -7,7 +7,6 @@ import (
 	"server/api/pb"
 	"server/pkg/flag"
 	"server/pkg/gerror"
-	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/gctx"
 
 	"strings"
@@ -127,37 +126,15 @@ func BatchDecodeAndHandle(buf []byte, cb func(msg gctx.Context)) error {
 }
 
 func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < batcher.FrameBodyHeadSize {
+	if len(buf) < gctx.FrameBodyHeadSize {
 		return ctx, gerror.New("decode error: buffer too small for header")
 	}
 
-	offset := 0
-
-	ctx.MsgID = binary.LittleEndian.Uint32(buf[offset:])
-	offset += 4
-
-	ctx.ActorID = binary.LittleEndian.Uint64(buf[offset:])
-	offset += 8
-
-	ctx.SesID = binary.LittleEndian.Uint64(buf[offset:])
-	offset += 8
-
-	ctx.FromSer = buf[offset]
-	offset += 1
-
-	ctx.FromSerID = buf[offset]
-	offset += 1
-
-	ctx.ToSer = buf[offset]
-	offset += 1
-
-	ctx.ToSerID = buf[offset]
-	offset += 1
-
-	ctx.Flag = buf[offset]
-	offset += 1
-
-	ctx.Data = buf[offset:]
+	ctx.Head, err = gctx.DecodeHead(buf)
+	if err != nil {
+		return ctx, err
+	}
+	ctx.Data = buf[gctx.FrameBodyHeadSize:]
 
 	return ctx, nil
 }

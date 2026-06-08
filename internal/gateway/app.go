@@ -49,12 +49,12 @@ func loadNetCfg() *session.Config {
 }
 
 func OnServerMsg(c gctx.Context) {
-	if c.Flag == gctx.Forward {
-		ses := session.Get(c.SesID)
+	if c.Head.Flag == gctx.Forward {
+		ses := session.Get(c.Head.SesID)
 		if ses == nil {
 			return
 		}
-		ses.SendBytes(c.MsgID, c.Data)
+		ses.SendBytes(c.Head.MsgID, c.Data)
 		return
 	}
 

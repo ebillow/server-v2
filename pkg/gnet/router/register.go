@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"server/api/pb"
 	"server/api/pb/msgid"
+	"server/pkg/gerror"
 	"server/pkg/gnet/gctx"
 
 	"go.uber.org/zap"
@@ -13,96 +14,97 @@ var (
 	msgRouter = NewMsgRouter(int32(msgid.MsgIDMax_C2SMax))
 )
 
-func R() *MsgRouter {
+func R() *Router {
 	return msgRouter
 }
 
-func On[T pb.VTMessage](df func(c gctx.Context, req T)) {
+func On[T pb.VTMessage](df func(c gctx.Head, req T)) {
 	register(false, df)
 }
 
 // OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(c gctx.Context, req T)) {
+func OnP[T pb.VTMessage](df func(c gctx.Head, req T)) {
 	register(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(c gctx.Context, req T)) {
-	var zero T
-	msgType := reflect.TypeOf(zero)
-	msgID, ok := pb.GetMsgIDS2S(zero)
-	if !ok {
-		msgID, ok = pb.GetMsgIDC2S(zero)
-	}
-	if !ok {
-		zap.L().Fatal("Register failed: message type not found in TypeMeta",
-			zap.String("type", msgType.String()))
-	}
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res)) {
+	registerRpc(false, df)
+}
 
-	// 提取出指针底层的结构体
-	elemType := msgType.Elem()
+// OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res)) {
+	registerRpc(true, df)
+}
 
-	createFunc := func() pb.VTMessage {
-		return reflect.New(elemType).Interface().(pb.VTMessage)
-	}
-
-	handleFunc := func(c gctx.Context, msg pb.VTMessage) {
-		df(c, msg.(T))
-	}
-
-	err := R().Register(msgID, createFunc, usePool, handleFunc)
+func register[T pb.VTMessage](usePool bool, df func(c gctx.Head, req T)) {
+	var req T
+	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Fatal("Register failed: duplicate register",
-			zap.String("msgType", msgType.String()),
+		zap.L().Error("register fail", zap.Error(err))
+		return
+	}
+	handleFunc := func(c gctx.Context, msg pb.VTMessage) {
+		df(c.Head, msg.(T))
+	}
+
+	err = R().Register(msgID, createFunc, usePool, handleFunc)
+	if err != nil {
+		zap.L().Fatal("register failed: duplicate register",
+			zap.String("msgType", reflect.TypeOf(req).String()),
 			zap.Uint32("msgID", msgID),
 			zap.Error(err))
 	}
 }
 
-func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Context, req Req, res Res)) {
-	registerRpc(false, df)
-}
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gctx.Head, req Req, res Res)) {
+	var req Req
 
-// OnRpcP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Context, req Req, res Res)) {
-	registerRpc(true, df)
-}
-
-func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gctx.Context, req Req, res Res)) {
-	var zero Req
-	reqType := reflect.TypeOf(zero)
-	msgID, ok := pb.GetMsgIDS2S(zero)
-	if !ok {
-		msgID, ok = pb.GetMsgIDC2S(zero)
-	}
-	if !ok {
-		zap.L().Fatal("Register failed: message type not found in TypeMeta",
-			zap.String("type", reqType.String()))
-	}
-
-	// 提取出指针底层的结构体
-	reqElemType := reqType.Elem()
-
-	reqCreate := func() pb.VTMessage {
-		return reflect.New(reqElemType).Interface().(pb.VTMessage)
+	msgID, reqCreate, err := FindMsgIDAndCreateFunc(req)
+	if err != nil {
+		zap.L().Error("register fail", zap.Error(err))
+		return
 	}
 
 	var res Res
 	resType := reflect.TypeOf(res)
 	resElemType := resType.Elem()
-
 	resCreate := func() pb.VTMessage {
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
 	handleFunc := func(c gctx.Context, req pb.VTMessage, res pb.VTMessage) {
-		df(c, req.(Req), res.(Res))
+		df(c.Head, req.(Req), res.(Res))
 	}
 
-	err := R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)
+	err = R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)
 	if err != nil {
 		zap.L().Fatal("Register failed: duplicate register",
-			zap.String("msgType", reqType.String()),
+			zap.String("msgType", reflect.TypeOf(req).String()),
 			zap.Uint32("msgID", msgID),
 			zap.Error(err))
 	}
+}
+
+func FindMsgIDAndCreateFunc[T pb.VTMessage](req T) (uint32, func() pb.VTMessage, error) {
+	msgType := reflect.TypeOf(req)
+	msgID, ok := pb.GetMsgIDS2S(req)
+	isCli := false
+	if !ok {
+		msgID, ok = pb.GetMsgIDC2S(req)
+		isCli = true
+	}
+	if !ok {
+		return msgID, nil, gerror.Newf("message %s not found in TypeMeta", msgType.String())
+	}
+
+	var createFunc func() pb.VTMessage
+	if isCli {
+		createFunc = pb.NewFuncS2C(msgid.MsgIDS2C(msgID))
+	} else {
+		createFunc = pb.NewFuncS2S(msgid.MsgIDS2S(msgID))
+	}
+	if createFunc == nil {
+		return msgID, nil, gerror.Newf("message %s not found create func in TypeMeta", msgType.String())
+	}
+	return msgID, createFunc, nil
 }
