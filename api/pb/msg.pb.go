@@ -465,6 +465,180 @@ func (x *S2SRpcEchoRes) GetTime() int64 {
 	return 0
 }
 
+type S2SRpcEchoRoleReq struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ID    uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name  string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Level uint32 `protobuf:"varint,3,opt,name=Level,proto3" json:"Level,omitempty"`
+	Exp   uint32 `protobuf:"varint,4,opt,name=Exp,proto3" json:"Exp,omitempty"`
+	Data  string `protobuf:"bytes,5,opt,name=Data,proto3" json:"Data,omitempty"`
+	Time  int64  `protobuf:"zigzag64,6,opt,name=Time,proto3" json:"Time,omitempty"`
+}
+
+func (x *S2SRpcEchoRoleReq) Reset() {
+	*x = S2SRpcEchoRoleReq{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_msg_proto_msgTypes[5]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *S2SRpcEchoRoleReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*S2SRpcEchoRoleReq) ProtoMessage() {}
+
+func (x *S2SRpcEchoRoleReq) ProtoReflect() protoreflect.Message {
+	mi := &file_msg_proto_msgTypes[5]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use S2SRpcEchoRoleReq.ProtoReflect.Descriptor instead.
+func (*S2SRpcEchoRoleReq) Descriptor() ([]byte, []int) {
+	return file_msg_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *S2SRpcEchoRoleReq) GetID() uint64 {
+	if x != nil {
+		return x.ID
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleReq) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRoleReq) GetLevel() uint32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleReq) GetExp() uint32 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleReq) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRoleReq) GetTime() int64 {
+	if x != nil {
+		return x.Time
+	}
+	return 0
+}
+
+type S2SRpcEchoRoleRes struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	ID    uint64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
+	Name  string `protobuf:"bytes,2,opt,name=Name,proto3" json:"Name,omitempty"`
+	Level uint32 `protobuf:"varint,3,opt,name=Level,proto3" json:"Level,omitempty"`
+	Exp   uint32 `protobuf:"varint,4,opt,name=Exp,proto3" json:"Exp,omitempty"`
+	Data  string `protobuf:"bytes,5,opt,name=Data,proto3" json:"Data,omitempty"`
+	Time  int64  `protobuf:"zigzag64,6,opt,name=Time,proto3" json:"Time,omitempty"`
+}
+
+func (x *S2SRpcEchoRoleRes) Reset() {
+	*x = S2SRpcEchoRoleRes{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_msg_proto_msgTypes[6]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *S2SRpcEchoRoleRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*S2SRpcEchoRoleRes) ProtoMessage() {}
+
+func (x *S2SRpcEchoRoleRes) ProtoReflect() protoreflect.Message {
+	mi := &file_msg_proto_msgTypes[6]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use S2SRpcEchoRoleRes.ProtoReflect.Descriptor instead.
+func (*S2SRpcEchoRoleRes) Descriptor() ([]byte, []int) {
+	return file_msg_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *S2SRpcEchoRoleRes) GetID() uint64 {
+	if x != nil {
+		return x.ID
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleRes) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRoleRes) GetLevel() uint32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleRes) GetExp() uint32 {
+	if x != nil {
+		return x.Exp
+	}
+	return 0
+}
+
+func (x *S2SRpcEchoRoleRes) GetData() string {
+	if x != nil {
+		return x.Data
+	}
+	return ""
+}
+
+func (x *S2SRpcEchoRoleRes) GetTime() int64 {
+	if x != nil {
+		return x.Time
+	}
+	return 0
+}
+
 var File_msg_proto protoreflect.FileDescriptor
 
 var file_msg_proto_rawDesc = []byte{
@@ -511,8 +685,25 @@ var file_msg_proto_rawDesc = []byte{
 	0x10, 0x0a, 0x03, 0x45, 0x78, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x45, 0x78,
 	0x70, 0x12, 0x12, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52,
 	0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20,
-	0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x42, 0x06, 0x5a, 0x04, 0x2e, 0x2f, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x22, 0x87, 0x01, 0x0a, 0x11, 0x53, 0x32,
+	0x53, 0x52, 0x70, 0x63, 0x45, 0x63, 0x68, 0x6f, 0x52, 0x6f, 0x6c, 0x65, 0x52, 0x65, 0x71, 0x12,
+	0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x02, 0x49, 0x44, 0x12,
+	0x12, 0x0a, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e,
+	0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x0d, 0x52, 0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x12, 0x10, 0x0a, 0x03, 0x45, 0x78, 0x70,
+	0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x03, 0x45, 0x78, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x44,
+	0x61, 0x74, 0x61, 0x18, 0x05, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12,
+	0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x12, 0x52, 0x04, 0x54,
+	0x69, 0x6d, 0x65, 0x22, 0x87, 0x01, 0x0a, 0x11, 0x53, 0x32, 0x53, 0x52, 0x70, 0x63, 0x45, 0x63,
+	0x68, 0x6f, 0x52, 0x6f, 0x6c, 0x65, 0x52, 0x65, 0x73, 0x12, 0x0e, 0x0a, 0x02, 0x49, 0x44, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x02, 0x49, 0x44, 0x12, 0x12, 0x0a, 0x04, 0x4e, 0x61, 0x6d,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x4e, 0x61, 0x6d, 0x65, 0x12, 0x14, 0x0a,
+	0x05, 0x4c, 0x65, 0x76, 0x65, 0x6c, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x05, 0x4c, 0x65,
+	0x76, 0x65, 0x6c, 0x12, 0x10, 0x0a, 0x03, 0x45, 0x78, 0x70, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d,
+	0x52, 0x03, 0x45, 0x78, 0x70, 0x12, 0x12, 0x0a, 0x04, 0x44, 0x61, 0x74, 0x61, 0x18, 0x05, 0x20,
+	0x01, 0x28, 0x09, 0x52, 0x04, 0x44, 0x61, 0x74, 0x61, 0x12, 0x12, 0x0a, 0x04, 0x54, 0x69, 0x6d,
+	0x65, 0x18, 0x06, 0x20, 0x01, 0x28, 0x12, 0x52, 0x04, 0x54, 0x69, 0x6d, 0x65, 0x42, 0x06, 0x5a,
+	0x04, 0x2e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -527,13 +718,15 @@ func file_msg_proto_rawDescGZIP() []byte {
 	return file_msg_proto_rawDescData
 }
 
-var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_msg_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_msg_proto_goTypes = []interface{}{
-	(*C2SEcho)(nil),       // 0: pb.C2SEcho
-	(*S2CEcho)(nil),       // 1: pb.S2CEcho
-	(*S2SEcho)(nil),       // 2: pb.S2SEcho
-	(*S2SRpcEchoReq)(nil), // 3: pb.S2SRpcEchoReq
-	(*S2SRpcEchoRes)(nil), // 4: pb.S2SRpcEchoRes
+	(*C2SEcho)(nil),           // 0: pb.C2SEcho
+	(*S2CEcho)(nil),           // 1: pb.S2CEcho
+	(*S2SEcho)(nil),           // 2: pb.S2SEcho
+	(*S2SRpcEchoReq)(nil),     // 3: pb.S2SRpcEchoReq
+	(*S2SRpcEchoRes)(nil),     // 4: pb.S2SRpcEchoRes
+	(*S2SRpcEchoRoleReq)(nil), // 5: pb.S2SRpcEchoRoleReq
+	(*S2SRpcEchoRoleRes)(nil), // 6: pb.S2SRpcEchoRoleRes
 }
 var file_msg_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -609,6 +802,30 @@ func file_msg_proto_init() {
 				return nil
 			}
 		}
+		file_msg_proto_msgTypes[5].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*S2SRpcEchoRoleReq); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_msg_proto_msgTypes[6].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*S2SRpcEchoRoleRes); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -616,7 +833,7 @@ func file_msg_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_msg_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -66,6 +66,8 @@ func (h *MsgHandler) Handle(c gctx.Context) error {
 		}
 	}
 
+	c.Data = nil
+
 	if trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID) {
 		str, _ := sonic.MarshalString(msgPB)
 		zap.L().Info("recv",
@@ -106,6 +108,8 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 		}
 	}
 
+	c.Data = nil
+
 	shouldLog := trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID)
 	if shouldLog {
 		str, _ := sonic.MarshalString(req)
@@ -121,7 +125,7 @@ func (h *RpcHandler) Handle(c gctx.Context) error {
 	res := h.resCreate.Get()
 	h.HandleFunc(c, req, res)
 
-	err := msgq.RpcRespond(c.Raw, res)
+	err := msgq.RpcRespond(&msgq.Q, c.Reply(), res)
 	if err != nil {
 		h.reqCreate.Put(req)
 		h.resCreate.Put(res)

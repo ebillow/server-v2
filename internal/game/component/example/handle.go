@@ -11,10 +11,11 @@ import (
 )
 
 func init() {
-	role.OnP(onEchoCli)
-	role.On(onEchoSer)
+	role.OnP(onEchoCli)  // Handle不带role,使用对象池
+	router.On(onEchoSer) // Handle不带role，不使用对象池
 
-	router.OnRpc(onEchoRpc)
+	role.OnRpc(onEchoWithRoleRpc) // rpc Handle带role，不使用对象池
+	router.OnRpcP(onEchoRpc)      // rpc Handle不带role, 使用对象池
 }
 
 func onEchoCli(_ gctx.Head, msg *pb.C2SEcho, r *role.Role) {
@@ -29,10 +30,14 @@ func onEchoCli(_ gctx.Head, msg *pb.C2SEcho, r *role.Role) {
 	role.Send(r, msgid.MsgIDS2C_S2CEcho, &msgOut)
 }
 
-func onEchoSer(_ gctx.Head, msg *pb.S2SEcho, r *role.Role) {
+func onEchoSer(_ gctx.Head, msg *pb.S2SEcho) {
 
 }
 
 func onEchoRpc(_ gctx.Head, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
 	res = proto.Clone(req).(*pb.S2SRpcEchoRes)
+}
+
+func onEchoWithRoleRpc(_ gctx.Head, req *pb.S2SRpcEchoRoleReq, res *pb.S2SRpcEchoRoleRes, r *role.Role) {
+	res = proto.Clone(req).(*pb.S2SRpcEchoRoleRes)
 }

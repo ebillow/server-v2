@@ -6,7 +6,6 @@ import (
 	"server/pkg/flag"
 	"server/pkg/gerror"
 
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -33,10 +32,18 @@ type Head struct {
 }
 
 type Context struct {
-	Head Head
-	Data []byte // 逻辑层不能持有
-	U    Unity
-	Raw  *nats.Msg // 逻辑层不能持有
+	Head  Head
+	Data  []byte
+	U     Unity
+	reply string
+}
+
+func (s *Context) SetReply(str string) {
+	s.reply = str
+}
+
+func (s *Context) Reply() string {
+	return s.reply
 }
 
 func (s *Context) MarshalLogObject(encoder zapcore.ObjectEncoder) error {

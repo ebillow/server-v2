@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
-	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
@@ -87,7 +86,11 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	return nil
 }
 
-func RpcRespond[T pb.VTMessage](msg *nats.Msg, ack T) error {
+func RpcRespond[T pb.VTMessage](bs *DataBus, reply string, ack T) error {
+	if reply == "" {
+		return nil
+	}
+
 	bufPtr := batcher.GetBuffer()
 	defer batcher.FreeBuffer(bufPtr)
 
@@ -102,5 +105,5 @@ func RpcRespond[T pb.VTMessage](msg *nats.Msg, ack T) error {
 		return gerror.WithStack(err)
 	}
 
-	return msg.Respond(buf[:n])
+	return bs.rpcConn.Publish(reply, buf[:n])
 }

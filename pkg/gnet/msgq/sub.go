@@ -84,7 +84,7 @@ func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error 
 
 		sm.GetMsgCounter(ctx.Head.MsgID).Inc()
 
-		ctx.Raw = msg
+		ctx.SetReply(msg.Reply)
 		callback(ctx)
 		offset += subSize
 	}
@@ -101,7 +101,7 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	if err != nil {
 		return ctx, err
 	}
-	ctx.Data = buf[gctx.FrameBodyHeadSize:]
+	ctx.Data = buf[gctx.FrameBodyHeadSize:] // v1 直接切片
 
 	return ctx, nil
 }

@@ -6,6 +6,7 @@ import (
 	"server/pkg/cfg"
 	"server/pkg/gnet/gctx"
 	"server/pkg/logger"
+	"server/pkg/util"
 	"testing"
 	"time"
 
@@ -30,21 +31,40 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func SrvRpc() {
+type actor struct {
+	c chan gctx.Context
+}
+
+func (a *actor) Run() {
 	data := pb.S2SReqLogin{}
-	err := Q.Serve(func(ctx gctx.Context) {
-		err := proto.Unmarshal(ctx.Data, &data)
-		// zap.L().Info("msg recv", zap.Any("msg", &data))
-		err = RpcRespond(ctx.Raw, &pb.S2SResLogin{
-			GameID: 111,
-			Res: &pb.S2CLogin{
-				Token: data.Seq,
-			},
-		})
-		data.Reset()
-		if err != nil {
-			panic(err)
+	for {
+		select {
+		case ctx := <-a.c:
+			err := proto.Unmarshal(ctx.Data, &data)
+			// zap.L().Info("msg recv", zap.Any("msg", &data))
+			err = RpcRespond(&Q, ctx.Reply(), &pb.S2SResLogin{
+				GameID: 111,
+				Res: &pb.S2CLogin{
+					Token: data.Seq,
+				},
+			})
+			data.Reset()
+			if err != nil {
+				panic(err)
+			}
 		}
+	}
+}
+
+func SrvRpc() {
+	chs := make([]*actor, 0)
+	for i := 0; i < 3; i++ {
+		a := &actor{make(chan gctx.Context, 128)}
+		chs = append(chs, a)
+		go a.Run()
+	}
+	err := Q.Serve(func(ctx gctx.Context) {
+		chs[util.RandRange(0, 3)].c <- ctx
 	})
 	if err != nil {
 		panic(err)
@@ -52,7 +72,7 @@ func SrvRpc() {
 }
 
 func TestRpcCall(t *testing.T) {
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 10000; i++ {
 		token := uint32(i * 10)
 		ack := pb.S2SResLogin{}
 		err := RpcCall(&Q, &pb.S2SReqLogin{

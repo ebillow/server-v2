@@ -5,6 +5,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gnet/msgq"
+	"server/pkg/gnet/pool"
 	"server/pkg/gnet/trace"
 	"server/pkg/idgen"
 	"server/pkg/util"
@@ -18,16 +19,11 @@ func GateIDFromSesID(gateID uint64) uint8 {
 }
 
 func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64) {
-	pBuf := Get()
-	size := msg.SizeVT()
-	if cap(*pBuf) < size {
-		*pBuf = make([]byte, size)
-	}
-	buf := (*pBuf)[:size]
+	pBuf, buf := ensureBuf(msg.SizeVT())
 
 	n, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		Put(pBuf)
+		pool.BufPool512.PutBuffer(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -40,7 +36,7 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 	serID := GateIDFromSesID(sesID)
 	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, buf, roleID, sesID)
 
-	Put(pBuf)
+	pool.BufPool512.PutBuffer(pBuf)
 
 	if err != nil {
 		zap.L().Warn("send to role error",
@@ -77,17 +73,11 @@ func SendToSrv[T pb.VTMessage](
 	actorID uint64,
 	sesID uint64,
 ) {
-	pBuf := Get()
-
-	size := msg.SizeVT()
-	if cap(*pBuf) < size {
-		*pBuf = make([]byte, size)
-	}
-	buf := (*pBuf)[:size]
+	pBuf, buf := ensureBuf(msg.SizeVT())
 
 	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		Put(pBuf)
+		pool.BufPool512.PutBuffer(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -96,8 +86,11 @@ func SendToSrv[T pb.VTMessage](
 		return
 	}
 
-	if err = msgq.Q.Send(serType, serID, msgID, buf, actorID, sesID); err != nil {
-		Put(pBuf)
+	err = msgq.Q.Send(serType, serID, msgID, buf, actorID, sesID)
+
+	pool.BufPool512.PutBuffer(pBuf)
+
+	if err != nil {
 		zap.L().Warn("send to srv error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -121,7 +114,6 @@ func SendToSrv[T pb.VTMessage](
 			zap.Uint64("actorID", actorID),
 		)
 	}
-	Put(pBuf)
 }
 
 func SendToAny[T pb.VTMessage](
@@ -131,18 +123,11 @@ func SendToAny[T pb.VTMessage](
 	actorID uint64,
 	sesID uint64,
 ) {
-	pBuf := Get()
-	var err error
+	pBuf, buf := ensureBuf(msg.SizeVT())
 
-	size := msg.SizeVT()
-	if cap(*pBuf) < size {
-		*pBuf = make([]byte, size)
-	}
-	buf := (*pBuf)[:size]
-
-	_, err = msg.MarshalToSizedBufferVT(buf)
+	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		Put(pBuf)
+		pool.BufPool512.PutBuffer(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -151,7 +136,7 @@ func SendToAny[T pb.VTMessage](
 	}
 	err = msgq.Q.SendAny(serType, msgID, buf, actorID, sesID)
 
-	Put(pBuf)
+	pool.BufPool512.PutBuffer(pBuf)
 
 	if err != nil {
 		str, _ := sonic.MarshalString(msg)
@@ -186,18 +171,11 @@ func SendToGroup[T pb.VTMessage](
 	actorID uint64,
 	sesID uint64,
 ) {
-	pBuf := Get()
-	var err error
+	pBuf, buf := ensureBuf(msg.SizeVT())
 
-	size := msg.SizeVT()
-	if cap(*pBuf) < size {
-		*pBuf = make([]byte, size)
-	}
-	buf := (*pBuf)[:size]
-
-	_, err = msg.MarshalToSizedBufferVT(buf)
+	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		Put(pBuf)
+		pool.BufPool512.PutBuffer(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -206,7 +184,7 @@ func SendToGroup[T pb.VTMessage](
 	}
 	err = msgq.Q.SendAll(serType, msgID, buf, actorID, sesID)
 
-	Put(pBuf)
+	pool.BufPool512.PutBuffer(pBuf)
 
 	if err != nil {
 		str, _ := sonic.MarshalString(msg)
@@ -232,6 +210,14 @@ func SendToGroup[T pb.VTMessage](
 			zap.Uint64("actorID", actorID),
 		)
 	}
+}
+
+func ensureBuf(size int) (*[]byte, []byte) {
+	pBuf := pool.BufPool512.GetBuffer()
+	if cap(*pBuf) < size {
+		*pBuf = make([]byte, size)
+	}
+	return pBuf, (*pBuf)[:size]
 }
 
 func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {

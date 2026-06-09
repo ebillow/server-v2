@@ -11,7 +11,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/proto"
 )
 
 // SendBytes 发送数据给客户端
@@ -33,7 +32,7 @@ func (s *Session) SendBytes(msgID uint32, data []byte) {
 }
 
 // Send 发送proto数据给客户端
-func (s *Session) Send(msg proto.Message) bool {
+func (s *Session) Send(msg pb.VTMessage) bool {
 	msgID, ok := pb.GetMsgIDS2C(msg)
 	if !ok {
 		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
@@ -43,7 +42,7 @@ func (s *Session) Send(msg proto.Message) bool {
 }
 
 // SendPB 发送proto数据给客户端
-func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
+func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg pb.VTMessage) bool {
 	if msg == nil {
 		zap.S().Warnf("msg is nil")
 		return false
@@ -51,7 +50,7 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg proto.Message) bool {
 
 	var b []byte
 	var err error
-	b, err = proto.Marshal(msg)
+	b, err = msg.MarshalVT()
 	if err != nil {
 		zap.S().Warnf("send pb, marshal error:%v", err)
 		return false

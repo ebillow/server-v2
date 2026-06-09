@@ -10,6 +10,7 @@ import (
 type VTMessage interface {
 	proto.Message
 	SizeVT() int
+	MarshalVT() (dAtA []byte, err error)
 	MarshalToVT(dAtA []byte) (int, error)
 	MarshalToSizedBufferVT([]byte) (int, error)
 	UnmarshalVT([]byte) error

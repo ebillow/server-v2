@@ -28,4 +28,6 @@ enum MsgIDS2S {
     S2SEcho = 22;
     S2SRpcEchoReq = 23;
     S2SRpcEchoRes = 24;
+    S2SRpcEchoRoleReq = 25;
+    S2SRpcEchoRoleRes = 26;
 }

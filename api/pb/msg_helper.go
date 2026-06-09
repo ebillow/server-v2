@@ -178,4 +178,14 @@ func registerAllS2SMsg() {
 		NewMessage:  func() VTMessage { return &S2SRpcEchoRes{} },
 	})
 
+	registerS2SMsg(msgid.MsgIDS2S_S2SRpcEchoRoleReq, &messageMeta{
+		MessageType: reflect.TypeOf(S2SRpcEchoRoleReq{}),
+		NewMessage:  func() VTMessage { return &S2SRpcEchoRoleReq{} },
+	})
+
+	registerS2SMsg(msgid.MsgIDS2S_S2SRpcEchoRoleRes, &messageMeta{
+		MessageType: reflect.TypeOf(S2SRpcEchoRoleRes{}),
+		NewMessage:  func() VTMessage { return &S2SRpcEchoRoleRes{} },
+	})
+
 }

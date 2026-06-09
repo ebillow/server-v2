@@ -134,6 +134,8 @@ func Decode(buf []byte) (ctx gctx.Context, err error) {
 	if err != nil {
 		return ctx, err
 	}
+
+	// ctx.Data = bytes.Clone(buf[gctx.FrameBodyHeadSize:])
 	ctx.Data = buf[gctx.FrameBodyHeadSize:]
 
 	return ctx, nil
