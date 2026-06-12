@@ -132,11 +132,11 @@ func (tb *PubBatcher) waitAck(task Ack) {
 }
 
 func (jt *JetStream) NewNode(serType pb.Server, serID uint8) *PubBatcher {
-	return NewPubBatcher(jt.ctx, getIndexSubject(serType, serID), jt.JS)
+	return NewPubBatcher(jt.ctx, getNodeSubject(serType, serID), jt.JS)
 }
 
 func (jt *JetStream) NewAny(serType pb.Server) *PubBatcher {
-	return NewPubBatcher(jt.ctx, getGroupSubject(serType), jt.JS)
+	return NewPubBatcher(jt.ctx, getAnySubject(serType), jt.JS)
 }
 
 func (jt *JetStream) NewBroadcast(serType pb.Server) *PubBatcher {

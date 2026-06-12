@@ -81,7 +81,7 @@ func BenchmarkHead(b *testing.B) {
 	msgID := 2
 
 	for i := 0; i < b.N; i++ {
-		msg := nats.NewMsg(idxSubjectName(pb.Server_Game, serID))
+		msg := nats.NewMsg(nodeSubjectName(pb.Server_Game, serID))
 
 		msg.Header.Set("ser_name", "self name")
 		msg.Header.Set("ser_id", "self_id")

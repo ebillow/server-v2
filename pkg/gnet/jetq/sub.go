@@ -19,8 +19,8 @@ func (jt *JetStream) Serve(ctx context.Context, cb func(msg pkg.Packet)) error {
 		return err
 	}
 	subjects := []string{
-		getIndexSubject(pb.Server(jt.serType), jt.serID),
-		getGroupSubject(pb.Server(jt.serType))}
+		getNodeSubject(pb.Server(jt.serType), jt.serID),
+		getAnySubject(pb.Server(jt.serType))}
 
 	for _, subject := range subjects {
 		err := jt.sub(ctx, subject, cb)

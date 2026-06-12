@@ -103,12 +103,10 @@ func getStreamWildcardSubject(serType pb.Server) string {
 	return fmt.Sprintf("stream.%s.>", flag.SrvName(serType))
 }
 
-// 获取具体节点的 Subject (例如: stream.game.idx.1)
-func getIndexSubject(serType pb.Server, serID uint8) string {
-	return fmt.Sprintf("stream.%s.idx.%d", flag.SrvName(serType), serID)
+func getNodeSubject(serType pb.Server, serID uint8) string {
+	return fmt.Sprintf("stream.%s.node.%d", flag.SrvName(serType), serID)
 }
 
-// 获取分组 Subject (例如: stream.game.group)
-func getGroupSubject(serType pb.Server) string {
-	return fmt.Sprintf("stream.%s.group", flag.SrvName(serType))
+func getAnySubject(serType pb.Server) string {
+	return fmt.Sprintf("stream.%s.any", flag.SrvName(serType))
 }

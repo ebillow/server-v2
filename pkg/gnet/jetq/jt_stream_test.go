@@ -87,7 +87,7 @@ func TestMultiSub(t *testing.T) {
 }
 
 func TestPull(t *testing.T) {
-	p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
+	p, err := NewPullConsumer(context.Background(), &S, getNodeSubject(pb.Server_Gateway, 0))
 	require.NoError(t, err)
 	wg := sync.WaitGroup{}
 	p.Start(context.Background(), func(ctx pkg.Packet) {
@@ -111,7 +111,7 @@ func TestPullMulti(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		recv[i] = &atomic.Int32{}
-		p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
+		p, err := NewPullConsumer(context.Background(), &S, getNodeSubject(pb.Server_Gateway, 0))
 		require.NoError(t, err)
 		p.Start(context.Background(), func(ctx pkg.Packet) {
 			// t.Log(i, v, string(v.Data))

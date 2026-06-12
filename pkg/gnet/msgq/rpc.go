@@ -58,7 +58,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 
 	buf = buf[:bodyStart+n]
 
-	subStr := rpcIdxSubjectName(toSer, toSerID)
+	subStr := rpcNodeSubjectName(toSer, toSerID)
 	if timeOut <= 0 {
 		timeOut = time.Second
 	}

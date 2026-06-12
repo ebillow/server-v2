@@ -75,13 +75,13 @@ func (bs *DataBus) Close() {
 func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
 	subs := make(map[string]string) // [subject,queue]
 	// all
-	subs[allSubjectName(serType)] = ""
+	subs[broadcastSubjectName(serType)] = ""
 	// index
-	subs[idxSubjectName(serType, serID)] = ""
+	subs[nodeSubjectName(serType, serID)] = ""
 	// group
-	subs[groupSubjectName(serType)] = "msg.group"
+	subs[anySubjectName(serType)] = "msg.group"
 	// rpc idx
-	subs[rpcIdxSubjectName(serType, serID)] = ""
+	subs[rpcNodeSubjectName(serType, serID)] = ""
 
 	return subs
 }

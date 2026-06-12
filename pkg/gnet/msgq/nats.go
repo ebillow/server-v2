@@ -98,25 +98,25 @@ func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options
 
 var rpcSubCache sync.Map
 
-func rpcIdxSubjectName(serType pb.Server, serID uint8) string {
+func rpcNodeSubjectName(serType pb.Server, serID uint8) string {
 	key := (uint64(serType) << 32) | uint64(serID)
 	if val, ok := rpcSubCache.Load(key); ok {
 		return val.(string)
 	}
 
-	str := "rpc." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
+	str := "rpc." + flag.SrvName(serType) + ".node." + strconv.Itoa(int(serID))
 	rpcSubCache.Store(key, str)
 	return str
 }
 
-func idxSubjectName(serType pb.Server, serID uint8) string {
-	return "msg." + flag.SrvName(serType) + ".idx." + strconv.Itoa(int(serID))
+func nodeSubjectName(serType pb.Server, serID uint8) string {
+	return "msg." + flag.SrvName(serType) + ".node." + strconv.Itoa(int(serID))
 }
 
-func groupSubjectName(serType pb.Server) string {
-	return "msg." + flag.SrvName(serType) + ".group"
+func anySubjectName(serType pb.Server) string {
+	return "msg." + flag.SrvName(serType) + ".any"
 }
 
-func allSubjectName(serType pb.Server) string {
-	return "msg." + flag.SrvName(serType) + ".all"
+func broadcastSubjectName(serType pb.Server) string {
+	return "msg." + flag.SrvName(serType) + ".broadcast"
 }

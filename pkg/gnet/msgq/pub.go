@@ -179,13 +179,13 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 }
 
 func (bs *DataBus) NewNode(serType pb.Server, serID uint8) *PubBatcher {
-	return NewPubBatcher(idxSubjectName(serType, serID), bs.conn)
+	return NewPubBatcher(nodeSubjectName(serType, serID), bs.conn)
 }
 
 func (bs *DataBus) NewAny(serType pb.Server) *PubBatcher {
-	return NewPubBatcher(groupSubjectName(serType), bs.conn)
+	return NewPubBatcher(anySubjectName(serType), bs.conn)
 }
 
 func (bs *DataBus) NewBroadcast(serType pb.Server) *PubBatcher {
-	return NewPubBatcher(allSubjectName(serType), bs.conn)
+	return NewPubBatcher(broadcastSubjectName(serType), bs.conn)
 }
