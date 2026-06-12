@@ -3,9 +3,9 @@ package msgq
 import (
 	"server/api/pb"
 	"server/pkg/gerror"
-	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/pub"
 	"server/pkg/gnet/trace"
 	"time"
 
@@ -27,19 +27,19 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 		return gerror.Newf("rpc call: msg id not found for type %T", req)
 	}
 
-	bufPtr := batcher.GetBuffer()
-	defer batcher.FreeBuffer(bufPtr)
+	bufPtr := pub.GetBuffer()
+	defer pub.FreeBuffer(bufPtr)
 
 	reqSize := req.SizeVT()
-	bodySize := gmsg.FrameBodyHeadSize + reqSize
-	totalSize := bodySize + gmsg.FrameLenSize
+	bodySize := pkg.FrameBodyHeadSize + reqSize
+	totalSize := bodySize + pkg.FrameLenSize
 
 	if cap(*bufPtr) < totalSize {
 		*bufPtr = make([]byte, totalSize)
 	}
 	buf := (*bufPtr)[:totalSize]
 
-	head := gmsg.Head{
+	head := pkg.Head{
 		ActorID:   actorID,
 		MsgID:     msgID,
 		Flag:      0,
@@ -50,7 +50,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	}
 	head.EncodeTo(buf, bodySize)
 
-	bodyStart := gmsg.FrameLenSize + gmsg.FrameBodyHeadSize
+	bodyStart := pkg.FrameLenSize + pkg.FrameBodyHeadSize
 	n, err := req.MarshalToSizedBufferVT(buf[bodyStart:])
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
@@ -92,8 +92,8 @@ func RpcRespond[T pb.VTMessage](bs *DataBus, reply string, ack T) error {
 		return nil
 	}
 
-	bufPtr := batcher.GetBuffer()
-	defer batcher.FreeBuffer(bufPtr)
+	bufPtr := pub.GetBuffer()
+	defer pub.FreeBuffer(bufPtr)
 
 	size := ack.SizeVT()
 	if cap(*bufPtr) < size {

@@ -1,4 +1,4 @@
-package batcher
+package pub
 
 import (
 	"server/api/pb"
@@ -18,7 +18,7 @@ type Factory[T any] interface {
 	NewAll(serType pb.Server) *T
 }
 
-type BatcherManager[T any] struct {
+type Batchers[T any] struct {
 	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[T]
 	pubIDXMtx sync.Mutex
 
@@ -31,11 +31,11 @@ type BatcherManager[T any] struct {
 	factory Factory[T]
 }
 
-func (m *BatcherManager[T]) Init(factory Factory[T]) {
+func (m *Batchers[T]) Init(factory Factory[T]) {
 	m.factory = factory
 }
 
-func (m *BatcherManager[T]) GetIdx(serType pb.Server, serID uint8) (*T, error) {
+func (m *Batchers[T]) GetIdx(serType pb.Server, serID uint8) (*T, error) {
 	if serType >= SvcTypeMax || serID >= SvcIDMax {
 		return nil, dep.ErrArg
 	}
@@ -57,7 +57,7 @@ func (m *BatcherManager[T]) GetIdx(serType pb.Server, serID uint8) (*T, error) {
 	return tb, nil
 }
 
-func (m *BatcherManager[T]) GetGroup(serType pb.Server) (*T, error) {
+func (m *Batchers[T]) GetGroup(serType pb.Server) (*T, error) {
 	if serType >= SvcTypeMax {
 		return nil, dep.ErrArg
 	}
@@ -79,7 +79,7 @@ func (m *BatcherManager[T]) GetGroup(serType pb.Server) (*T, error) {
 	return tb, nil
 }
 
-func (m *BatcherManager[T]) GetAll(serType pb.Server) (*T, error) {
+func (m *Batchers[T]) GetAll(serType pb.Server) (*T, error) {
 	if serType >= SvcTypeMax {
 		return nil, dep.ErrArg
 	}
@@ -101,7 +101,7 @@ func (m *BatcherManager[T]) GetAll(serType pb.Server) (*T, error) {
 	return tb, nil
 }
 
-func (m *BatcherManager[T]) FlushAll() {
+func (m *Batchers[T]) FlushAll() {
 	flushFunc := func(tb *T) {
 		if tb != nil {
 			if f, ok := any(tb).(interface{ StopAndFlush() }); ok {

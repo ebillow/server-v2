@@ -9,7 +9,7 @@ import (
 	"server/pkg/cfg"
 	"server/pkg/flag"
 	"server/pkg/gnet"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/gnet/router"
 	"server/pkg/queue"
 	"server/pkg/thread"
@@ -43,7 +43,7 @@ func (d *DataToSave) IsEmpty() bool {
 const EventChanSize = 16
 
 type Event struct {
-	Ctx  gmsg.Message
+	Ctx  pkg.Packet
 	Func func(r *Role)
 }
 
@@ -334,7 +334,7 @@ func (r *Role) SendS(msg pb.VTMessage) {
 		zap.L().Error("[sendS] GetMsgIDS2C error")
 		return
 	}
-	gnet.SendToRole(msgID, msg, r.SesID, r.ID)
+	gnet.SendToClient(msgID, msg, r.SesID, r.ID)
 }
 
 // Send	发送数据给客户端,热路径建议使用Send
@@ -358,7 +358,7 @@ func Send[T pb.VTMessage](r *Role, msgID msgid.MsgIDS2C, msg T) {
 		}
 	}
 
-	gnet.SendToRole(uint32(msgID), msg, r.SesID, r.ID)
+	gnet.SendToClient(uint32(msgID), msg, r.SesID, r.ID)
 }
 
 func (r *Role) SetDirty() {

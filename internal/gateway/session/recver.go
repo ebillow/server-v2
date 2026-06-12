@@ -111,7 +111,7 @@ func (s *Session) forwardToSrv(src []byte) {
 
 	serType := pb.Server(msgID / 100000)
 	serID := s.getSerID(serType)
-	err = msgq.Q.Send(serType, serID, msgID, data, 0, s.Id)
+	err = msgq.Q.SendTo(serType, serID, msgID, data, 0, s.Id)
 	if err != nil {
 		zap.L().Warn("send to server err"+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),

@@ -8,8 +8,8 @@ import (
 	"server/internal/share/actor"
 	"server/pkg/db"
 	"server/pkg/flag"
-	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/msgq"
+	"server/pkg/gnet/pkg"
 	"sync"
 
 	"go.uber.org/zap"
@@ -31,11 +31,11 @@ func UnInit(ctx context.Context) {
 	actor.Actors.StopAndWait()
 }
 
-func OnServerMsg(c gmsg.Message) {
-	if c.Head.Flag == gmsg.Forward {
+func OnServerMsg(c pkg.Packet) {
+	if c.Head.Flag == pkg.Forward {
 		gameID, ok := onlines.GetGameID(c.Head.ActorID)
 		if ok {
-			err := msgq.Q.Send(pb.Server(c.Head.ToSer), gameID, c.Head.MsgID, c.Data, c.Head.ActorID, c.Head.SesID)
+			err := msgq.Q.SendTo(pb.Server(c.Head.ToSer), gameID, c.Head.MsgID, c.Data, c.Head.ActorID, c.Head.SesID)
 			if err != nil {
 				zap.L().Warn("relay err", zap.Error(err), zap.Inline(&c))
 			}

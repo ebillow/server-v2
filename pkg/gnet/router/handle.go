@@ -5,8 +5,8 @@ import (
 	"server/api/pb"
 	"server/pkg/gerror"
 	"server/pkg/gnet/gmetrics"
-	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/msgq"
+	"server/pkg/gnet/pkg"
 	"server/pkg/gnet/trace"
 	"sync"
 	"time"
@@ -47,44 +47,44 @@ func (f *newFactory) Put(pb.VTMessage)  {} // no-op
 // --------------------------------------------------------------------
 
 type IHandler interface {
-	Handle(c gmsg.Message) error
+	Handle(pkg.Packet) error
 }
 type MsgHandler struct {
 	factory    MsgFactory
-	HandleFunc func(gmsg.Message, pb.VTMessage)
+	HandleFunc func(pkg.Packet, pb.VTMessage)
 }
 
 // Handle 处理消息
-func (h *MsgHandler) Handle(c gmsg.Message) error {
+func (h *MsgHandler) Handle(p pkg.Packet) error {
 	msgPB := h.factory.Get()
 
-	if len(c.Data) > 0 {
-		err := msgPB.UnmarshalVT(c.Data)
+	if len(p.Data) > 0 {
+		err := msgPB.UnmarshalVT(p.Data)
 		if err != nil {
 			h.factory.Put(msgPB)
 			return err
 		}
 	}
 
-	c.Data = nil
+	p.Data = nil
 
-	if trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID) {
+	if trace.Rule.ShouldLog(p.Head.MsgID, p.Head.ActorID, p.Head.SesID) {
 		str, _ := sonic.MarshalString(msgPB)
 		zap.L().Info("recv",
 			zap.String("type", fmt.Sprintf("%T", msgPB)),
 			zap.String("data", str),
-			zap.Inline(&c),
+			zap.Inline(&p),
 		)
 	}
 	begin := time.Now() // todo 优化
 
-	h.HandleFunc(c, msgPB)
+	h.HandleFunc(p, msgPB)
 
 	h.factory.Put(msgPB)
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {
-		gmetrics.GetHandlerLatencyMetric(c.Head.MsgID).Update(float64(cost.Milliseconds()))
+		gmetrics.GetHandlerLatencyMetric(p.Head.MsgID).Update(float64(cost.Milliseconds()))
 	}
 
 	return nil
@@ -93,50 +93,50 @@ func (h *MsgHandler) Handle(c gmsg.Message) error {
 type RpcHandler struct {
 	reqCreate  MsgFactory
 	resCreate  MsgFactory
-	HandleFunc func(gmsg.Message, pb.VTMessage, pb.VTMessage)
+	HandleFunc func(pkg.Packet, pb.VTMessage, pb.VTMessage)
 }
 
 // Handle 处理消息
-func (h *RpcHandler) Handle(c gmsg.Message) error {
+func (h *RpcHandler) Handle(p pkg.Packet) error {
 	req := h.reqCreate.Get()
 
-	if len(c.Data) > 0 {
-		err := req.UnmarshalVT(c.Data)
+	if len(p.Data) > 0 {
+		err := req.UnmarshalVT(p.Data)
 		if err != nil {
 			h.reqCreate.Put(req)
 			return err
 		}
 	}
 
-	c.Data = nil
+	p.Data = nil
 
-	shouldLog := trace.Rule.ShouldLog(c.Head.MsgID, c.Head.ActorID, c.Head.SesID)
+	shouldLog := trace.Rule.ShouldLog(p.Head.MsgID, p.Head.ActorID, p.Head.SesID)
 	if shouldLog {
 		str, _ := sonic.MarshalString(req)
 		zap.L().Info("recv rpc",
 			zap.String("type", fmt.Sprintf("%T", req)),
 			zap.String("data", str),
-			zap.Inline(&c),
+			zap.Inline(&p),
 		)
 	}
 
 	begin := time.Now() // todo 优化
 
 	res := h.resCreate.Get()
-	h.HandleFunc(c, req, res)
+	h.HandleFunc(p, req, res)
 
-	err := msgq.RpcRespond(&msgq.Q, c.Reply(), res)
+	err := msgq.RpcRespond(&msgq.Q, p.Reply(), res)
 	if err != nil {
 		h.reqCreate.Put(req)
 		h.resCreate.Put(res)
-		return gerror.Wrapf(err, "respond %d", c.Head.MsgID)
+		return gerror.Wrapf(err, "respond %d", p.Head.MsgID)
 	}
 	if shouldLog {
 		str, _ := sonic.MarshalString(res)
 		zap.L().Info("respond rpc",
 			zap.String("type", fmt.Sprintf("%T", res)),
 			zap.String("data", str),
-			zap.Inline(&c),
+			zap.Inline(&p),
 		)
 	}
 
@@ -145,7 +145,7 @@ func (h *RpcHandler) Handle(c gmsg.Message) error {
 
 	cost := time.Since(begin)
 	if cost > 10*time.Millisecond {
-		gmetrics.GetHandlerLatencyMetric(c.Head.MsgID).Update(float64(cost.Milliseconds()))
+		gmetrics.GetHandlerLatencyMetric(p.Head.MsgID).Update(float64(cost.Milliseconds()))
 	}
 
 	return nil

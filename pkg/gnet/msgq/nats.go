@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/gmetrics"
+	"server/pkg/gnet/pub"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -28,7 +28,7 @@ type DataBus struct {
 
 	closed atomic.Bool
 
-	pub batcher.BatcherManager[PubBatcher]
+	pub pub.Batchers[PubBatcher]
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options ...nats.Option) error {

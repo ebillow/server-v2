@@ -7,7 +7,7 @@ import (
 	"server/internal/account/auth"
 	"server/pkg/db"
 	"server/pkg/flag"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/gnet/router"
 	"sync"
 
@@ -30,7 +30,7 @@ func UnInit(ctx context.Context) {
 
 }
 
-func OnServerMsg(c gmsg.Message) {
+func OnServerMsg(c pkg.Packet) {
 	err := router.R().Handle(c)
 	if err != nil {
 		zap.L().Info("<<< msg.recv:",

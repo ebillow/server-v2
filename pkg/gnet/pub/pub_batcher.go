@@ -1,15 +1,15 @@
-package batcher
+package pub
 
 import (
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// BaseBatcher 针对单个目标服务器的流式批处理器
-type BaseBatcher struct {
+// Batcher 针对单个目标服务器的流式批处理器
+type Batcher struct {
 	mtx   sync.Mutex
 	buf   *[]byte // 从 bufPool 获取的共享大缓冲
 	count int     // 当前缓冲了多少条消息
@@ -19,8 +19,8 @@ type BaseBatcher struct {
 	flushFn FlushFunc
 }
 
-func NewBaseBatcher(flushFn FlushFunc) *BaseBatcher {
-	tb := &BaseBatcher{
+func NewBatcher(flushFn FlushFunc) *Batcher {
+	tb := &Batcher{
 		flushFn: flushFn,
 	}
 	tb.state.Store(int32(BStateRunning))
@@ -29,9 +29,9 @@ func NewBaseBatcher(flushFn FlushFunc) *BaseBatcher {
 	return tb
 }
 
-func (tb *BaseBatcher) Add(ctx gmsg.Message) error {
-	bodySize := gmsg.FrameBodyHeadSize + len(ctx.Data)
-	frameSize := gmsg.FrameLenSize + bodySize
+func (tb *Batcher) Add(p pkg.Packet) error {
+	bodySize := pkg.FrameBodyHeadSize + len(p.Data)
+	frameSize := pkg.FrameLenSize + bodySize
 	var tasks [2]flushTask
 	taskN := 0
 
@@ -57,7 +57,7 @@ func (tb *BaseBatcher) Add(ctx gmsg.Message) error {
 
 	if frameSize > cap(*tb.buf) {
 		monsterBuf := make([]byte, frameSize)
-		ctx.EncodeTo(monsterBuf, bodySize)
+		p.EncodeTo(monsterBuf, bodySize)
 
 		// bp 传 nil，表示不需要 FreeBuffer
 		tasks[taskN] = flushTask{data: monsterBuf, bp: nil, count: 1}
@@ -67,7 +67,7 @@ func (tb *BaseBatcher) Add(ctx gmsg.Message) error {
 		pos := len(buf)
 		buf = buf[:pos+frameSize]
 
-		ctx.EncodeTo(buf[pos:pos+frameSize], bodySize)
+		p.EncodeTo(buf[pos:pos+frameSize], bodySize)
 
 		*tb.buf = buf
 		tb.count++
@@ -104,7 +104,7 @@ type flushTask struct {
 }
 
 // 定时器：每 25 毫秒强制发送一次，防止消息一直积压不发
-func (tb *BaseBatcher) startLoop() {
+func (tb *Batcher) startLoop() {
 	go func() {
 		ticker := time.NewTicker(time.Millisecond * 25)
 		defer func() {
@@ -122,7 +122,7 @@ func (tb *BaseBatcher) startLoop() {
 }
 
 // forceFlush  不负责判断状态 它只是“把当前 buf 取出来并 flush” 状态控制由 startLoop 和 StopAndFlush 外部负责
-func (tb *BaseBatcher) forceFlush() {
+func (tb *Batcher) forceFlush() {
 	var flushData []byte
 	var flushBp *[]byte
 	var count int
@@ -146,7 +146,7 @@ func (tb *BaseBatcher) forceFlush() {
 }
 
 // StopAndFlush 关闭并清空
-func (tb *BaseBatcher) StopAndFlush() {
+func (tb *Batcher) StopAndFlush() {
 	if !tb.state.CompareAndSwap(int32(BStateRunning), int32(BStateClosing)) {
 		return
 	}

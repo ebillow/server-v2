@@ -2,10 +2,10 @@ package msgq
 
 import (
 	"server/api/pb"
-	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
 	"server/pkg/gnet/gmetrics"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/pub"
 	"time"
 
 	"github.com/VictoriaMetrics/metrics"
@@ -13,10 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// 发送函数 会接管 data 的生命周期，调用结束后请勿修改 data
-
-// Send 指定发送
-func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// SendTo 发给指定服务
+func (bs *DataBus) SendTo(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
@@ -24,8 +22,8 @@ func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byt
 	if err != nil {
 		return err
 	}
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			MsgID:     msgID,
 			FromSerID: bs.serID,
 			FromSer:   bs.serType,
@@ -38,32 +36,32 @@ func (bs *DataBus) Send(serType pb.Server, serID uint8, msgID uint32, data []byt
 	})
 }
 
-func (bs *DataBus) ForwardToRole(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+func (bs *DataBus) ForwardToClient(serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
 
-	pbt, err := bs.pub.GetIdx(serType, serID)
+	pbt, err := bs.pub.GetIdx(pb.Server_Gateway, serID)
 	if err != nil {
 		return err
 	}
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			MsgID:     msgID,
 			FromSerID: bs.serID,
 			FromSer:   bs.serType,
-			ToSer:     uint8(serType),
+			ToSer:     uint8(pb.Server_Gateway),
 			ToSerID:   serID,
 			ActorID:   actorID,
 			SesID:     sesID,
-			Flag:      gmsg.Forward,
+			Flag:      pkg.Forward,
 		},
 		Data: data,
 	})
 }
 
-// SendAny 组发送. 随机一个能收到
-func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// SendToAny 组发送. 随机一个能收到
+func (bs *DataBus) SendToAny(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
@@ -73,8 +71,8 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, actorID
 		return err
 	}
 
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -86,8 +84,8 @@ func (bs *DataBus) SendAny(serType pb.Server, msgID uint32, data []byte, actorID
 	})
 }
 
-// SendAll 所有的 serName 服节点都能收到
-func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// SendToGroup 同类型所有的服节点都能收到
+func (bs *DataBus) SendToGroup(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
@@ -97,8 +95,8 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, actorID
 		return err
 	}
 
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -110,8 +108,8 @@ func (bs *DataBus) SendAll(serType pb.Server, msgID uint32, data []byte, actorID
 	})
 }
 
-// Relay 转发给指定服
-func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// RelayTo 转发给指定服
+func (bs *DataBus) RelayTo(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
@@ -121,8 +119,8 @@ func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []by
 		return err
 	}
 
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -130,7 +128,7 @@ func (bs *DataBus) Relay(serType pb.Server, serID uint8, msgID uint32, data []by
 			ToSerID:   serID,
 			ActorID:   actorID,
 			SesID:     sesID,
-			Flag:      gmsg.Forward,
+			Flag:      pkg.Forward,
 		},
 		Data: data,
 	})
@@ -150,7 +148,7 @@ var (
 
 // PubBatcher 针对单个目标服务器的流式批处理器
 type PubBatcher struct {
-	*batcher.BaseBatcher
+	*pub.Batcher
 	subject string
 	conn    *nats.Conn
 
@@ -167,7 +165,7 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 		metricFlush:        gmetrics.MetricBatchFlush(subject),
 	}
 
-	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, count int) {
+	tb.Batcher = pub.NewBatcher(func(data []byte, count int) {
 		err := tb.conn.Publish(tb.subject, data)
 		if err != nil {
 			zap.L().Error("publish err", zap.Error(err))

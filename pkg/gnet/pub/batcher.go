@@ -1,4 +1,4 @@
-package batcher
+package pub
 
 import "server/pkg/gnet/pool"
 

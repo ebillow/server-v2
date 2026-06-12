@@ -1,8 +1,8 @@
-package batcher
+package pub
 
 import (
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/queue"
 	"sync"
 	"sync/atomic"
@@ -14,7 +14,7 @@ import (
 // QueueBatcher  优点：Add锁小，并发快
 // 缺点：异步持有了数据，外层不好做池化,
 type QueueBatcher struct {
-	queue   *queue.SwapQueue[gmsg.Message]
+	queue   *queue.SwapQueue[pkg.Packet]
 	state   atomic.Int32
 	flushFn FlushFunc
 	wg      sync.WaitGroup
@@ -22,7 +22,7 @@ type QueueBatcher struct {
 
 func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
 	tb := &QueueBatcher{
-		queue:   queue.NewSwapQueue[gmsg.Message](4096, 40960),
+		queue:   queue.NewSwapQueue[pkg.Packet](4096, 40960),
 		flushFn: flushFn,
 	}
 
@@ -31,7 +31,7 @@ func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
 	return tb
 }
 
-func (tb *QueueBatcher) Add(ctx gmsg.Message) error {
+func (tb *QueueBatcher) Add(ctx pkg.Packet) error {
 	if batcherState(tb.state.Load()) != BStateRunning {
 		return dep.ErrClosed
 	}
@@ -67,8 +67,8 @@ func (tb *QueueBatcher) startLoop() {
 			}
 		}
 
-		processFunc := func(ctx gmsg.Message) {
-			msgSize := gmsg.FrameBodyHeadSize + len(ctx.Data)
+		processFunc := func(ctx pkg.Packet) {
+			msgSize := pkg.FrameBodyHeadSize + len(ctx.Data)
 			frameSize := 4 + msgSize
 			if len(buf)+frameSize > cap(buf) && len(buf) > 0 {
 				flush()

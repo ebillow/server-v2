@@ -268,5 +268,5 @@ func hashAccount(acc string) uint32 {
 func sendLoginFailure(req *pb.S2SReqLogin, code pb.LoginCode) {
 	DebugCheck(req, false, nil)
 	zap.L().Warn("login fail", zap.Any("req", req), zap.Any("code", code))
-	gnet.SendToRole(uint32(msgid.MsgIDS2C_S2CLogin), &pb.S2CLogin{Code: code}, req.SesID, 0)
+	gnet.SendToClient(uint32(msgid.MsgIDS2C_S2CLogin), &pb.S2CLogin{Code: code}, req.SesID, 0)
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/gnet/batcher"
+	"server/pkg/gnet/pub"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -25,7 +25,7 @@ type JetStream struct {
 
 	closed atomic.Bool
 
-	pub batcher.BatcherManager[PubBatcher]
+	pub pub.Batchers[PubBatcher]
 
 	ctx    context.Context
 	cancel context.CancelFunc

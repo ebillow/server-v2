@@ -4,8 +4,8 @@ import (
 	pb "server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/cfg"
-	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/msgq"
+	"server/pkg/gnet/pkg"
 	"server/pkg/logger"
 	"server/pkg/util"
 	"sync"
@@ -34,7 +34,7 @@ func TestSendAndServe(t *testing.T) {
 	wait := sync.WaitGroup{}
 	data := pb.S2SReqLogin{}
 	cnt := 0
-	err = msgq.Q.Serve(func(ctx gmsg.Message) {
+	err = msgq.Q.Serve(func(ctx pkg.Packet) {
 		err = proto.Unmarshal(ctx.Data, &data)
 		require.NoError(t, err)
 		require.Equal(t, data.SesID, data.RoleID*2)

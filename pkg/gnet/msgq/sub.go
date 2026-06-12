@@ -2,15 +2,15 @@ package msgq
 
 import (
 	"server/api/pb"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
-func (bs *DataBus) Serve(callback func(ctx gmsg.Message)) error {
+func (bs *DataBus) Serve(callback func(msg pkg.Packet)) error {
 	err := bs.subscribe(bs.getSubjects(pb.Server(bs.serType), bs.serID), func(msg *nats.Msg) {
-		err := gmsg.DecodeManyAndHandle(msg.Data, msg.Subject, msg.Reply, callback)
+		err := pkg.DecodeManyAndHandle(msg.Data, msg.Subject, msg.Reply, callback)
 		if err != nil {
 			zap.L().Error("batch decode error", zap.Error(err))
 		}

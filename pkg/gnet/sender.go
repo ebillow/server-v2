@@ -18,7 +18,8 @@ func GateIDFromSesID(gateID uint64) uint8 {
 	return uint8(idgen.MachineID(int64(gateID)))
 }
 
-func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64) {
+// SendToClient 发送给前端
+func SendToClient[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64) {
 	pBuf, buf := ensureBuf(msg.SizeVT())
 
 	n, err := msg.MarshalToSizedBufferVT(buf)
@@ -34,7 +35,7 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 	buf = buf[:n]
 
 	serID := GateIDFromSesID(sesID)
-	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, buf, roleID, sesID)
+	err = msgq.Q.ForwardToClient(serID, msgID, buf, roleID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 
@@ -63,6 +64,7 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 	}
 }
 
+// SendToSrv 发送给指定服务
 func SendToSrv[T pb.VTMessage](
 	serType pb.Server,
 	serID uint8,
@@ -84,7 +86,7 @@ func SendToSrv[T pb.VTMessage](
 		return
 	}
 
-	err = msgq.Q.Send(serType, serID, msgID, buf, actorID, sesID)
+	err = msgq.Q.SendTo(serType, serID, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 
@@ -113,6 +115,7 @@ func SendToSrv[T pb.VTMessage](
 	}
 }
 
+// SendToAny 组发送. 随机一个能收到
 func SendToAny[T pb.VTMessage](
 	serType pb.Server,
 	msgID uint32,
@@ -131,7 +134,7 @@ func SendToAny[T pb.VTMessage](
 		)
 		return
 	}
-	err = msgq.Q.SendAny(serType, msgID, buf, actorID, sesID)
+	err = msgq.Q.SendToAny(serType, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 
@@ -160,6 +163,7 @@ func SendToAny[T pb.VTMessage](
 	}
 }
 
+// SendToGroup 同类型所有的服节点都能收到
 func SendToGroup[T pb.VTMessage](
 	serType pb.Server,
 	msgID uint32,
@@ -178,7 +182,7 @@ func SendToGroup[T pb.VTMessage](
 		)
 		return
 	}
-	err = msgq.Q.SendAll(serType, msgID, buf, actorID, sesID)
+	err = msgq.Q.SendToGroup(serType, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 

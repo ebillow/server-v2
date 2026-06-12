@@ -4,7 +4,7 @@ import (
 	"os"
 	pb "server/api/pb"
 	"server/pkg/cfg"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/logger"
 	"server/pkg/util"
 	"testing"
@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 }
 
 type actor struct {
-	c chan gmsg.Message
+	c chan pkg.Packet
 }
 
 func (a *actor) Run() {
@@ -59,11 +59,11 @@ func (a *actor) Run() {
 func SrvRpc() {
 	chs := make([]*actor, 0)
 	for i := 0; i < 3; i++ {
-		a := &actor{make(chan gmsg.Message, 128)}
+		a := &actor{make(chan pkg.Packet, 128)}
 		chs = append(chs, a)
 		go a.Run()
 	}
-	err := Q.Serve(func(ctx gmsg.Message) {
+	err := Q.Serve(func(ctx pkg.Packet) {
 		chs[util.RandRange(0, 3)].c <- ctx
 	})
 	if err != nil {

@@ -1,4 +1,4 @@
-package gmsg
+package pkg
 
 import (
 	"encoding/binary"
@@ -77,22 +77,22 @@ func (head *Head) Decode(buf []byte) (err error) {
 	return nil
 }
 
-type Message struct {
+type Packet struct {
 	Head  Head
 	Data  []byte
 	U     Unity
 	reply string
 }
 
-func (s *Message) SetReply(str string) {
+func (s *Packet) SetReply(str string) {
 	s.reply = str
 }
 
-func (s *Message) Reply() string {
+func (s *Packet) Reply() string {
 	return s.reply
 }
 
-func (s *Message) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+func (s *Packet) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddUint32("msgID", s.Head.MsgID)
 	encoder.AddUint64("actorID", s.Head.ActorID)
 	encoder.AddUint64("sesID", s.Head.SesID)
@@ -103,12 +103,12 @@ func (s *Message) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	return nil
 }
 
-func (s *Message) EncodeTo(dst []byte, bodySize int) {
+func (s *Packet) EncodeTo(dst []byte, bodySize int) {
 	s.Head.EncodeTo(dst, bodySize)
 	copy(dst[FrameLenSize+FrameBodyHeadSize:], s.Data)
 }
 
-func (s *Message) Decode(buf []byte) error {
+func (s *Packet) Decode(buf []byte) error {
 	if len(buf) < FrameBodyHeadSize {
 		return gerror.New("decode error: buffer too small for header")
 	}
@@ -118,14 +118,14 @@ func (s *Message) Decode(buf []byte) error {
 		return err
 	}
 
-	// ctx.Data = bytes.Clone(buf[gmsg.FrameBodyHeadSize:])
+	// ctx.Data = bytes.Clone(buf[pkg.FrameBodyHeadSize:])
 	s.Data = buf[FrameBodyHeadSize:]
 
 	return nil
 }
 
 // DecodeManyAndHandle 批量解码大包
-func DecodeManyAndHandle(buf []byte, subName string, reply string, callback func(msg Message)) error {
+func DecodeManyAndHandle(buf []byte, subName string, reply string, callback func(msg Packet)) error {
 	offset := 0
 
 	sm := gmetrics.GetSubMetrics(subName)
@@ -146,7 +146,7 @@ func DecodeManyAndHandle(buf []byte, subName string, reply string, callback func
 		}
 		subBuf := buf[offset : offset+subSize]
 
-		msg := Message{}
+		msg := Packet{}
 		err := msg.Decode(subBuf)
 		if err != nil {
 			sm.DecodeErr.Inc()

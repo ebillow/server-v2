@@ -3,9 +3,9 @@ package js
 import (
 	"context"
 	"server/api/pb"
-	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/pub"
 	"server/pkg/thread"
 	"time"
 
@@ -23,8 +23,8 @@ func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []b
 		return err
 	}
 
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,
@@ -46,8 +46,8 @@ func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleI
 		return err
 	}
 
-	return pbt.Add(gmsg.Message{
-		Head: gmsg.Head{
+	return pbt.Add(pkg.Packet{
+		Head: pkg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,
@@ -65,7 +65,7 @@ type Ack struct {
 
 // PubBatcher 针对单个目标服务器的流式批处理器
 type PubBatcher struct {
-	*batcher.BaseBatcher
+	*pub.Batcher
 	subject string
 	JS      jetstream.JetStream
 	ack     chan Ack
@@ -78,7 +78,7 @@ func NewPubBatcher(ctx context.Context, subject string, js jetstream.JetStream) 
 		ack:     make(chan Ack, 40960),
 	}
 
-	tb.BaseBatcher = batcher.NewBaseBatcher(func(data []byte, count int) {
+	tb.Batcher = pub.NewBatcher(func(data []byte, count int) {
 		if len(data) == 0 {
 			return
 		}

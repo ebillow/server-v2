@@ -4,7 +4,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/internal/game/role"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/gnet/pool"
 	"server/pkg/gnet/router"
 
@@ -23,7 +23,7 @@ var (
 	echoPool = pool.NewMsgPool[pb.S2CEcho]()
 )
 
-func onEchoCli(_ gmsg.Head, msg *pb.C2SEcho, r *role.Role) {
+func onEchoCli(_ pkg.Head, msg *pb.C2SEcho, r *role.Role) {
 	msgOut := echoPool.Get()
 	msgOut.ID = msg.ID
 	msgOut.Name = msg.Name
@@ -36,14 +36,14 @@ func onEchoCli(_ gmsg.Head, msg *pb.C2SEcho, r *role.Role) {
 	echoPool.Put(msgOut)
 }
 
-func onEchoSer(_ gmsg.Head, msg *pb.S2SEcho) {
+func onEchoSer(_ pkg.Head, msg *pb.S2SEcho) {
 
 }
 
-func onEchoRpc(_ gmsg.Head, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
+func onEchoRpc(_ pkg.Head, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
 	res = proto.Clone(req).(*pb.S2SRpcEchoRes)
 }
 
-func onEchoWithRoleRpc(_ gmsg.Head, req *pb.S2SRpcEchoRoleReq, res *pb.S2SRpcEchoRoleRes, r *role.Role) {
+func onEchoWithRoleRpc(_ pkg.Head, req *pb.S2SRpcEchoRoleReq, res *pb.S2SRpcEchoRoleRes, r *role.Role) {
 	res = proto.Clone(req).(*pb.S2SRpcEchoRoleRes)
 }

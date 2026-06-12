@@ -4,7 +4,7 @@ import (
 	"server/api/pb"
 	"server/pkg/flag"
 	"server/pkg/gerror"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"sync"
 )
 
@@ -22,7 +22,7 @@ func NewMsgRouter(max int32) *Router {
 }
 
 // Register 注册消息
-func (rt *Router) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(c gmsg.Message, msg pb.VTMessage)) error {
+func (rt *Router) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, df func(pkg.Packet, pb.VTMessage)) error {
 	if flag.IsReady() {
 		return gerror.New("must register before action")
 	}
@@ -52,7 +52,7 @@ func (rt *Router) Register(msgID uint32, cf func() pb.VTMessage, usePool bool, d
 	return nil
 }
 
-func (rt *Router) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, createRes func() pb.VTMessage, usePool bool, df func(c gmsg.Message, req pb.VTMessage, res pb.VTMessage)) error {
+func (rt *Router) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, createRes func() pb.VTMessage, usePool bool, df func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage)) error {
 	if flag.IsReady() {
 		return gerror.New("must register before action")
 	}
@@ -88,12 +88,12 @@ func (rt *Router) RegisterRpc(msgID uint32, createReq func() pb.VTMessage, creat
 	return nil
 }
 
-func (rt *Router) Handle(c gmsg.Message) error {
-	handler, err := rt.getHandler(c.Head.MsgID)
+func (rt *Router) Handle(p pkg.Packet) error {
+	handler, err := rt.getHandler(p.Head.MsgID)
 	if err != nil {
 		return err
 	}
-	return handler.Handle(c)
+	return handler.Handle(p)
 }
 
 func (rt *Router) getHandler(id uint32) (n IHandler, err error) {

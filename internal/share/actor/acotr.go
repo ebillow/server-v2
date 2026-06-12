@@ -2,7 +2,7 @@ package actor
 
 import (
 	"context"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 	"server/pkg/gnet/router"
 	"server/pkg/queue"
 	"server/pkg/thread"
@@ -21,7 +21,7 @@ type ISubActor interface {
 // Actor 全局Actor
 
 type Event struct {
-	Ctx  gmsg.Message
+	Ctx  pkg.Packet
 	Func func()
 }
 

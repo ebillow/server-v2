@@ -5,7 +5,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gerror"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 
 	"go.uber.org/zap"
 )
@@ -18,33 +18,33 @@ func R() *Router {
 	return msgRouter
 }
 
-func On[T pb.VTMessage](df func(c gmsg.Head, req T)) {
+func On[T pb.VTMessage](df func(h pkg.Head, req T)) {
 	register(false, df)
 }
 
 // OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(c gmsg.Head, req T)) {
+func OnP[T pb.VTMessage](df func(h pkg.Head, req T)) {
 	register(true, df)
 }
 
-func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gmsg.Head, req Req, res Res)) {
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(h pkg.Head, req Req, res Res)) {
 	registerRpc(false, df)
 }
 
 // OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
-func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gmsg.Head, req Req, res Res)) {
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(h pkg.Head, req Req, res Res)) {
 	registerRpc(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(c gmsg.Head, req T)) {
+func register[T pb.VTMessage](usePool bool, df func(h pkg.Head, req T)) {
 	var req T
 	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
 		zap.L().Error("register fail", zap.Error(err))
 		return
 	}
-	handleFunc := func(c gmsg.Message, msg pb.VTMessage) {
-		df(c.Head, msg.(T))
+	handleFunc := func(p pkg.Packet, msg pb.VTMessage) {
+		df(p.Head, msg.(T))
 	}
 
 	err = R().Register(msgID, createFunc, usePool, handleFunc)
@@ -56,7 +56,7 @@ func register[T pb.VTMessage](usePool bool, df func(c gmsg.Head, req T)) {
 	}
 }
 
-func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gmsg.Head, req Req, res Res)) {
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(h pkg.Head, req Req, res Res)) {
 	var req Req
 
 	msgID, reqCreate, err := FindMsgIDAndCreateFunc(req)
@@ -72,8 +72,8 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gms
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
-	handleFunc := func(c gmsg.Message, req pb.VTMessage, res pb.VTMessage) {
-		df(c.Head, req.(Req), res.(Res))
+	handleFunc := func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage) {
+		df(p.Head, req.(Req), res.(Res))
 	}
 
 	err = R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)

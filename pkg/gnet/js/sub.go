@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/gnet/gmsg"
+	"server/pkg/gnet/pkg"
 
 	"strings"
 	"time"
@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (jt *JetStream) Serve(ctx context.Context, cb func(msg gmsg.Message)) error {
+func (jt *JetStream) Serve(ctx context.Context, cb func(msg pkg.Packet)) error {
 	if err := jt.initGlobalStream(ctx); err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (jt *JetStream) initGlobalStream(ctx context.Context) error {
 	return nil
 }
 
-func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gmsg.Message)) error {
+func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg pkg.Packet)) error {
 	streamName := getStreamName(pb.Server(jt.serType))
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
@@ -75,7 +75,7 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gmsg.M
 
 	// 开始消费消息
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		err = gmsg.DecodeManyAndHandle(msgRaw.Data(), msgRaw.Subject(), msgRaw.Reply(), cb)
+		err = pkg.DecodeManyAndHandle(msgRaw.Data(), msgRaw.Subject(), msgRaw.Reply(), cb)
 
 		// 处理完成，Ack 确认
 		if err = msgRaw.Ack(); err != nil {
