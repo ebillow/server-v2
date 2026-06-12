@@ -1,15 +1,10 @@
 package role
 
-import (
-	"server/api/pb"
-)
-
 type ICompCreate interface {
 	Create(r *Role)
 }
 
 type ILoginMgr interface {
-	Login(msg *pb.S2SReqLogin)
 	Logout(data *DataToSave)
 	SaveRole(data *DataToSave, saveBoth bool) bool
 }
