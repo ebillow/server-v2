@@ -93,7 +93,7 @@ func NewRole(data *DataToSave, login *pb.S2SReqLogin) (*Role, error) {
 	r.Events = queue.NewSwapQueue[Event](EventChanSize, EventChanSize*100)
 	r.Ctx, r.Cancel = context.WithCancel(context.Background())
 
-	compCreate.Create(r)
+	CompFactory().Create(r)
 
 	for i, comp := range r.Comps {
 		if comp == nil {

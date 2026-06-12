@@ -131,14 +131,15 @@ func (tb *PubBatcher) waitAck(task Ack) {
 	}
 }
 
-func (jt *JetStream) NewNode(serType pb.Server, serID uint8) *PubBatcher {
+func (jt *JetStream) NewNodePub(serType pb.Server, serID uint8) *PubBatcher {
 	return NewPubBatcher(jt.ctx, getNodeSubject(serType, serID), jt.JS)
 }
 
-func (jt *JetStream) NewAny(serType pb.Server) *PubBatcher {
+func (jt *JetStream) NewAnyPub(serType pb.Server) *PubBatcher {
 	return NewPubBatcher(jt.ctx, getAnySubject(serType), jt.JS)
 }
 
-func (jt *JetStream) NewBroadcast(serType pb.Server) *PubBatcher {
+func (jt *JetStream) NewBroadcastPub(serType pb.Server) *PubBatcher {
+	panic("jetq can not use broadcast pub batcher")
 	return nil
 }

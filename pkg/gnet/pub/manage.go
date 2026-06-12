@@ -13,9 +13,9 @@ const (
 )
 
 type Factory[T any] interface {
-	NewNode(serType pb.Server, serID uint8) *T
-	NewAny(serType pb.Server) *T
-	NewBroadcast(serType pb.Server) *T
+	NewNodePub(serType pb.Server, serID uint8) *T
+	NewAnyPub(serType pb.Server) *T
+	NewBroadcastPub(serType pb.Server) *T
 }
 
 type Batchers[T any] struct {
@@ -51,7 +51,7 @@ func (m *Batchers[T]) Node(serType pb.Server, serID uint8) (*T, error) {
 		return tb, nil
 	}
 
-	tb := m.factory.NewNode(serType, serID)
+	tb := m.factory.NewNodePub(serType, serID)
 	m.node[serType][serID].Store(tb)
 
 	return tb, nil
@@ -73,7 +73,7 @@ func (m *Batchers[T]) Any(serType pb.Server) (*T, error) {
 		return tb, nil
 	}
 
-	tb := m.factory.NewAny(serType)
+	tb := m.factory.NewAnyPub(serType)
 	m.any[serType].Store(tb)
 
 	return tb, nil
@@ -95,7 +95,7 @@ func (m *Batchers[T]) Broadcast(serType pb.Server) (*T, error) {
 		return tb, nil
 	}
 
-	tb := m.factory.NewBroadcast(serType)
+	tb := m.factory.NewBroadcastPub(serType)
 	m.broadcast[serType].Store(tb)
 
 	return tb, nil

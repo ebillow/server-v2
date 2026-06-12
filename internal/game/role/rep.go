@@ -1,6 +1,6 @@
 package role
 
-type ICompCreate interface {
+type ICompFactory interface {
 	Create(r *Role)
 }
 
@@ -11,8 +11,8 @@ type ILoginMgr interface {
 
 // ---------------------------------------------------------
 var (
-	loginMgr   ILoginMgr
-	compCreate ICompCreate
+	loginMgr    ILoginMgr
+	compFactory ICompFactory
 )
 
 // LoginMgr ---------------------------------------------------------
@@ -23,7 +23,8 @@ func LoginMgr() ILoginMgr {
 func InjectLoginMgr(mgr ILoginMgr) {
 	loginMgr = mgr
 }
+func CompFactory() ICompFactory { return compFactory }
 
-func InjectCompCreate(rt ICompCreate) {
-	compCreate = rt
+func InjectCompCreate(rt ICompFactory) {
+	compFactory = rt
 }
