@@ -3,7 +3,7 @@ package role
 import (
 	"reflect"
 	"server/api/pb"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 
 	"go.uber.org/zap"
@@ -36,7 +36,7 @@ func register[T pb.VTMessage](usePool bool, df func(req T, r *Role)) {
 		return
 	}
 
-	handleFunc := func(c pkg.Packet, msg pb.VTMessage) {
+	handleFunc := func(c gmsg.Message, msg pb.VTMessage) {
 		df(msg.(T), c.U.(*Role))
 	}
 
@@ -64,7 +64,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
-	handleFunc := func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage) {
+	handleFunc := func(p gmsg.Message, req pb.VTMessage, res pb.VTMessage) {
 		df(req.(Req), res.(Res), p.U.(*Role))
 	}
 

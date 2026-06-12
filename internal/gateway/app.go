@@ -5,7 +5,7 @@ import (
 	"server/internal/gateway/logic"
 	"server/internal/gateway/session"
 	"server/pkg/flag"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"server/pkg/util"
 	"sync"
@@ -48,8 +48,8 @@ func loadNetCfg() *session.Config {
 	return cfg
 }
 
-func OnServerMsg(c pkg.Packet) {
-	if c.Head.Flag == pkg.Forward {
+func OnServerMsg(c gmsg.Message) {
+	if c.Head.Flag == gmsg.Forward {
 		ses := session.Get(c.Head.SesID)
 		if ses == nil {
 			return

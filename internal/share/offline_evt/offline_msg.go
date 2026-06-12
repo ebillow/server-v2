@@ -7,7 +7,7 @@ import (
 	"server/internal/game/role"
 	"server/pkg/db"
 	"server/pkg/flag"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"time"
 
@@ -60,11 +60,10 @@ func HandleMsg(r *role.Role) {
 			continue
 		}
 
-		router.S().Handle(pkg.Packet{
-			Data:    msg.Data,
-			U:       r,
-			ActorID: r.ID,
-			MsgID:   msg.MsgID,
+		router.R().Handle(gmsg.Message{
+			Head: gmsg.Head{MsgID: msg.MsgID},
+			Data: msg.Data,
+			U:    r,
 		})
 	}
 	if len(ss) > 0 {

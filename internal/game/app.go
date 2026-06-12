@@ -10,7 +10,7 @@ import (
 	"server/internal/share/actor"
 	"server/pkg/db"
 	"server/pkg/flag"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"server/pkg/thread"
 	"sync"
@@ -44,7 +44,7 @@ func init() {
 	role.InjectCompCreate(&component.Create)
 }
 
-func OnServerMsg(c pkg.Packet) {
+func OnServerMsg(c gmsg.Message) {
 	if c.Head.SesID != 0 { // 客户端消息
 		err := role.Mgr.DispatchBySesID(c.Head.SesID, role.Event{
 			Ctx: c,

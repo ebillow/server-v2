@@ -4,7 +4,7 @@ import (
 	"context"
 	"server/api/pb"
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/pub"
 	"server/pkg/thread"
 	"time"
@@ -23,8 +23,8 @@ func (jt *JetStream) SendToNode(serType pb.Server, serID uint8, msgID uint32, da
 		return err
 	}
 
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,
@@ -46,8 +46,8 @@ func (jt *JetStream) SendToAny(serType pb.Server, msgID uint32, data []byte, rol
 		return err
 	}
 
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,

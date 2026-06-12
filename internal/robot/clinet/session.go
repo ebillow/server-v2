@@ -183,7 +183,7 @@ func (s *Session) mainLoop(cfg *Config) {
 
 func (s *Session) check1Min(cfg *Config) {
 	if cfg.RpmLimit > 0 && s.pkgCnt1Min > cfg.RpmLimit {
-		zap.S().Warnf("%s pkg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
+		zap.S().Warnf("%s gmsg cnt per min[%d] > limit[%d]", s.String(), s.pkgCnt1Min, cfg.RpmLimit)
 		s.Close()
 	}
 	s.pkgCnt1Min = 0

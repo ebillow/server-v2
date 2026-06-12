@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ func NewPullConsumer(ctx context.Context, jt *JetStream, subject string) (*PullC
 }
 
 // Start 开始阻塞拉取并写入
-func (c *PullConsumer) Start(ctx context.Context, cb func(pkg.Packet)) {
+func (c *PullConsumer) Start(ctx context.Context, cb func(gmsg.Message)) {
 	go func() {
 		for {
 			select {
@@ -66,7 +66,7 @@ func (c *PullConsumer) Start(ctx context.Context, cb func(pkg.Packet)) {
 
 				// 遍历拉取到的大包并解包
 				for msg := range msgBatch.Messages() {
-					err = pkg.DecodeManyAndHandle(msg.Data(), msg.Subject(), msg.Reply(), cb)
+					err = gmsg.DecodeManyAndHandle(msg.Data(), msg.Subject(), msg.Reply(), cb)
 					if err != nil {
 						zap.L().Error("DBLog batch decode error", zap.Error(err))
 						msg.Ack() // 脏数据直接 Ack 丢弃

@@ -5,7 +5,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/pkg/gerror"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 
 	"go.uber.org/zap"
 )
@@ -24,7 +24,7 @@ func On[T pb.VTMessage](df func(req T)) {
 }
 
 // OnWithHead 注册消息处理，消息处理中带Head信息
-func OnWithHead[T pb.VTMessage](df func(h pkg.Head, req T)) {
+func OnWithHead[T pb.VTMessage](df func(h gmsg.Head, req T)) {
 	registerWithHead(false, df)
 }
 
@@ -50,7 +50,7 @@ func register[T pb.VTMessage](usePool bool, df func(req T)) {
 		zap.L().Error("register fail", zap.Error(err))
 		return
 	}
-	handleFunc := func(p pkg.Packet, msg pb.VTMessage) {
+	handleFunc := func(p gmsg.Message, msg pb.VTMessage) {
 		df(msg.(T))
 	}
 
@@ -63,14 +63,14 @@ func register[T pb.VTMessage](usePool bool, df func(req T)) {
 	}
 }
 
-func registerWithHead[T pb.VTMessage](usePool bool, df func(h pkg.Head, req T)) {
+func registerWithHead[T pb.VTMessage](usePool bool, df func(h gmsg.Head, req T)) {
 	var req T
 	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
 		zap.L().Error("register fail", zap.Error(err))
 		return
 	}
-	handleFunc := func(p pkg.Packet, msg pb.VTMessage) {
+	handleFunc := func(p gmsg.Message, msg pb.VTMessage) {
 		df(p.Head, msg.(T))
 	}
 
@@ -99,7 +99,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
-	handleFunc := func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage) {
+	handleFunc := func(p gmsg.Message, req pb.VTMessage, res pb.VTMessage) {
 		df(req.(Req), res.(Res))
 	}
 

@@ -2,7 +2,7 @@ package pub
 
 import (
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,9 +40,9 @@ func NewBatcher(flushFn FlushFunc) *Batcher {
 	return tb
 }
 
-func (tb *Batcher) Add(p pkg.Packet) error {
-	bodySize := pkg.FrameBodyHeadSize + len(p.Data)
-	frameSize := pkg.FrameLenSize + bodySize
+func (tb *Batcher) Add(p gmsg.Message) error {
+	bodySize := gmsg.FrameBodyHeadSize + len(p.Data)
+	frameSize := gmsg.FrameLenSize + bodySize
 	var tasks [2]flushTask
 	taskN := 0
 

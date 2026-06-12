@@ -4,7 +4,7 @@ import (
 	"server/api/pb"
 	"server/pkg/gnet/dep"
 	"server/pkg/gnet/gmetrics"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/pub"
 	"time"
 
@@ -22,8 +22,8 @@ func (bs *DataBus) SendToNode(serType pb.Server, serID uint8, msgID uint32, data
 	if err != nil {
 		return err
 	}
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			MsgID:     msgID,
 			FromSerID: bs.serID,
 			FromSer:   bs.serType,
@@ -45,8 +45,8 @@ func (bs *DataBus) ForwardToClient(serID uint8, msgID uint32, data []byte, actor
 	if err != nil {
 		return err
 	}
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			MsgID:     msgID,
 			FromSerID: bs.serID,
 			FromSer:   bs.serType,
@@ -54,7 +54,7 @@ func (bs *DataBus) ForwardToClient(serID uint8, msgID uint32, data []byte, actor
 			ToSerID:   serID,
 			ActorID:   actorID,
 			SesID:     sesID,
-			Flag:      pkg.Forward,
+			Flag:      gmsg.Forward,
 		},
 		Data: data,
 	})
@@ -71,8 +71,8 @@ func (bs *DataBus) SendToAny(serType pb.Server, msgID uint32, data []byte, actor
 		return err
 	}
 
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -95,8 +95,8 @@ func (bs *DataBus) BroadcastTo(serType pb.Server, msgID uint32, data []byte, act
 		return err
 	}
 
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -119,8 +119,8 @@ func (bs *DataBus) RelayTo(serType pb.Server, serID uint8, msgID uint32, data []
 		return err
 	}
 
-	return pbt.Add(pkg.Packet{
-		Head: pkg.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			MsgID:     msgID,
 			FromSer:   bs.serType,
 			FromSerID: bs.serID,
@@ -128,7 +128,7 @@ func (bs *DataBus) RelayTo(serType pb.Server, serID uint8, msgID uint32, data []
 			ToSerID:   serID,
 			ActorID:   actorID,
 			SesID:     sesID,
-			Flag:      pkg.Forward,
+			Flag:      gmsg.Forward,
 		},
 		Data: data,
 	})

@@ -18,7 +18,7 @@ import (
 // 配置项
 var (
 	protoDir = "../../api/proto" // proto 文件夹路径
-	// protoDir       = "./pkg/proto"                 // proto 文件夹路径
+	// protoDir       = "./gmsg/proto"                 // proto 文件夹路径
 	targetPrefixes = []string{"C2S", "S2C", "S2S"} // 需要提取的 Message 前缀
 )
 

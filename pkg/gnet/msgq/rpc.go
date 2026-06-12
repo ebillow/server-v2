@@ -4,7 +4,7 @@ import (
 	"server/api/pb"
 	"server/pkg/gerror"
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/pkg"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/pub"
 	"server/pkg/gnet/trace"
 	"time"
@@ -31,15 +31,15 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	defer pub.FreeBuffer(bufPtr)
 
 	reqSize := req.SizeVT()
-	bodySize := pkg.FrameBodyHeadSize + reqSize
-	totalSize := bodySize + pkg.FrameLenSize
+	bodySize := gmsg.FrameBodyHeadSize + reqSize
+	totalSize := bodySize + gmsg.FrameLenSize
 
 	if cap(*bufPtr) < totalSize {
 		*bufPtr = make([]byte, totalSize)
 	}
 	buf := (*bufPtr)[:totalSize]
 
-	head := pkg.Head{
+	head := gmsg.Head{
 		ActorID:   actorID,
 		MsgID:     msgID,
 		Flag:      0,
@@ -50,7 +50,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 	}
 	head.EncodeTo(buf, bodySize)
 
-	bodyStart := pkg.FrameLenSize + pkg.FrameBodyHeadSize
+	bodyStart := gmsg.FrameLenSize + gmsg.FrameBodyHeadSize
 	n, err := req.MarshalToSizedBufferVT(buf[bodyStart:])
 	if err != nil {
 		return gerror.Wrapf(err, "rpc call:marshal err; msg[%d] to %v %d", msgID, toSer, toSerID)
