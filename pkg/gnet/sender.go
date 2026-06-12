@@ -64,8 +64,8 @@ func SendToClient[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint
 	}
 }
 
-// SendToSrv 发送给指定服务
-func SendToSrv[T pb.VTMessage](
+// SendToNode 发送给指定服务
+func SendToNode[T pb.VTMessage](
 	serType pb.Server,
 	serID uint8,
 	msgID uint32,
@@ -86,7 +86,7 @@ func SendToSrv[T pb.VTMessage](
 		return
 	}
 
-	err = msgq.Q.SendTo(serType, serID, msgID, buf, actorID, sesID)
+	err = msgq.Q.SendToNode(serType, serID, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 
@@ -163,8 +163,8 @@ func SendToAny[T pb.VTMessage](
 	}
 }
 
-// SendToGroup 同类型所有的服节点都能收到
-func SendToGroup[T pb.VTMessage](
+// BroadcastTo 同类型所有的服节点都能收到
+func BroadcastTo[T pb.VTMessage](
 	serType pb.Server,
 	msgID uint32,
 	msg T,
@@ -182,7 +182,7 @@ func SendToGroup[T pb.VTMessage](
 		)
 		return
 	}
-	err = msgq.Q.SendToGroup(serType, msgID, buf, actorID, sesID)
+	err = msgq.Q.BroadcastTo(serType, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
 
@@ -235,7 +235,7 @@ func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 			return
 		}
 	}
-	SendToSrv(pb.Server_Gateway, GateIDFromSesID(sesID), uint32(msgID), msg, 0, sesID)
+	SendToNode(pb.Server_Gateway, GateIDFromSesID(sesID), uint32(msgID), msg, 0, sesID)
 }
 
 func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID uint64, actorID uint64) {
@@ -254,7 +254,7 @@ func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID 
 			return
 		}
 	}
-	SendToSrv(pb.Server_Game, serID, uint32(msgID), msg, actorID, sesID)
+	SendToNode(pb.Server_Game, serID, uint32(msgID), msg, actorID, sesID)
 }
 
 func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
@@ -303,7 +303,7 @@ func SendToGateS[T pb.VTMessage](msg T, sesID uint64) {
 		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
-	SendToSrv(pb.Server_Gateway, GateIDFromSesID(sesID), msgID, msg, 0, sesID)
+	SendToNode(pb.Server_Gateway, GateIDFromSesID(sesID), msgID, msg, 0, sesID)
 }
 
 func SendToGameS[T pb.VTMessage](serID uint8, msg T, sesID uint64, actorID uint64) {
@@ -312,7 +312,7 @@ func SendToGameS[T pb.VTMessage](serID uint8, msg T, sesID uint64, actorID uint6
 		zap.L().Error("send msg error, msg id not exists", zap.String("type", fmt.Sprintf("%T", msg)))
 		return
 	}
-	SendToSrv(pb.Server_Game, serID, msgID, msg, actorID, sesID)
+	SendToNode(pb.Server_Game, serID, msgID, msg, actorID, sesID)
 }
 
 func SendToAccountS[T pb.VTMessage](msg T) {

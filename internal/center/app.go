@@ -35,7 +35,7 @@ func OnServerMsg(c pkg.Packet) {
 	if c.Head.Flag == pkg.Forward {
 		gameID, ok := onlines.GetGameID(c.Head.ActorID)
 		if ok {
-			err := msgq.Q.SendTo(pb.Server(c.Head.ToSer), gameID, c.Head.MsgID, c.Data, c.Head.ActorID, c.Head.SesID)
+			err := msgq.Q.SendToNode(pb.Server(c.Head.ToSer), gameID, c.Head.MsgID, c.Data, c.Head.ActorID, c.Head.SesID)
 			if err != nil {
 				zap.L().Warn("relay err", zap.Error(err), zap.Inline(&c))
 			}

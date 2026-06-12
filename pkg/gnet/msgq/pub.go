@@ -13,12 +13,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// SendTo 发给指定服务
-func (bs *DataBus) SendTo(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// SendToNode 发给指定服务
+func (bs *DataBus) SendToNode(serType pb.Server, serID uint8, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
-	pbt, err := bs.pub.GetIdx(serType, serID)
+	pbt, err := bs.pub.Node(serType, serID)
 	if err != nil {
 		return err
 	}
@@ -41,7 +41,7 @@ func (bs *DataBus) ForwardToClient(serID uint8, msgID uint32, data []byte, actor
 		return dep.ErrClosed
 	}
 
-	pbt, err := bs.pub.GetIdx(pb.Server_Gateway, serID)
+	pbt, err := bs.pub.Node(pb.Server_Gateway, serID)
 	if err != nil {
 		return err
 	}
@@ -66,7 +66,7 @@ func (bs *DataBus) SendToAny(serType pb.Server, msgID uint32, data []byte, actor
 		return dep.ErrClosed
 	}
 
-	pbt, err := bs.pub.GetGroup(serType)
+	pbt, err := bs.pub.Any(serType)
 	if err != nil {
 		return err
 	}
@@ -84,13 +84,13 @@ func (bs *DataBus) SendToAny(serType pb.Server, msgID uint32, data []byte, actor
 	})
 }
 
-// SendToGroup 同类型所有的服节点都能收到
-func (bs *DataBus) SendToGroup(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
+// BroadcastTo 同类型所有的服节点都能收到
+func (bs *DataBus) BroadcastTo(serType pb.Server, msgID uint32, data []byte, actorID uint64, sesID uint64) error {
 	if bs.closed.Load() {
 		return dep.ErrClosed
 	}
 
-	pbt, err := bs.pub.GetAll(serType)
+	pbt, err := bs.pub.Broadcast(serType)
 	if err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (bs *DataBus) RelayTo(serType pb.Server, serID uint8, msgID uint32, data []
 		return dep.ErrClosed
 	}
 
-	pbt, err := bs.pub.GetGroup(pb.Server_Center)
+	pbt, err := bs.pub.Any(pb.Server_Center)
 	if err != nil {
 		return err
 	}
@@ -178,14 +178,14 @@ func NewPubBatcher(subject string, conn *nats.Conn) *PubBatcher {
 	return tb
 }
 
-func (bs *DataBus) NewIdx(serType pb.Server, serID uint8) *PubBatcher {
+func (bs *DataBus) NewNode(serType pb.Server, serID uint8) *PubBatcher {
 	return NewPubBatcher(idxSubjectName(serType, serID), bs.conn)
 }
 
-func (bs *DataBus) NewGroup(serType pb.Server) *PubBatcher {
+func (bs *DataBus) NewAny(serType pb.Server) *PubBatcher {
 	return NewPubBatcher(groupSubjectName(serType), bs.conn)
 }
 
-func (bs *DataBus) NewAll(serType pb.Server) *PubBatcher {
+func (bs *DataBus) NewBroadcast(serType pb.Server) *PubBatcher {
 	return NewPubBatcher(allSubjectName(serType), bs.conn)
 }

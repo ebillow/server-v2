@@ -1,4 +1,4 @@
-package js
+package jetq
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestPub(t *testing.T) {
-	S.Send(pb.Server_Gateway, 1, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("hello world"), 0, 0)
+	S.SendToNode(pb.Server_Gateway, 1, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("hello world"), 0, 0)
 }
 
 func TestSub(t *testing.T) {
@@ -51,7 +51,7 @@ func TestSub(t *testing.T) {
 	}
 
 	for i := 0; i < maxCnt; i++ {
-		S.Send(pb.Server_Gateway, 1, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 0, 0)
+		S.SendToNode(pb.Server_Gateway, 1, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 0, 0)
 	}
 
 	wg.Wait()
@@ -77,9 +77,9 @@ func TestMultiSub(t *testing.T) {
 	}
 
 	for i := 0; i < maxCnt; i++ {
-		S.Send(pb.Server_Gateway, uint8(i), uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 3, 220)
+		S.SendToNode(pb.Server_Gateway, uint8(i), uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to index: hello world"), 3, 220)
 
-		S.SendAny(pb.Server_Gateway, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to any: hello world"), 440, 20)
+		S.SendToAny(pb.Server_Gateway, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to any: hello world"), 440, 20)
 	}
 
 	wg.Wait()
@@ -99,7 +99,7 @@ func TestPull(t *testing.T) {
 	cnt := 10
 	wg.Add(cnt)
 	for i := 0; i < cnt; i++ {
-		S.Send(pb.Server_Gateway, 0, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to idx: hello world"), 440, 20)
+		S.SendToNode(pb.Server_Gateway, 0, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to idx: hello world"), 440, 20)
 	}
 	wg.Wait()
 }
@@ -124,7 +124,7 @@ func TestPullMulti(t *testing.T) {
 	cnt := 1000000
 	wg.Add(cnt)
 	for i := 0; i < cnt; i++ {
-		S.Send(pb.Server_Gateway, 0, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to idx: hello world"), 440, 20)
+		S.SendToNode(pb.Server_Gateway, 0, uint32(msgid.MsgIDS2S_S2SKickAcc), []byte("to idx: hello world"), 440, 20)
 	}
 	wg.Wait()
 	for k, v := range recv {

@@ -13,20 +13,20 @@ const (
 )
 
 type Factory[T any] interface {
-	NewIdx(serType pb.Server, serID uint8) *T
-	NewGroup(serType pb.Server) *T
-	NewAll(serType pb.Server) *T
+	NewNode(serType pb.Server, serID uint8) *T
+	NewAny(serType pb.Server) *T
+	NewBroadcast(serType pb.Server) *T
 }
 
 type Batchers[T any] struct {
-	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[T]
-	pubIDXMtx sync.Mutex
+	node    [SvcTypeMax][SvcIDMax]atomic.Pointer[T]
+	nodeMtx sync.Mutex
 
-	pubGroup    [SvcTypeMax]atomic.Pointer[T]
-	pubGroupMtx sync.Mutex
+	any    [SvcTypeMax]atomic.Pointer[T]
+	anyMtx sync.Mutex
 
-	pubAll    [SvcTypeMax]atomic.Pointer[T]
-	pubAllMtx sync.Mutex
+	broadcast    [SvcTypeMax]atomic.Pointer[T]
+	broadcastMtx sync.Mutex
 
 	factory Factory[T]
 }
@@ -35,68 +35,68 @@ func (m *Batchers[T]) Init(factory Factory[T]) {
 	m.factory = factory
 }
 
-func (m *Batchers[T]) GetIdx(serType pb.Server, serID uint8) (*T, error) {
+func (m *Batchers[T]) Node(serType pb.Server, serID uint8) (*T, error) {
 	if serType >= SvcTypeMax || serID >= SvcIDMax {
 		return nil, dep.ErrArg
 	}
 
-	if tb := m.pubIDXs[serType][serID].Load(); tb != nil {
+	if tb := m.node[serType][serID].Load(); tb != nil {
 		return tb, nil
 	}
 
-	m.pubIDXMtx.Lock()
-	defer m.pubIDXMtx.Unlock()
+	m.nodeMtx.Lock()
+	defer m.nodeMtx.Unlock()
 
-	if tb := m.pubIDXs[serType][serID].Load(); tb != nil {
+	if tb := m.node[serType][serID].Load(); tb != nil {
 		return tb, nil
 	}
 
-	tb := m.factory.NewIdx(serType, serID)
-	m.pubIDXs[serType][serID].Store(tb)
+	tb := m.factory.NewNode(serType, serID)
+	m.node[serType][serID].Store(tb)
 
 	return tb, nil
 }
 
-func (m *Batchers[T]) GetGroup(serType pb.Server) (*T, error) {
+func (m *Batchers[T]) Any(serType pb.Server) (*T, error) {
 	if serType >= SvcTypeMax {
 		return nil, dep.ErrArg
 	}
 
-	if tb := m.pubGroup[serType].Load(); tb != nil {
+	if tb := m.any[serType].Load(); tb != nil {
 		return tb, nil
 	}
 
-	m.pubGroupMtx.Lock()
-	defer m.pubGroupMtx.Unlock()
+	m.anyMtx.Lock()
+	defer m.anyMtx.Unlock()
 
-	if tb := m.pubGroup[serType].Load(); tb != nil {
+	if tb := m.any[serType].Load(); tb != nil {
 		return tb, nil
 	}
 
-	tb := m.factory.NewGroup(serType)
-	m.pubGroup[serType].Store(tb)
+	tb := m.factory.NewAny(serType)
+	m.any[serType].Store(tb)
 
 	return tb, nil
 }
 
-func (m *Batchers[T]) GetAll(serType pb.Server) (*T, error) {
+func (m *Batchers[T]) Broadcast(serType pb.Server) (*T, error) {
 	if serType >= SvcTypeMax {
 		return nil, dep.ErrArg
 	}
 
-	if tb := m.pubAll[serType].Load(); tb != nil {
+	if tb := m.broadcast[serType].Load(); tb != nil {
 		return tb, nil
 	}
 
-	m.pubAllMtx.Lock()
-	defer m.pubAllMtx.Unlock()
+	m.broadcastMtx.Lock()
+	defer m.broadcastMtx.Unlock()
 
-	if tb := m.pubAll[serType].Load(); tb != nil {
+	if tb := m.broadcast[serType].Load(); tb != nil {
 		return tb, nil
 	}
 
-	tb := m.factory.NewAll(serType)
-	m.pubAll[serType].Store(tb)
+	tb := m.factory.NewBroadcast(serType)
+	m.broadcast[serType].Store(tb)
 
 	return tb, nil
 }
@@ -110,15 +110,15 @@ func (m *Batchers[T]) FlushAll() {
 		}
 	}
 
-	for i := range m.pubIDXs {
-		for j := range m.pubIDXs[i] {
-			flushFunc(m.pubIDXs[i][j].Load())
+	for i := range m.node {
+		for j := range m.node[i] {
+			flushFunc(m.node[i][j].Load())
 		}
 	}
-	for i := range m.pubGroup {
-		flushFunc(m.pubGroup[i].Load())
+	for i := range m.any {
+		flushFunc(m.any[i].Load())
 	}
-	for i := range m.pubAll {
-		flushFunc(m.pubAll[i].Load())
+	for i := range m.broadcast {
+		flushFunc(m.broadcast[i].Load())
 	}
 }

@@ -32,7 +32,7 @@ func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
 }
 
 func (tb *QueueBatcher) Add(ctx pkg.Packet) error {
-	if batcherState(tb.state.Load()) != BStateRunning {
+	if batcherState(tb.state.Load()) != stateRunning {
 		return dep.ErrClosed
 	}
 	err := tb.queue.Push(ctx)
@@ -110,9 +110,9 @@ func (tb *QueueBatcher) startLoop() {
 
 // StopAndFlush 关闭并清空
 func (tb *QueueBatcher) StopAndFlush() {
-	if !tb.state.CompareAndSwap(int32(BStateRunning), int32(BStateClosing)) {
+	if !tb.state.CompareAndSwap(int32(stateRunning), int32(stateClosing)) {
 		return
 	}
 	tb.wg.Wait()
-	tb.state.Store(int32(BStateStopped))
+	tb.state.Store(int32(stateStopped))
 }

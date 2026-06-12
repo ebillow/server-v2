@@ -1,4 +1,4 @@
-package js
+package jetq
 
 import (
 	"context"
@@ -14,11 +14,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (jt *JetStream) SendToNode(serType pb.Server, serID uint8, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
 	if jt.closed.Load() {
 		return dep.ErrClosed
 	}
-	pbt, err := jt.pub.GetIdx(serType, serID)
+	pbt, err := jt.pub.Node(serType, serID)
 	if err != nil {
 		return err
 	}
@@ -37,11 +37,11 @@ func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []b
 	})
 }
 
-func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
+func (jt *JetStream) SendToAny(serType pb.Server, msgID uint32, data []byte, roleID uint64, sesID uint64) error {
 	if jt.closed.Load() {
 		return dep.ErrClosed
 	}
-	pbt, err := jt.pub.GetGroup(serType)
+	pbt, err := jt.pub.Any(serType)
 	if err != nil {
 		return err
 	}
@@ -88,13 +88,13 @@ func NewPubBatcher(ctx context.Context, subject string, js jetstream.JetStream) 
 			Data:    data,
 		})
 		if err != nil {
-			zap.L().Error("js publish msg", zap.Error(err))
+			zap.L().Error("jetq publish msg", zap.Error(err))
 			return
 		}
 		select {
 		case tb.ack <- Ack{Future: ackF, Subject: subject}:
 		default:
-			zap.L().Warn("js publish msg chan full")
+			zap.L().Warn("jetq publish msg chan full")
 		}
 	})
 
@@ -131,14 +131,14 @@ func (tb *PubBatcher) waitAck(task Ack) {
 	}
 }
 
-func (jt *JetStream) NewIdx(serType pb.Server, serID uint8) *PubBatcher {
+func (jt *JetStream) NewNode(serType pb.Server, serID uint8) *PubBatcher {
 	return NewPubBatcher(jt.ctx, getIndexSubject(serType, serID), jt.JS)
 }
 
-func (jt *JetStream) NewGroup(serType pb.Server) *PubBatcher {
+func (jt *JetStream) NewAny(serType pb.Server) *PubBatcher {
 	return NewPubBatcher(jt.ctx, getGroupSubject(serType), jt.JS)
 }
 
-func (jt *JetStream) NewAll(serType pb.Server) *PubBatcher {
+func (jt *JetStream) NewBroadcast(serType pb.Server) *PubBatcher {
 	return nil
 }
