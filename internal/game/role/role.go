@@ -9,7 +9,7 @@ import (
 	"server/pkg/cfg"
 	"server/pkg/flag"
 	"server/pkg/gnet"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"server/pkg/queue"
 	"server/pkg/thread"
@@ -43,7 +43,7 @@ func (d *DataToSave) IsEmpty() bool {
 const EventChanSize = 16
 
 type Event struct {
-	Ctx  gctx.Context
+	Ctx  gmsg.Message
 	Func func(r *Role)
 }
 

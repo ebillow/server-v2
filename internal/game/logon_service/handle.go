@@ -4,7 +4,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/internal/game/role"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"time"
 )
@@ -17,7 +17,7 @@ func init() {
 }
 
 /*-------------------角色消息-----------------*/
-func onHeartBeat(_ gctx.Head, msg *pb.C2SHeartBeat, r *role.Role) {
+func onHeartBeat(_ gmsg.Head, msg *pb.C2SHeartBeat, r *role.Role) {
 	now := time.Now()
 	role.Send(r, msgid.MsgIDS2C_S2CHeartBeat, &pb.S2CHeartBeat{
 		CliTime: msg.CliTime,
@@ -28,10 +28,10 @@ func onHeartBeat(_ gctx.Head, msg *pb.C2SHeartBeat, r *role.Role) {
 }
 
 /*-------------------非角色消息-----------------*/
-func onLogin(_ gctx.Head, msg *pb.S2SReqLogin) {
+func onLogin(_ gmsg.Head, msg *pb.S2SReqLogin) {
 	Mgr.Login(msg)
 }
 
-func onDisconnect(_ gctx.Head, msg *pb.S2SGt2SDisconnect) {
+func onDisconnect(_ gmsg.Head, msg *pb.S2SGt2SDisconnect) {
 	role.Mgr.Kick(msg.SesID)
 }

@@ -7,7 +7,7 @@ import (
 	"server/internal/game/role"
 	"server/pkg/db"
 	"server/pkg/flag"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"time"
 
@@ -60,7 +60,7 @@ func HandleMsg(r *role.Role) {
 			continue
 		}
 
-		router.S().Handle(gctx.Context{
+		router.S().Handle(gmsg.Message{
 			Data:    msg.Data,
 			U:       r,
 			ActorID: r.ID,

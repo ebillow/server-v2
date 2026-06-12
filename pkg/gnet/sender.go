@@ -23,7 +23,7 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 
 	n, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		pool.BufPool512.PutBuffer(pBuf)
+		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -36,13 +36,12 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 	serID := GateIDFromSesID(sesID)
 	err = msgq.Q.ForwardToRole(pb.Server_Gateway, serID, msgID, buf, roleID, sesID)
 
-	pool.BufPool512.PutBuffer(pBuf)
+	pool.BufPool512.Put(pBuf)
 
 	if err != nil {
 		zap.L().Warn("send to role error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
-			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
 			zap.String("to", pb.Server_name[int32(pb.Server_Gateway)]),
 			zap.Uint8("idx", serID),
@@ -55,7 +54,6 @@ func SendToRole[T pb.VTMessage](msgID uint32, msg T, sesID uint64, roleID uint64
 		zap.L().Info("send",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2C_name[int32(msgID)]),
-			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msg", str),
 			zap.String("to", pb.Server_name[int32(pb.Server_Gateway)]),
 			zap.Uint8("idx", serID),
@@ -77,7 +75,7 @@ func SendToSrv[T pb.VTMessage](
 
 	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		pool.BufPool512.PutBuffer(pBuf)
+		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -88,7 +86,7 @@ func SendToSrv[T pb.VTMessage](
 
 	err = msgq.Q.Send(serType, serID, msgID, buf, actorID, sesID)
 
-	pool.BufPool512.PutBuffer(pBuf)
+	pool.BufPool512.Put(pBuf)
 
 	if err != nil {
 		zap.L().Warn("send to srv error",
@@ -106,7 +104,6 @@ func SendToSrv[T pb.VTMessage](
 		zap.L().Info("send",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
-			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msg", str),
 			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint8("idx", serID),
@@ -127,7 +124,7 @@ func SendToAny[T pb.VTMessage](
 
 	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		pool.BufPool512.PutBuffer(pBuf)
+		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -136,7 +133,7 @@ func SendToAny[T pb.VTMessage](
 	}
 	err = msgq.Q.SendAny(serType, msgID, buf, actorID, sesID)
 
-	pool.BufPool512.PutBuffer(pBuf)
+	pool.BufPool512.Put(pBuf)
 
 	if err != nil {
 		str, _ := sonic.MarshalString(msg)
@@ -155,7 +152,6 @@ func SendToAny[T pb.VTMessage](
 		zap.L().Info(">>> msg.sendAll: ",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
-			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msg", str),
 			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint64("sessID", sesID),
@@ -175,7 +171,7 @@ func SendToGroup[T pb.VTMessage](
 
 	_, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
-		pool.BufPool512.PutBuffer(pBuf)
+		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
 			zap.Error(err),
 			zap.Uint32("msgID", msgID),
@@ -184,7 +180,7 @@ func SendToGroup[T pb.VTMessage](
 	}
 	err = msgq.Q.SendAll(serType, msgID, buf, actorID, sesID)
 
-	pool.BufPool512.PutBuffer(pBuf)
+	pool.BufPool512.Put(pBuf)
 
 	if err != nil {
 		str, _ := sonic.MarshalString(msg)
@@ -203,7 +199,6 @@ func SendToGroup[T pb.VTMessage](
 		zap.L().Info(">>> msg.sendAll: ",
 			zap.Uint32("msgID", msgID),
 			zap.String("msgName", msgid.MsgIDS2S_name[int32(msgID)]),
-			zap.String("type", fmt.Sprintf("%T", msg)),
 			zap.String("msg", str),
 			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint64("sessID", sesID),
@@ -213,7 +208,7 @@ func SendToGroup[T pb.VTMessage](
 }
 
 func ensureBuf(size int) (*[]byte, []byte) {
-	pBuf := pool.BufPool512.GetBuffer()
+	pBuf := pool.BufPool512.Get()
 	if cap(*pBuf) < size {
 		*pBuf = make([]byte, size)
 	}
@@ -224,9 +219,7 @@ func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 	if util.Debug {
 		realMsgID, ok := pb.GetMsgIDS2S(msg)
 		if !ok {
-			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.String("type", fmt.Sprintf("%T", msg)),
-			)
+			zap.L().Error("[SendT] GetMsgIDS2C error")
 			return
 		}
 		if realMsgID != uint32(msgID) {
@@ -234,7 +227,6 @@ func SendToGate[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, sesID uint64) {
 				zap.Uint32("argMsgID", uint32(msgID)),
 				zap.Uint32("realMsgID", realMsgID),
 				zap.String("argMsgName", msgid.MsgIDS2C_name[int32(msgID)]),
-				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
 		}
@@ -246,9 +238,7 @@ func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID 
 	if util.Debug {
 		realMsgID, ok := pb.GetMsgIDS2S(msg)
 		if !ok {
-			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.String("type", fmt.Sprintf("%T", msg)),
-			)
+			zap.L().Error("[SendT] GetMsgIDS2C error")
 			return
 		}
 		if realMsgID != uint32(msgID) {
@@ -256,7 +246,6 @@ func SendToGame[T pb.VTMessage](serID uint8, msgID msgid.MsgIDS2S, msg T, sesID 
 				zap.Uint32("argMsgID", uint32(msgID)),
 				zap.Uint32("realMsgID", realMsgID),
 				zap.String("argMsgName", msgid.MsgIDS2S_name[int32(msgID)]),
-				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
 		}
@@ -268,9 +257,7 @@ func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
 	if util.Debug {
 		realMsgID, ok := pb.GetMsgIDS2S(msg)
 		if !ok {
-			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.String("type", fmt.Sprintf("%T", msg)),
-			)
+			zap.L().Error("[SendT] GetMsgIDS2C error")
 			return
 		}
 		if realMsgID != uint32(msgID) {
@@ -278,7 +265,6 @@ func SendToAccount[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T) {
 				zap.Uint32("argMsgID", uint32(msgID)),
 				zap.Uint32("realMsgID", realMsgID),
 				zap.String("argMsgName", msgid.MsgIDS2S_name[int32(msgID)]),
-				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
 		}
@@ -290,9 +276,7 @@ func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorI
 	if util.Debug {
 		realMsgID, ok := pb.GetMsgIDS2S(msg)
 		if !ok {
-			zap.L().Error("[SendT] GetMsgIDS2C error",
-				zap.String("type", fmt.Sprintf("%T", msg)),
-			)
+			zap.L().Error("[SendT] GetMsgIDS2C error")
 			return
 		}
 		if realMsgID != uint32(msgID) {
@@ -300,7 +284,6 @@ func SendToCenter[T pb.VTMessage](msgID msgid.MsgIDS2S, msg T, actorID pb.ActorI
 				zap.Uint32("argMsgID", uint32(msgID)),
 				zap.Uint32("realMsgID", realMsgID),
 				zap.String("argMsgName", msgid.MsgIDS2S_name[int32(msgID)]),
-				zap.String("type", fmt.Sprintf("%T", msg)),
 			)
 			return
 		}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
+	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/gmetrics"
 	"strconv"
 	"sync"
@@ -19,11 +20,6 @@ import (
 
 var Q DataBus
 
-const (
-	SvcTypeMax = 64
-	SvcIDMax   = 64
-)
-
 type DataBus struct {
 	conn    *nats.Conn
 	rpcConn *nats.Conn
@@ -32,14 +28,7 @@ type DataBus struct {
 
 	closed atomic.Bool
 
-	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[PubBatcher]
-	pubIDXMtx sync.Mutex
-
-	pubGroup    [SvcTypeMax]atomic.Pointer[PubBatcher]
-	pubGroupMtx sync.Mutex
-
-	pubAll    [SvcTypeMax]atomic.Pointer[PubBatcher]
-	pubAllMtx sync.Mutex
+	pub batcher.BatcherManager[PubBatcher]
 }
 
 func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options ...nats.Option) error {
@@ -55,6 +44,8 @@ func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options 
 	bs.rpcConn = conn
 	bs.serType = uint8(serType)
 	bs.serID = serID
+
+	bs.pub.Init(bs)
 	return nil
 }
 

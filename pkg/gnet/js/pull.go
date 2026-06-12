@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 
 	"github.com/nats-io/nats.go/jetstream"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ func NewPullConsumer(ctx context.Context, jt *JetStream, subject string) (*PullC
 }
 
 // Start 开始阻塞拉取并写入
-func (c *PullConsumer) Start(ctx context.Context, cb func(gctx.Context)) {
+func (c *PullConsumer) Start(ctx context.Context, cb func(gmsg.Message)) {
 	go func() {
 		for {
 			select {

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
+	"server/pkg/gnet/batcher"
 	"strconv"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,11 +14,6 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-)
-
-const (
-	SvcTypeMax = 64
-	SvcIDMax   = 64
 )
 
 type JetStream struct {
@@ -30,11 +25,7 @@ type JetStream struct {
 
 	closed atomic.Bool
 
-	pubIDXs   [SvcTypeMax][SvcIDMax]atomic.Pointer[PubBatcher]
-	pubIDXMtx sync.Mutex
-
-	pubGroup    [SvcTypeMax]atomic.Pointer[PubBatcher]
-	pubGroupMtx sync.Mutex
+	pub batcher.BatcherManager[PubBatcher]
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -73,6 +64,8 @@ func (jt *JetStream) Init(serType pb.Server, serID uint8, natsURL string, option
 		return err
 	}
 
+	jt.pub.Init(jt)
+
 	return nil
 }
 
@@ -81,7 +74,7 @@ func (jt *JetStream) Shutdown() {
 		return
 	}
 
-	jt.flushAllBatchers()
+	jt.pub.FlushAll()
 
 	if jt.JS != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

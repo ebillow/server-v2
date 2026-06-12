@@ -2,12 +2,10 @@ package js
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"server/api/pb"
 	"server/pkg/flag"
-	"server/pkg/gerror"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 
 	"strings"
 	"time"
@@ -16,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func (jt *JetStream) Serve(ctx context.Context, cb func(msg gctx.Context)) error {
+func (jt *JetStream) Serve(ctx context.Context, cb func(msg gmsg.Message)) error {
 	if err := jt.initGlobalStream(ctx); err != nil {
 		return err
 	}
@@ -57,7 +55,7 @@ func (jt *JetStream) initGlobalStream(ctx context.Context) error {
 	return nil
 }
 
-func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.Context)) error {
+func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gmsg.Message)) error {
 	streamName := getStreamName(pb.Server(jt.serType))
 	// 持久化消费者名称必须唯一，这里用 subject 转换 (例如: stream_game_idx_1)
 	consumerName := strings.ReplaceAll(subject, ".", "_")
@@ -77,7 +75,7 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 
 	// 开始消费消息
 	consContext, err := consumer.Consume(func(msgRaw jetstream.Msg) {
-		err = BatchDecodeAndHandle(msgRaw.Data(), cb)
+		err = gmsg.DecodeManyAndHandle(msgRaw.Data(), msgRaw.Subject(), msgRaw.Reply(), cb)
 
 		// 处理完成，Ack 确认
 		if err = msgRaw.Ack(); err != nil {
@@ -91,52 +89,4 @@ func (jt *JetStream) sub(ctx context.Context, subject string, cb func(msg gctx.C
 	zap.L().Info("Start consumer", zap.String("stream", streamName), zap.String("subject", subject))
 	jt.consContext = append(jt.consContext, consContext)
 	return nil
-}
-
-// BatchDecodeAndHandle 批量解码大包
-func BatchDecodeAndHandle(buf []byte, cb func(msg gctx.Context)) error {
-	offset := 0
-
-	for offset < len(buf) {
-		// 读取 4 字节的长度前缀
-		if len(buf)-offset < 4 {
-			return gerror.New("batch decode error: missing length prefix")
-		}
-		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
-		offset += 4
-
-		// 截取单条消息的数据段
-		if len(buf)-offset < subSize {
-			return gerror.New("batch decode error: buffer too small for sub-message")
-		}
-		subBuf := buf[offset : offset+subSize]
-
-		ctx, err := Decode(subBuf)
-		if err != nil {
-			offset += subSize
-			continue
-		}
-
-		cb(ctx)
-
-		offset += subSize
-	}
-
-	return nil
-}
-
-func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < gctx.FrameBodyHeadSize {
-		return ctx, gerror.New("decode error: buffer too small for header")
-	}
-
-	ctx.Head, err = gctx.DecodeHead(buf)
-	if err != nil {
-		return ctx, err
-	}
-
-	// ctx.Data = bytes.Clone(buf[gctx.FrameBodyHeadSize:])
-	ctx.Data = buf[gctx.FrameBodyHeadSize:]
-
-	return ctx, nil
 }

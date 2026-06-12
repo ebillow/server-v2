@@ -2,7 +2,7 @@ package batcher
 
 import (
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/queue"
 	"sync"
 	"sync/atomic"
@@ -14,7 +14,7 @@ import (
 // QueueBatcher  优点：Add锁小，并发快
 // 缺点：异步持有了数据，外层不好做池化,
 type QueueBatcher struct {
-	queue   *queue.SwapQueue[gctx.Context]
+	queue   *queue.SwapQueue[gmsg.Message]
 	state   atomic.Int32
 	flushFn FlushFunc
 	wg      sync.WaitGroup
@@ -22,7 +22,7 @@ type QueueBatcher struct {
 
 func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
 	tb := &QueueBatcher{
-		queue:   queue.NewSwapQueue[gctx.Context](4096, 40960),
+		queue:   queue.NewSwapQueue[gmsg.Message](4096, 40960),
 		flushFn: flushFn,
 	}
 
@@ -31,7 +31,7 @@ func NewQueueBatcher(flushFn FlushFunc) *QueueBatcher {
 	return tb
 }
 
-func (tb *QueueBatcher) Add(ctx gctx.Context) error {
+func (tb *QueueBatcher) Add(ctx gmsg.Message) error {
 	if batcherState(tb.state.Load()) != BStateRunning {
 		return dep.ErrClosed
 	}
@@ -67,20 +67,20 @@ func (tb *QueueBatcher) startLoop() {
 			}
 		}
 
-		processFunc := func(ctx gctx.Context) {
-			msgSize := gctx.FrameBodyHeadSize + len(ctx.Data)
+		processFunc := func(ctx gmsg.Message) {
+			msgSize := gmsg.FrameBodyHeadSize + len(ctx.Data)
 			frameSize := 4 + msgSize
 			if len(buf)+frameSize > cap(buf) && len(buf) > 0 {
 				flush()
 			}
 			if frameSize > cap(buf) {
 				monsterBuf := make([]byte, frameSize)
-				gctx.SerializeFrame(monsterBuf, msgSize, ctx)
+				ctx.EncodeTo(monsterBuf, msgSize)
 				tb.flushFn(monsterBuf, 1)
 			} else {
 				pos := len(buf)
 				buf = buf[:pos+frameSize]
-				gctx.SerializeFrame(buf[pos:pos+frameSize], msgSize, ctx)
+				ctx.EncodeTo(buf[pos:pos+frameSize], msgSize)
 				count++
 				// 如果在 Range 遍历期间达到了批处理上限，直接触发发送
 				if count >= batchCount || len(buf) > buffSize {

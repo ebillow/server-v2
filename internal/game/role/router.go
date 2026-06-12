@@ -3,31 +3,31 @@ package role
 import (
 	"reflect"
 	"server/api/pb"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 
 	"go.uber.org/zap"
 )
 
-func On[T pb.VTMessage](df func(c gctx.Head, req T, r *Role)) {
+func On[T pb.VTMessage](df func(c gmsg.Head, req T, r *Role)) {
 	register(false, df)
 }
 
 // OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(c gctx.Head, req T, r *Role)) {
+func OnP[T pb.VTMessage](df func(c gmsg.Head, req T, r *Role)) {
 	register(true, df)
 }
 
-func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res, r *Role)) {
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(c gmsg.Head, req Req, res Res, r *Role)) {
 	registerRpc(false, df)
 }
 
 // OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
-func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gctx.Head, req Req, res Res, r *Role)) {
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(c gmsg.Head, req Req, res Res, r *Role)) {
 	registerRpc(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(c gctx.Head, req T, r *Role)) {
+func register[T pb.VTMessage](usePool bool, df func(c gmsg.Head, req T, r *Role)) {
 	var req T
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
@@ -36,7 +36,7 @@ func register[T pb.VTMessage](usePool bool, df func(c gctx.Head, req T, r *Role)
 		return
 	}
 
-	handleFunc := func(c gctx.Context, msg pb.VTMessage) {
+	handleFunc := func(c gmsg.Message, msg pb.VTMessage) {
 		df(c.Head, msg.(T), c.U.(*Role))
 	}
 
@@ -48,7 +48,7 @@ func register[T pb.VTMessage](usePool bool, df func(c gctx.Head, req T, r *Role)
 	}
 }
 
-func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gctx.Head, req Req, res Res, r *Role)) {
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gmsg.Head, req Req, res Res, r *Role)) {
 	var req Req
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
@@ -64,7 +64,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(c gct
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
-	handleFunc := func(c gctx.Context, req pb.VTMessage, res pb.VTMessage) {
+	handleFunc := func(c gmsg.Message, req pb.VTMessage, res pb.VTMessage) {
 		df(c.Head, req.(Req), res.(Res), c.U.(*Role))
 	}
 

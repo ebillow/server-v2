@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/pkg/gerror"
-	"server/pkg/gnet/gctx"
 	"server/pkg/gnet/gmetrics"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
 	"sync"
@@ -47,15 +47,15 @@ func (f *newFactory) Put(pb.VTMessage)  {} // no-op
 // --------------------------------------------------------------------
 
 type IHandler interface {
-	Handle(c gctx.Context) error
+	Handle(c gmsg.Message) error
 }
 type MsgHandler struct {
 	factory    MsgFactory
-	HandleFunc func(gctx.Context, pb.VTMessage)
+	HandleFunc func(gmsg.Message, pb.VTMessage)
 }
 
 // Handle 处理消息
-func (h *MsgHandler) Handle(c gctx.Context) error {
+func (h *MsgHandler) Handle(c gmsg.Message) error {
 	msgPB := h.factory.Get()
 
 	if len(c.Data) > 0 {
@@ -93,11 +93,11 @@ func (h *MsgHandler) Handle(c gctx.Context) error {
 type RpcHandler struct {
 	reqCreate  MsgFactory
 	resCreate  MsgFactory
-	HandleFunc func(gctx.Context, pb.VTMessage, pb.VTMessage)
+	HandleFunc func(gmsg.Message, pb.VTMessage, pb.VTMessage)
 }
 
 // Handle 处理消息
-func (h *RpcHandler) Handle(c gctx.Context) error {
+func (h *RpcHandler) Handle(c gmsg.Message) error {
 	req := h.reqCreate.Get()
 
 	if len(c.Data) > 0 {

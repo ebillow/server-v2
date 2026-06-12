@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"server/api/pb"
 	"server/api/pb/msgid"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,7 +36,7 @@ func TestSub(t *testing.T) {
 	// var mtx sync.Mutex
 
 	for i := 0; i < 3; i++ {
-		err := S.Serve(context.Background(), func(msg gctx.Context) {
+		err := S.Serve(context.Background(), func(msg gmsg.Message) {
 			// fmt.Println(i, msg, string(msg.Data))
 			// mtx.Lock()
 			// if _, ok := ret[msg.RoleID]; ok {
@@ -68,7 +68,7 @@ func TestMultiSub(t *testing.T) {
 		err := S.Init(pb.Server_Gateway, uint8(i), strings.Join(servers, ","), nats.UserInfo("123456", "123456"))
 		require.NoError(t, err)
 
-		err = S.Serve(context.Background(), func(msg gctx.Context) {
+		err = S.Serve(context.Background(), func(msg gmsg.Message) {
 			fmt.Println(i, msg, string(msg.Data))
 			wg.Done()
 		})
@@ -90,7 +90,7 @@ func TestPull(t *testing.T) {
 	p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
 	require.NoError(t, err)
 	wg := sync.WaitGroup{}
-	p.Start(context.Background(), func(ctx gctx.Context) {
+	p.Start(context.Background(), func(ctx gmsg.Message) {
 
 		t.Log(ctx, string(ctx.Data))
 		wg.Done()
@@ -113,7 +113,7 @@ func TestPullMulti(t *testing.T) {
 		recv[i] = &atomic.Int32{}
 		p, err := NewPullConsumer(context.Background(), &S, getIndexSubject(pb.Server_Gateway, 0))
 		require.NoError(t, err)
-		p.Start(context.Background(), func(ctx gctx.Context) {
+		p.Start(context.Background(), func(ctx gmsg.Message) {
 			// t.Log(i, v, string(v.Data))
 			recv[i].Add(1)
 			wg.Done()

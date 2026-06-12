@@ -5,7 +5,7 @@ import (
 	"server/api/pb"
 	"server/pkg/gnet/batcher"
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/thread"
 	"time"
 
@@ -18,13 +18,13 @@ func (jt *JetStream) Send(serType pb.Server, serID uint8, msgID uint32, data []b
 	if jt.closed.Load() {
 		return dep.ErrClosed
 	}
-	pbt, err := jt.getIdxPubBatcher(serType, serID)
+	pbt, err := jt.pub.GetIdx(serType, serID)
 	if err != nil {
 		return err
 	}
 
-	return pbt.Add(gctx.Context{
-		Head: gctx.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,
@@ -41,13 +41,13 @@ func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleI
 	if jt.closed.Load() {
 		return dep.ErrClosed
 	}
-	pbt, err := jt.getGroupPubBatcher(serType)
+	pbt, err := jt.pub.GetGroup(serType)
 	if err != nil {
 		return err
 	}
 
-	return pbt.Add(gctx.Context{
-		Head: gctx.Head{
+	return pbt.Add(gmsg.Message{
+		Head: gmsg.Head{
 			ActorID:   roleID,
 			SesID:     sesID,
 			MsgID:     msgID,
@@ -56,68 +56,6 @@ func (jt *JetStream) SendAny(serType pb.Server, msgID uint32, data []byte, roleI
 		},
 		Data: data,
 	})
-}
-
-func (jt *JetStream) getIdxPubBatcher(serType pb.Server, serID uint8) (*PubBatcher, error) {
-	if serType >= SvcTypeMax || serID >= SvcIDMax {
-		return nil, dep.ErrArg
-	}
-	tb := jt.pubIDXs[serType][serID].Load()
-	if tb != nil {
-		return tb, nil
-	}
-
-	jt.pubIDXMtx.Lock()
-	defer jt.pubIDXMtx.Unlock()
-
-	if tb = jt.pubIDXs[serType][serID].Load(); tb != nil {
-		return tb, nil
-	}
-
-	subject := getIndexSubject(serType, serID)
-	tb = NewPubBatcher(jt.ctx, subject, jt.JS)
-	jt.pubIDXs[serType][serID].Store(tb)
-
-	return tb, nil
-}
-
-func (jt *JetStream) getGroupPubBatcher(serType pb.Server) (*PubBatcher, error) {
-	if serType >= SvcTypeMax {
-		return nil, dep.ErrArg
-	}
-	tb := jt.pubGroup[serType].Load()
-	if tb != nil {
-		return tb, nil
-	}
-
-	jt.pubGroupMtx.Lock()
-	defer jt.pubGroupMtx.Unlock()
-
-	if tb = jt.pubGroup[serType].Load(); tb != nil {
-		return tb, nil
-	}
-
-	subject := getGroupSubject(serType)
-	tb = NewPubBatcher(jt.ctx, subject, jt.JS)
-	jt.pubGroup[serType].Store(tb)
-
-	return tb, nil
-}
-
-func (jt *JetStream) flushAllBatchers() {
-	for i := range jt.pubIDXs {
-		for j := range jt.pubIDXs[i] {
-			if tb := jt.pubIDXs[i][j].Load(); tb != nil {
-				tb.StopAndFlush()
-			}
-		}
-	}
-
-	for i := range jt.pubGroup {
-		if tb := jt.pubGroup[i].Load(); tb != nil {
-			tb.StopAndFlush()
-		}
-	}
 }
 
 type Ack struct {
@@ -191,4 +129,16 @@ func (tb *PubBatcher) waitAck(task Ack) {
 	case <-timer.C:
 		zap.L().Error("NATS async pub timeout", zap.String("subject", tb.subject))
 	}
+}
+
+func (jt *JetStream) NewIdx(serType pb.Server, serID uint8) *PubBatcher {
+	return NewPubBatcher(jt.ctx, getIndexSubject(serType, serID), jt.JS)
+}
+
+func (jt *JetStream) NewGroup(serType pb.Server) *PubBatcher {
+	return NewPubBatcher(jt.ctx, getGroupSubject(serType), jt.JS)
+}
+
+func (jt *JetStream) NewAll(serType pb.Server) *PubBatcher {
+	return nil
 }

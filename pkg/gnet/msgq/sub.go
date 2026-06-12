@@ -1,19 +1,16 @@
 package msgq
 
 import (
-	"encoding/binary"
 	"server/api/pb"
-	"server/pkg/gerror"
-	"server/pkg/gnet/gctx"
-	"server/pkg/gnet/gmetrics"
+	"server/pkg/gnet/gmsg"
 
 	"github.com/nats-io/nats.go"
 	"go.uber.org/zap"
 )
 
-func (bs *DataBus) Serve(callback func(ctx gctx.Context)) error {
+func (bs *DataBus) Serve(callback func(ctx gmsg.Message)) error {
 	err := bs.subscribe(bs.getSubjects(pb.Server(bs.serType), bs.serID), func(msg *nats.Msg) {
-		err := BatchDecodeAndHandle(msg, callback)
+		err := gmsg.DecodeManyAndHandle(msg.Data, msg.Subject, msg.Reply, callback)
 		if err != nil {
 			zap.L().Error("batch decode error", zap.Error(err))
 		}
@@ -52,66 +49,12 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 	return nil
 }
 
-// BatchDecodeAndHandle 批量解码大包
-func BatchDecodeAndHandle(msg *nats.Msg, callback func(ctx gctx.Context)) error {
-	buf := msg.Data
-	offset := 0
-
-	sm := gmetrics.GetSubMetrics(msg.Subject)
-
-	for offset < len(buf) {
-		// 读取 4 字节的长度前缀
-		if len(buf)-offset < 4 {
-			sm.DecodeErr.Inc()
-			return gerror.New("batch decode error: missing length prefix")
-		}
-		subSize := int(binary.LittleEndian.Uint32(buf[offset:]))
-		offset += 4
-
-		// 截取单条消息的数据段
-		if len(buf)-offset < subSize {
-			sm.DecodeErr.Inc()
-			return gerror.New("batch decode error: buffer too small for sub-message")
-		}
-		subBuf := buf[offset : offset+subSize]
-
-		ctx, err := Decode(subBuf)
-		if err != nil {
-			sm.DecodeErr.Inc()
-			offset += subSize
-			continue // 或者记录错误并 continue
-		}
-
-		sm.GetMsgCounter(ctx.Head.MsgID).Inc()
-
-		ctx.SetReply(msg.Reply)
-		callback(ctx)
-		offset += subSize
-	}
-
-	return nil
-}
-
-func Decode(buf []byte) (ctx gctx.Context, err error) {
-	if len(buf) < gctx.FrameBodyHeadSize {
-		return ctx, gerror.New("decode error: buffer too small for header")
-	}
-
-	ctx.Head, err = gctx.DecodeHead(buf)
-	if err != nil {
-		return ctx, err
-	}
-	ctx.Data = buf[gctx.FrameBodyHeadSize:] // v1 直接切片
-
-	return ctx, nil
-}
-
 func (bs *DataBus) Close() {
 	if !bs.closed.CompareAndSwap(false, true) {
 		return
 	}
 
-	bs.flushAllBatchers()
+	bs.pub.FlushAll()
 
 	if bs.conn != nil {
 		err := bs.conn.Drain()

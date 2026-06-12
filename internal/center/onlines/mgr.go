@@ -2,7 +2,7 @@ package onlines
 
 import (
 	"server/api/pb"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
 	"sync"
 )
@@ -71,7 +71,7 @@ func Count() int {
 	return count
 }
 
-func onLoginOrLogout(_ gctx.Head, req *pb.S2SReqLoginOrLogout) {
+func onLoginOrLogout(_ gmsg.Head, req *pb.S2SReqLoginOrLogout) {
 	if req.Login {
 		Add(req.RoleID, Data{SesID: req.SesID, GameID: uint8(req.GameID)})
 	} else {

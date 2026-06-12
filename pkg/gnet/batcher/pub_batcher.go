@@ -2,7 +2,7 @@ package batcher
 
 import (
 	"server/pkg/gnet/dep"
-	"server/pkg/gnet/gctx"
+	"server/pkg/gnet/gmsg"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,9 +29,9 @@ func NewBaseBatcher(flushFn FlushFunc) *BaseBatcher {
 	return tb
 }
 
-func (tb *BaseBatcher) Add(ctx gctx.Context) error {
-	bodySize := gctx.FrameBodyHeadSize + len(ctx.Data)
-	frameSize := gctx.FrameLenSize + bodySize
+func (tb *BaseBatcher) Add(ctx gmsg.Message) error {
+	bodySize := gmsg.FrameBodyHeadSize + len(ctx.Data)
+	frameSize := gmsg.FrameLenSize + bodySize
 	var tasks [2]flushTask
 	taskN := 0
 
@@ -57,7 +57,7 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 
 	if frameSize > cap(*tb.buf) {
 		monsterBuf := make([]byte, frameSize)
-		gctx.SerializeFrame(monsterBuf, bodySize, ctx)
+		ctx.EncodeTo(monsterBuf, bodySize)
 
 		// bp 传 nil，表示不需要 FreeBuffer
 		tasks[taskN] = flushTask{data: monsterBuf, bp: nil, count: 1}
@@ -67,7 +67,7 @@ func (tb *BaseBatcher) Add(ctx gctx.Context) error {
 		pos := len(buf)
 		buf = buf[:pos+frameSize]
 
-		gctx.SerializeFrame(buf[pos:pos+frameSize], bodySize, ctx)
+		ctx.EncodeTo(buf[pos:pos+frameSize], bodySize)
 
 		*tb.buf = buf
 		tb.count++
