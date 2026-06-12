@@ -8,8 +8,8 @@ import (
 )
 
 func init() {
-	router.On(onLoginSuccess)
-	router.On(onDisconnect)
+	router.OnWithHead(onLoginSuccess)
+	router.OnWithHead(onDisconnect)
 }
 
 func onLoginSuccess(h pkg.Head, req *pb.S2SResLogin) {

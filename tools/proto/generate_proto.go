@@ -44,8 +44,18 @@ func main() {
 package pb
 
 import (
-	"server/api/pb/msgid"
 	"reflect"
+	"server/api/pb/msgid"
+	"server/pkg/gnet/pool"
+)
+
+var (
+	{{range $i, $v := .S2C}} 
+	Pool{{$v.Value}} = pool.NewMsgPool[{{$v.Value}}]()
+	{{end}}
+	{{range $i, $v := .S2S}} 
+	Pool{{$v.Value}} = pool.NewMsgPool[{{$v.Value}}]()
+	{{end}}
 )
 
 func registerAllC2SMsg()  {
@@ -65,7 +75,7 @@ func registerAllS2CMsg()  {
 	{{end}}}
 
 func registerAllS2SMsg()  {
-{{range $i, $v := .S2S}} registerS2SMsg(msgid.MsgIDS2S_{{$v.Id}}, &messageMeta{
+	{{range $i, $v := .S2S}} registerS2SMsg(msgid.MsgIDS2S_{{$v.Id}}, &messageMeta{
 		MessageType:reflect.TypeOf({{$v.Value}}{}),
 		NewMessage: func() VTMessage { return &{{$v.Value}}{} },
 	})
@@ -92,6 +102,7 @@ func registerAllS2SMsg()  {
 		panic(err)
 	}
 
+	// fmt.Println(buff.String())
 	// format code
 	fineCode, err := format.Source(buff.Bytes())
 	if err != nil {

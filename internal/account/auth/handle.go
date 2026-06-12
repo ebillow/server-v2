@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	router.On(onLogin)
+	router.OnWithHead(onLogin)
 	router.On(onClearRole)
 }
 
@@ -19,7 +19,7 @@ func onLogin(h pkg.Head, req *pb.C2SLogin) {
 	HandleLoginRequest(msgS)
 }
 
-func onClearRole(_ pkg.Head, req *pb.S2SRoleClear) {
+func onClearRole(req *pb.S2SRoleClear) {
 	dispatchEvent(Event{
 		Op:    OpRoleClear,
 		Clear: req,

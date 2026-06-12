@@ -9,25 +9,25 @@ import (
 	"go.uber.org/zap"
 )
 
-func On[T pb.VTMessage](df func(p pkg.Head, req T, r *Role)) {
+func On[T pb.VTMessage](df func(req T, r *Role)) {
 	register(false, df)
 }
 
 // OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(p pkg.Head, req T, r *Role)) {
+func OnP[T pb.VTMessage](df func(req T, r *Role)) {
 	register(true, df)
 }
 
-func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(p pkg.Head, req Req, res Res, r *Role)) {
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(req Req, res Res, r *Role)) {
 	registerRpc(false, df)
 }
 
 // OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
-func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(p pkg.Head, req Req, res Res, r *Role)) {
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(req Req, res Res, r *Role)) {
 	registerRpc(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(p pkg.Head, req T, r *Role)) {
+func register[T pb.VTMessage](usePool bool, df func(req T, r *Role)) {
 	var req T
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
@@ -37,7 +37,7 @@ func register[T pb.VTMessage](usePool bool, df func(p pkg.Head, req T, r *Role))
 	}
 
 	handleFunc := func(c pkg.Packet, msg pb.VTMessage) {
-		df(c.Head, msg.(T), c.U.(*Role))
+		df(msg.(T), c.U.(*Role))
 	}
 
 	err = router.R().Register(msgID, reqCreate, usePool, handleFunc)
@@ -48,7 +48,7 @@ func register[T pb.VTMessage](usePool bool, df func(p pkg.Head, req T, r *Role))
 	}
 }
 
-func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(h pkg.Head, req Req, res Res, r *Role)) {
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req Req, res Res, r *Role)) {
 	var req Req
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
@@ -65,7 +65,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(h pkg
 	}
 
 	handleFunc := func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage) {
-		df(p.Head, req.(Req), res.(Res), p.U.(*Role))
+		df(req.(Req), res.(Res), p.U.(*Role))
 	}
 
 	err = router.R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)

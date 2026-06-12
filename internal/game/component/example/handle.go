@@ -4,11 +4,7 @@ import (
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/internal/game/role"
-	"server/pkg/gnet/pkg"
-	"server/pkg/gnet/pool"
 	"server/pkg/gnet/router"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func init() {
@@ -19,31 +15,35 @@ func init() {
 	router.OnRpcP(onEchoRpc)      // rpc Handle不带role, 使用对象池
 }
 
-var (
-	echoPool = pool.NewMsgPool[pb.S2CEcho]()
-)
+func onEchoCli(req *pb.C2SEcho, r *role.Role) {
+	res := pb.PoolS2CEcho.Get()
+	res.ID = req.ID
+	res.Name = req.Name
+	res.Level = req.Level
+	res.Exp = req.Exp
+	res.Data = req.Data
+	res.CliTime = req.Time
 
-func onEchoCli(_ pkg.Head, msg *pb.C2SEcho, r *role.Role) {
-	msgOut := echoPool.Get()
-	msgOut.ID = msg.ID
-	msgOut.Name = msg.Name
-	msgOut.Level = msg.Level
-	msgOut.Exp = msg.Exp
-	msgOut.Data = msg.Data
-	msgOut.CliTime = msg.Time
-
-	role.Send(r, msgid.MsgIDS2C_S2CEcho, msgOut)
-	echoPool.Put(msgOut)
+	role.Send(r, msgid.MsgIDS2C_S2CEcho, res)
+	pb.PoolS2CEcho.Put(res)
 }
 
-func onEchoSer(_ pkg.Head, msg *pb.S2SEcho) {
+func onEchoSer(req *pb.S2SEcho) {
 
 }
 
-func onEchoRpc(_ pkg.Head, req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
-	res = proto.Clone(req).(*pb.S2SRpcEchoRes)
+func onEchoRpc(req *pb.S2SRpcEchoReq, res *pb.S2SRpcEchoRes) {
+	res.ID = req.ID
+	res.Name = req.Name
+	res.Level = req.Level
+	res.Exp = req.Exp
+	res.Data = req.Data
 }
 
-func onEchoWithRoleRpc(_ pkg.Head, req *pb.S2SRpcEchoRoleReq, res *pb.S2SRpcEchoRoleRes, r *role.Role) {
-	res = proto.Clone(req).(*pb.S2SRpcEchoRoleRes)
+func onEchoWithRoleRpc(req *pb.S2SRpcEchoRoleReq, res *pb.S2SRpcEchoRoleRes, r *role.Role) {
+	res.ID = req.ID
+	res.Name = req.Name
+	res.Level = req.Level
+	res.Exp = req.Exp
+	res.Data = req.Data
 }

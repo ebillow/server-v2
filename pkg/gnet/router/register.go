@@ -18,25 +18,52 @@ func R() *Router {
 	return msgRouter
 }
 
-func On[T pb.VTMessage](df func(h pkg.Head, req T)) {
+// On 注册消息处理
+func On[T pb.VTMessage](df func(req T)) {
 	register(false, df)
 }
 
+// OnWithHead 注册消息处理，消息处理中带Head信息
+func OnWithHead[T pb.VTMessage](df func(h pkg.Head, req T)) {
+	registerWithHead(false, df)
+}
+
 // OnP 消息处理，使用对象池，req不能传递到其它协程，不能持有
-func OnP[T pb.VTMessage](df func(h pkg.Head, req T)) {
+func OnP[T pb.VTMessage](df func(req T)) {
 	register(true, df)
 }
 
-func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(h pkg.Head, req Req, res Res)) {
+// OnRpc Rpc消息处理,收到Req返回Res
+func OnRpc[Req pb.VTMessage, Res pb.VTMessage](df func(req Req, res Res)) {
 	registerRpc(false, df)
 }
 
 // OnRpcP 消息处理，使用对象池，req, res不能传递到其它协程，不能持有
-func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(h pkg.Head, req Req, res Res)) {
+func OnRpcP[Req pb.VTMessage, Res pb.VTMessage](df func(req Req, res Res)) {
 	registerRpc(true, df)
 }
 
-func register[T pb.VTMessage](usePool bool, df func(h pkg.Head, req T)) {
+func register[T pb.VTMessage](usePool bool, df func(req T)) {
+	var req T
+	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
+	if err != nil {
+		zap.L().Error("register fail", zap.Error(err))
+		return
+	}
+	handleFunc := func(p pkg.Packet, msg pb.VTMessage) {
+		df(msg.(T))
+	}
+
+	err = R().Register(msgID, createFunc, usePool, handleFunc)
+	if err != nil {
+		zap.L().Fatal("register failed: duplicate register",
+			zap.String("msgType", reflect.TypeOf(req).String()),
+			zap.Uint32("msgID", msgID),
+			zap.Error(err))
+	}
+}
+
+func registerWithHead[T pb.VTMessage](usePool bool, df func(h pkg.Head, req T)) {
 	var req T
 	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
@@ -56,7 +83,7 @@ func register[T pb.VTMessage](usePool bool, df func(h pkg.Head, req T)) {
 	}
 }
 
-func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(h pkg.Head, req Req, res Res)) {
+func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req Req, res Res)) {
 	var req Req
 
 	msgID, reqCreate, err := FindMsgIDAndCreateFunc(req)
@@ -73,7 +100,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(h pkg
 	}
 
 	handleFunc := func(p pkg.Packet, req pb.VTMessage, res pb.VTMessage) {
-		df(p.Head, req.(Req), res.(Res))
+		df(req.(Req), res.(Res))
 	}
 
 	err = R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)

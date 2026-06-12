@@ -4,6 +4,63 @@ package pb
 import (
 	"reflect"
 	"server/api/pb/msgid"
+	"server/pkg/gnet/pool"
+)
+
+var (
+	PoolS2CNone = pool.NewMsgPool[S2CNone]()
+
+	PoolS2CHeartBeat = pool.NewMsgPool[S2CHeartBeat]()
+
+	PoolS2CGateHandle = pool.NewMsgPool[S2CGateHandle]()
+
+	PoolS2CLogin = pool.NewMsgPool[S2CLogin]()
+
+	PoolS2CKickRole = pool.NewMsgPool[S2CKickRole]()
+
+	PoolS2CDayChange = pool.NewMsgPool[S2CDayChange]()
+
+	PoolS2CDataReset = pool.NewMsgPool[S2CDataReset]()
+
+	PoolS2CEcho = pool.NewMsgPool[S2CEcho]()
+
+	PoolS2SNone = pool.NewMsgPool[S2SNone]()
+
+	PoolS2SReqLogin = pool.NewMsgPool[S2SReqLogin]()
+
+	PoolS2SReqLoginOrLogout = pool.NewMsgPool[S2SReqLoginOrLogout]()
+
+	PoolS2SResLoginOrLogout = pool.NewMsgPool[S2SResLoginOrLogout]()
+
+	PoolS2SReqConfig = pool.NewMsgPool[S2SReqConfig]()
+
+	PoolS2SResConfig = pool.NewMsgPool[S2SResConfig]()
+
+	PoolS2SKickAcc = pool.NewMsgPool[S2SKickAcc]()
+
+	PoolS2SKickRole = pool.NewMsgPool[S2SKickRole]()
+
+	PoolS2SRelayToRole = pool.NewMsgPool[S2SRelayToRole]()
+
+	PoolS2SOfflineEvt = pool.NewMsgPool[S2SOfflineEvt]()
+
+	PoolS2SResLogin = pool.NewMsgPool[S2SResLogin]()
+
+	PoolS2SGt2SDisconnect = pool.NewMsgPool[S2SGt2SDisconnect]()
+
+	PoolS2SS2GtDisconnect = pool.NewMsgPool[S2SS2GtDisconnect]()
+
+	PoolS2SRoleClear = pool.NewMsgPool[S2SRoleClear]()
+
+	PoolS2SEcho = pool.NewMsgPool[S2SEcho]()
+
+	PoolS2SRpcEchoReq = pool.NewMsgPool[S2SRpcEchoReq]()
+
+	PoolS2SRpcEchoRes = pool.NewMsgPool[S2SRpcEchoRes]()
+
+	PoolS2SRpcEchoRoleReq = pool.NewMsgPool[S2SRpcEchoRoleReq]()
+
+	PoolS2SRpcEchoRoleRes = pool.NewMsgPool[S2SRpcEchoRoleRes]()
 )
 
 func registerAllC2SMsg() {
