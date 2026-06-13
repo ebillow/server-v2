@@ -28,7 +28,7 @@ const (
 )
 
 type IUnit interface {
-	SecLoop()
+	SecLoop(now time.Time)
 	OnDisconnect()
 }
 
@@ -165,9 +165,9 @@ func (s *Session) mainLoop(cfg *Config) {
 			s.onRecvCliMsg(cliMsg)
 		case e := <-s.evt:
 			s.onEvent(e)
-		case <-tSec.C:
+		case now := <-tSec.C:
 			if s.U != nil {
-				s.U.SecLoop()
+				s.U.SecLoop(now)
 			}
 		case <-tick.C:
 			s.check1Min(cfg)

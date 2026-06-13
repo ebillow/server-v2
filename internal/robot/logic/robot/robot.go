@@ -5,7 +5,6 @@ import (
 	pb "server/api/pb"
 	"server/api/pb/msgid"
 	clinet2 "server/internal/robot/clinet"
-	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -18,7 +17,7 @@ type State int
 const (
 	Init = iota
 	InGame
-	ReConn
+	Disconnect
 	Pending
 )
 
@@ -33,8 +32,7 @@ type Robot struct {
 	ReconnToken uint32
 	gameId      uint32
 
-	lastActTime  time.Time
-	isDisconnect uint32
+	lastActTime time.Time
 
 	chats  map[uint64]bool
 	chatID uint32
@@ -72,23 +70,10 @@ func NewUnitRobot(id int, area uint32) {
 		return
 	}
 	r.s.U = r
-	go checkReconn(r)
 }
 
-func (r *Robot) SecLoop() {
-	// zap.S().Debugf("secloop")
-
+func (r *Robot) SecLoop(now time.Time) {
 	switch r.state {
-	// case Init:
-	// 	if time.Now().Sub(r.stateTime) > time.Second*10 {
-	// 		r.SendInitMsg()
-	// 		r.stateTime = time.Now()
-	// 	}
-	// case ReConn:
-	// 	if time.Now().Sub(r.stateTime) > time.Second*10 {
-	// 		r.SendInitMsg()
-	// 		r.stateTime = time.Now()
-	// 	}
 	case Init:
 		err := r.s.Init(nil, nil)
 		if err != nil {
@@ -97,17 +82,25 @@ func (r *Robot) SecLoop() {
 		}
 		r.Login()
 		r.state = Pending
-	case ReConn:
-		err := r.s.Init(nil, nil)
-		if err != nil {
-			zap.L().Error("Init fail", zap.Error(err))
-			return
-		}
-		r.ReConn()
 	case InGame:
 		TaskRun(r)
-	case Pending:
+	case Disconnect:
+		if now.Sub(r.stateTime).Seconds() > 60 {
+			s, err := clinet2.DailWebsocket(Setup.ServerAddr, cfg)
+			if err != nil {
+				return
+			}
 
+			if r.s != nil {
+				r.s.Close()
+				r.s = nil
+			}
+			r.s = s
+			s.U = r
+			zap.S().Infof("%s reconnect", r.acc)
+			r.state = Init
+		}
+	default:
 	}
 }
 
@@ -115,41 +108,13 @@ func (r *Robot) AddTask(period int64, cb func(*Robot)) {
 	r.taskMgr.Add(period, cb)
 }
 
-func checkReconn(r *Robot) {
-	t := time.NewTicker(time.Second * 60)
-	defer t.Stop()
-	for {
-		select {
-		case <-t.C:
-			if atomic.LoadUint32(&r.isDisconnect) == 1 {
-				s, err := clinet2.DailWebsocket(Setup.ServerAddr, cfg)
-				if err != nil {
-					return
-				}
-				atomic.StoreUint32(&r.isDisconnect, 0)
-				if r.s != nil {
-					r.s.Close()
-					r.s = nil
-				}
-				r.s = s
-				s.U = r
-				zap.S().Infof("%s start reconnect", r.acc)
-				if r.Data != nil {
-					r.state = ReConn
-				} else {
-					r.state = Init
-				}
-			}
-		}
-	}
-}
-
 func (r *Robot) OnDisconnect() {
 	if r.s != nil {
 		r.s.U = nil
 	}
 	r.s = nil
-	atomic.StoreUint32(&r.isDisconnect, 1)
+	r.stateTime = time.Now()
+	r.state = Disconnect
 }
 
 func (r *Robot) GetData() *pb.RoleData {
@@ -163,26 +128,13 @@ func (r *Robot) Send(msgId msgid.MsgIDC2S, msg proto.Message) {
 }
 
 func (r *Robot) Login() {
-	msg := pb.C2SLogin{
-		Account: r.acc,
-		Dev:     r.acc,
-		SdkType: pb.SdkType_Guest,
-		Channel: 0,
-
-		CliInfo: &pb.ClientInfo{
-			DevID: "robot test",
-		},
-	}
-	r.Send(msgid.MsgIDC2S_C2SLogin, &msg)
-}
-
-func (r *Robot) ReConn() {
+	reConn := r.Data != nil
 	msg := pb.C2SLogin{
 		Account:   r.acc,
 		Dev:       r.acc,
 		SdkType:   pb.SdkType_Guest,
 		Channel:   0,
-		Reconnect: true,
+		Reconnect: reConn,
 
 		CliInfo: &pb.ClientInfo{
 			DevID: "robot test",

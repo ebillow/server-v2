@@ -12,6 +12,7 @@ func InitTask(r *Robot) {
 	r.taskMgr.Add(20, heartbeat) //
 
 	InitEcho(r)
+	InitDisconnect(r)
 }
 
 func TaskRun(r *Robot) {
