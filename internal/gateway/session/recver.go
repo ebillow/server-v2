@@ -100,9 +100,10 @@ func classifyReadErr(err error) pb.DisconnectReason {
 	var closeErr *websocket.CloseError
 	if errors.As(err, &closeErr) {
 		switch closeErr.Code {
-		case websocket.CloseNormalClosure,
-			websocket.CloseGoingAway,
-			websocket.CloseNoStatusReceived:
+		case websocket.CloseNormalClosure, // 1000 正常关闭
+			websocket.CloseGoingAway,        // 1001 页面离开/切后台
+			websocket.CloseNoStatusReceived, // 1005 无状态码（合成）
+			websocket.CloseAbnormalClosure:  // 1006 异常关闭（合成）
 			zap.L().Info("client closed normally",
 				zap.Int("code", closeErr.Code),
 				zap.String("text", closeErr.Text),
