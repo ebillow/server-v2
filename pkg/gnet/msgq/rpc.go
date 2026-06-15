@@ -60,7 +60,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 
 	subStr := rpcNodeSubjectName(toSer, toSerID)
 	if timeOut <= 0 {
-		timeOut = time.Second
+		timeOut = time.Second * 3
 	}
 	resMsg, err := bs.rpcConn.Request(subStr, buf, timeOut)
 	if err != nil {
@@ -80,7 +80,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 			zap.String("res", resStr),
 			zap.Uint64("actorID", actorID),
 			zap.String("to", pb.Server_name[int32(toSer)]),
-			zap.Uint8("to", uint8(toSer)),
+			zap.Uint8("toSerID", uint8(toSer)),
 		)
 	}
 
@@ -89,7 +89,7 @@ func RpcCall[Req pb.VTMessage, Res pb.VTMessage](bs *DataBus, req Req, res Res, 
 
 func RpcRespond[T pb.VTMessage](bs *DataBus, reply string, ack T) error {
 	if reply == "" {
-		return nil
+		return gerror.New("reply is empty")
 	}
 
 	bufPtr := pub.GetBuffer()

@@ -3,6 +3,7 @@ package clinet
 import (
 	"net"
 	"net/url"
+	"server/pkg/thread"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -25,7 +26,7 @@ func DailWebsocket(addr string, cfg *Config) (*Session, error) {
 func handleCliConn(conn *websocket.Conn, cfg *Config) (*Session, error) {
 	s := &Session{}
 	s.conn = conn
-	go func() {
+	thread.GoSafe(func() {
 		defer s.conn.Close()
 
 		s.in = make(chan []byte) // no active_role
@@ -45,6 +46,6 @@ func handleCliConn(conn *websocket.Conn, cfg *Config) (*Session, error) {
 		s.ctrl = make(chan struct{})
 
 		s.start(cfg)
-	}()
+	})
 	return s, nil
 }

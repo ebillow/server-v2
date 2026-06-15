@@ -7,6 +7,7 @@ import (
 	"server/pkg/gerror"
 	"server/pkg/gnet/gmetrics"
 
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -151,6 +152,14 @@ func DecodeManyAndHandle(buf []byte, subName string, reply string, callback func
 		if err != nil {
 			sm.DecodeErr.Inc()
 			offset += subSize
+
+			zap.L().Error("sub message decode failed",
+				zap.String("subject", subName),
+				zap.Int("offset", offset),
+				zap.Int("subSize", subSize),
+				zap.Error(err),
+			)
+
 			continue // 或者记录错误并 continue
 		}
 

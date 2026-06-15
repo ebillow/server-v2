@@ -75,7 +75,7 @@ func SendToNode[T pb.VTMessage](
 ) {
 	pBuf, buf := ensureBuf(msg.SizeVT())
 
-	_, err := msg.MarshalToSizedBufferVT(buf)
+	n, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
 		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
@@ -85,6 +85,7 @@ func SendToNode[T pb.VTMessage](
 		)
 		return
 	}
+	buf = buf[0:n]
 
 	err = msgq.Q.SendToNode(serType, serID, msgID, buf, actorID, sesID)
 
@@ -125,7 +126,7 @@ func SendToAny[T pb.VTMessage](
 ) {
 	pBuf, buf := ensureBuf(msg.SizeVT())
 
-	_, err := msg.MarshalToSizedBufferVT(buf)
+	n, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
 		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
@@ -134,6 +135,7 @@ func SendToAny[T pb.VTMessage](
 		)
 		return
 	}
+	buf = buf[0:n]
 	err = msgq.Q.SendToAny(serType, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)
@@ -173,7 +175,7 @@ func BroadcastTo[T pb.VTMessage](
 ) {
 	pBuf, buf := ensureBuf(msg.SizeVT())
 
-	_, err := msg.MarshalToSizedBufferVT(buf)
+	n, err := msg.MarshalToSizedBufferVT(buf)
 	if err != nil {
 		pool.BufPool512.Put(pBuf)
 		zap.L().Warn("send marshal vt error",
@@ -182,6 +184,8 @@ func BroadcastTo[T pb.VTMessage](
 		)
 		return
 	}
+	buf = buf[0:n]
+
 	err = msgq.Q.BroadcastTo(serType, msgID, buf, actorID, sesID)
 
 	pool.BufPool512.Put(pBuf)

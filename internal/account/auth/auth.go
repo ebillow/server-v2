@@ -165,18 +165,7 @@ func authenticateWithSDK(req *pb.S2SReqLogin) {
 		})
 	}
 
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				thread.PrintStack("Login check err:", err, req.Req.String())
-				dispatchEvent(Event{
-					Op:    OpLoginFail,
-					Code:  pb.LoginCode_LCSdkCheckFaild,
-					Login: req,
-				})
-			}
-		}()
-
+	thread.GoSafe(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
 
@@ -191,7 +180,7 @@ func authenticateWithSDK(req *pb.S2SReqLogin) {
 		}
 
 		PushToLoader(req)
-	}()
+	})
 }
 
 func finalizeLoginSession(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {

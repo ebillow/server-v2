@@ -24,17 +24,22 @@ type Batcher struct {
 	mtx   sync.Mutex
 	buf   *[]byte // 从 bufPool 获取的共享大缓冲
 	count int     // 当前缓冲了多少条消息
-	state atomic.Int32
-	wg    sync.WaitGroup
 
 	flushFn FlushFunc
+
+	close     chan struct{}
+	state     atomic.Int32
+	wgTask    sync.WaitGroup
+	wgLoop    sync.WaitGroup
+	closeOnce sync.Once
 }
 
 func NewBatcher(flushFn FlushFunc) *Batcher {
 	tb := &Batcher{
 		flushFn: flushFn,
+		close:   make(chan struct{}),
 	}
-	tb.state.Store(int32(stateRunning))
+	tb.wgLoop.Add(1)
 	tb.startLoop()
 
 	return tb
@@ -92,7 +97,7 @@ func (tb *Batcher) Add(p gmsg.Message) error {
 	}
 
 	if taskN > 0 {
-		tb.wg.Add(taskN)
+		tb.wgTask.Add(taskN)
 	}
 	tb.mtx.Unlock()
 
@@ -102,7 +107,7 @@ func (tb *Batcher) Add(p gmsg.Message) error {
 		if t.pBuf != nil {
 			FreeBuffer(t.pBuf)
 		}
-		tb.wg.Done()
+		tb.wgTask.Done()
 	}
 
 	return nil
@@ -120,14 +125,17 @@ func (tb *Batcher) startLoop() {
 		ticker := time.NewTicker(time.Millisecond * 25)
 		defer func() {
 			ticker.Stop()
+			tb.wgLoop.Done()
 		}()
 
-		for range ticker.C {
-			s := batcherState(tb.state.Load())
-			if s != stateRunning {
+		for {
+			select {
+			case <-ticker.C:
+				tb.flush()
+			case <-tb.close:
+				tb.flush()
 				return
 			}
-			tb.flush()
 		}
 	}()
 }
@@ -145,25 +153,24 @@ func (tb *Batcher) flush() {
 		count = tb.count
 		tb.buf = nil
 		tb.count = 0
-		tb.wg.Add(1)
+		tb.wgTask.Add(1)
 	}
 	tb.mtx.Unlock()
 
 	if count > 0 {
 		tb.flushFn(flushData, count)
 		FreeBuffer(flushBp)
-		tb.wg.Done()
+		tb.wgTask.Done()
 	}
 }
 
 // Close 关闭并清空
 func (tb *Batcher) Close() {
-	if !tb.state.CompareAndSwap(int32(stateRunning), int32(stateClosing)) {
-		return
-	}
-
-	tb.flush()
-
-	tb.wg.Wait()
-	tb.state.Store(int32(stateStopped))
+	tb.closeOnce.Do(func() {
+		tb.state.Store(int32(stateClosing))
+		close(tb.close)
+		tb.wgLoop.Wait()
+		tb.wgTask.Wait()
+		tb.state.Store(int32(stateStopped))
+	})
 }

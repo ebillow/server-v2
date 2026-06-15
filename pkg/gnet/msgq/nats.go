@@ -49,6 +49,29 @@ func (bs *DataBus) Init(connStr string, serType pb.Server, serID uint8, options 
 	return nil
 }
 
+func (bs *DataBus) Close() {
+	if !bs.closed.CompareAndSwap(false, true) {
+		return
+	}
+
+	bs.pub.FlushAll()
+
+	if bs.conn != nil {
+		err := bs.conn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		// bs.conn.Close()
+	}
+	if bs.rpcConn != nil {
+		err := bs.rpcConn.Drain()
+		if err != nil {
+			zap.S().Warn("Failed to drain connection", zap.Error(err))
+		}
+		// bs.rpcConn.Close()
+	}
+}
+
 func setupNatsConn(connectString string, svcType pb.Server, svcID uint8, options ...nats.Option) (*nats.Conn, error) {
 	natsOptions := append(
 		options,

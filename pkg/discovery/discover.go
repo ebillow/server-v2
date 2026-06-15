@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"server/pkg/thread"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,10 +37,13 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 	}
 
 	s.syncFullState(cli) // 全量拉取一次
-	// 启动带重试的 Watcher
-	go s.watchLoop(cli)
-	// 启动 Redis 负载同步循环
-	go s.syncLoadLoop()
+
+	thread.GoSafe(func() {
+		s.watchLoop(cli)
+	})
+	thread.GoSafe(func() {
+		s.syncLoadLoop()
+	})
 
 	return s
 }

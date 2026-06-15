@@ -104,8 +104,8 @@ func (m *Batchers[T]) Broadcast(serType pb.Server) (*T, error) {
 func (m *Batchers[T]) FlushAll() {
 	flushFunc := func(tb *T) {
 		if tb != nil {
-			if f, ok := any(tb).(interface{ StopAndFlush() }); ok {
-				f.StopAndFlush()
+			if f, ok := any(tb).(interface{ Close() }); ok {
+				f.Close()
 			}
 		}
 	}

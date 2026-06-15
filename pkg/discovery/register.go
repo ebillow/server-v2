@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"server/pkg/thread"
 	"sync/atomic"
 	"time"
 
@@ -45,8 +46,13 @@ func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName s
 		cancel:   cancel,
 	}
 
-	go r.keepAliveLoop()
-	go r.reportLoadLoop()
+	thread.GoSafe(func() {
+		r.keepAliveLoop()
+	})
+	thread.GoSafe(func() {
+		r.reportLoadLoop()
+	})
+
 	zap.L().Info("[service discover]service registered", zap.String("name", svcName), zap.Int32("id", m.NodeID))
 	return r, nil
 }

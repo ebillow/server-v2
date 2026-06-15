@@ -40,13 +40,13 @@ func StartWSServer(listenEndPoint string, cfg *Config) {
 		Handler: mux,
 	}
 
-	go func() {
+	thread.GoSafe(func() {
 		zap.S().Infof("WS Server starting at %s", listenEndPoint)
 		// 当 Shutdown 被调用时，ListenAndServe 会返回 http.ErrServerClosed
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			zap.S().Fatalf("listen err: %v", err)
 		}
-	}()
+	})
 }
 
 func handleClient(w http.ResponseWriter, r *http.Request) {

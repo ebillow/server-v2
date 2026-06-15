@@ -49,29 +49,6 @@ func (bs *DataBus) subscribe(subs map[string]string, callback func(msg *nats.Msg
 	return nil
 }
 
-func (bs *DataBus) Close() {
-	if !bs.closed.CompareAndSwap(false, true) {
-		return
-	}
-
-	bs.pub.FlushAll()
-
-	if bs.conn != nil {
-		err := bs.conn.Drain()
-		if err != nil {
-			zap.S().Warn("Failed to drain connection", zap.Error(err))
-		}
-		bs.conn.Close()
-	}
-	if bs.rpcConn != nil {
-		err := bs.rpcConn.Drain()
-		if err != nil {
-			zap.S().Warn("Failed to drain connection", zap.Error(err))
-		}
-		bs.rpcConn.Close()
-	}
-}
-
 func (bs *DataBus) getSubjects(serType pb.Server, serID uint8) map[string]string {
 	subs := make(map[string]string) // [subject,queue]
 	// all
