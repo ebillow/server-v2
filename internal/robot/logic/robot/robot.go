@@ -84,22 +84,6 @@ func (r *Robot) SecLoop(now time.Time) {
 		r.state = Pending
 	case InGame:
 		TaskRun(r)
-	case Disconnect:
-		if now.Sub(r.stateTime).Seconds() > 60 {
-			s, err := clinet2.DailWebsocket(Setup.ServerAddr, cfg)
-			if err != nil {
-				return
-			}
-
-			if r.s != nil {
-				r.s.Close()
-				r.s = nil
-			}
-			r.s = s
-			s.U = r
-			zap.S().Infof("%s reconnect", r.acc)
-			r.state = Init
-		}
 	default:
 	}
 }
@@ -115,6 +99,22 @@ func (r *Robot) OnDisconnect() {
 	r.s = nil
 	r.stateTime = time.Now()
 	r.state = Disconnect
+	go func() {
+		<-time.After(time.Minute)
+		s, err := clinet2.DailWebsocket(Setup.ServerAddr, cfg)
+		if err != nil {
+			return
+		}
+
+		if r.s != nil {
+			r.s.Close()
+			r.s = nil
+		}
+		r.s = s
+		s.U = r
+		zap.S().Infof("%s reconnect", r.acc)
+		r.state = Init
+	}()
 }
 
 func (r *Robot) GetData() *pb.RoleData {
@@ -128,13 +128,13 @@ func (r *Robot) Send(msgId msgid.MsgIDC2S, msg proto.Message) {
 }
 
 func (r *Robot) Login() {
-	reConn := r.Data != nil
+	// reConn := r.Data != nil
 	msg := pb.C2SLogin{
-		Account:   r.acc,
-		Dev:       r.acc,
-		SdkType:   pb.SdkType_Guest,
-		Channel:   0,
-		Reconnect: reConn,
+		Account: r.acc,
+		Dev:     r.acc,
+		SdkType: pb.SdkType_Guest,
+		Channel: 0,
+		// Reconnect: reConn,
 
 		CliInfo: &pb.ClientInfo{
 			DevID: "robot test",

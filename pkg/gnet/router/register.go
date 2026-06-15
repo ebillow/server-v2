@@ -126,7 +126,7 @@ func FindMsgIDAndCreateFunc[T pb.VTMessage](req T) (uint32, func() pb.VTMessage,
 
 	var createFunc func() pb.VTMessage
 	if isCli {
-		createFunc = pb.NewFuncS2C(msgid.MsgIDS2C(msgID))
+		createFunc = pb.NewFuncC2S(msgid.MsgIDC2S(msgID))
 	} else {
 		createFunc = pb.NewFuncS2S(msgid.MsgIDS2S(msgID))
 	}

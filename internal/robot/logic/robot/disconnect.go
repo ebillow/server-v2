@@ -5,7 +5,7 @@ import (
 )
 
 func InitDisconnect(r *Robot) {
-	r.AddTask(int64(util.RandRange(600, 1800)), taskDisconnect)
+	r.AddTask(int64(util.RandRange(300, 1800)), taskDisconnect)
 }
 
 func taskDisconnect(r *Robot) {

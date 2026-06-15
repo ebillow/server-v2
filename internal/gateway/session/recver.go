@@ -5,10 +5,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"net"
+	"os"
 	pb "server/api/pb"
 	"server/api/pb/msgid"
+	"server/pkg/gerror"
 	"server/pkg/gnet/msgq"
 	"server/pkg/gnet/trace"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,8 +29,7 @@ var recvBufPool = sync.Pool{
 
 func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 	defer func() {
-		s.Close(pb.DisconnectReason_Normal)
-		waitGroup.Done()
+		s.onLoopExit()
 	}()
 
 	if cfg.ReadDeadline > 0 {
@@ -36,59 +39,124 @@ func (s *Session) readLoop(ctx context.Context, cfg *Config) {
 	for {
 		mt, r, err := s.conn.NextReader()
 		if err != nil {
-			zap.L().Warn("NextReader err", zap.Inline(s), zap.Error(err))
+			s.Close(classifyReadErr(err))
 			return
 		}
 		if cfg.ReadDeadline > 0 {
 			_ = s.conn.SetReadDeadline(time.Now().Add(cfg.ReadDeadline))
 		}
-		if mt == websocket.CloseMessage {
-			return
-		} else if mt != websocket.BinaryMessage {
+
+		if mt != websocket.BinaryMessage {
 			continue
 		}
 
 		bufPtr := recvBufPool.Get().(*[]byte)
-		data := *bufPtr
+		buf := *bufPtr
 		var total int
 
-		for {
-			n, err := r.Read(data[total:])
-			total += n
-
-			if err == io.EOF {
-				break // 当前帧读取完毕
-			}
-			if err != nil {
-				zap.L().Warn("read payload err", zap.Inline(s), zap.Error(err))
-				recvBufPool.Put(bufPtr)
-				return
-			}
-			if total == len(data) {
-				zap.L().Warn("message length >= MaxMsgSize", zap.Inline(s), zap.Int("limit", len(data)))
-				recvBufPool.Put(bufPtr)
-				return
-			}
+		total, err = s.readFull(r, buf)
+		if err != nil {
+			recvBufPool.Put(bufPtr)
+			s.Close(classifyReadErr(err))
+			return
 		}
 
-		msgData := data[:total]
-		s.forwardToSrv(msgData)
-
+		s.forwardToSrv(buf[:total])
 		recvBufPool.Put(bufPtr)
 
 		select {
 		case <-ctx.Done():
+			s.Close(pb.DisconnectReason_Normal)
 			return
 		default:
 		}
 	}
 }
+func (s *Session) readFull(r io.Reader, buf []byte) (total int, err error) {
+	for {
+		n, err := r.Read(buf[total:])
+		total += n
 
-func Decode(src []byte) (msgID uint32, data []byte, err error) {
-	dataLen := len(src)
+		if err == io.EOF {
+			return total, nil
+		}
+		if err != nil {
+			zap.L().Warn("read payload err", zap.Inline(s), zap.Error(err))
+			return 0, err
+		}
+		if total >= len(buf) {
+			zap.L().Warn("message too large", zap.Inline(s), zap.Int("limit", len(buf)))
+			return 0, gerror.Newf("message too large:%d > %d", total, len(buf))
+		}
+	}
+}
+
+func classifyReadErr(err error) pb.DisconnectReason {
+	if err == nil {
+		return pb.DisconnectReason_Normal
+	}
+
+	// WebSocket Close 帧：客户端主动正常关闭 ----
+	var closeErr *websocket.CloseError
+	if errors.As(err, &closeErr) {
+		switch closeErr.Code {
+		case websocket.CloseNormalClosure,
+			websocket.CloseGoingAway,
+			websocket.CloseNoStatusReceived:
+			zap.L().Info("client closed normally",
+				zap.Int("code", closeErr.Code),
+				zap.String("text", closeErr.Text),
+			)
+			return pb.DisconnectReason_Normal
+		default:
+			// 客户端异常关闭 (如 1002 ProtocolError, 1011 InternalErr 等)
+			zap.L().Warn("client closed with error code",
+				zap.Int("code", closeErr.Code),
+				zap.String("text", closeErr.Text),
+			)
+			return pb.DisconnectReason_NetErr
+		}
+	}
+
+	// 超时：ReadDeadline 到期 ----
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		zap.L().Warn("read timeout", zap.Error(err))
+		return pb.DisconnectReason_Heartbeat
+	}
+
+	// 连接被对端重置 / 管道破裂 ----
+	// Linux: "connection reset by peer"  /  "broken pipe"
+	// Windows: wsarecv 相关错误
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		var sysErr *os.SyscallError
+		if errors.As(opErr.Err, &sysErr) {
+			errMsg := strings.ToLower(sysErr.Error())
+			if strings.Contains(errMsg, "connection reset") ||
+				strings.Contains(errMsg, "broken pipe") ||
+				strings.Contains(errMsg, "wsarecv") {
+				zap.L().Info("connection reset by peer", zap.Error(err))
+				return pb.DisconnectReason_Normal // 客户端强杀进程，视为正常离开
+			}
+		}
+	}
+
+	// ----  消息体过大（readFull 返回的错误）----
+	if strings.Contains(err.Error(), "message too large") {
+		zap.L().Warn("message too large", zap.Error(err))
+		return pb.DisconnectReason_Limit
+	}
+
+	// 兜底：未知读错误 ----
+	zap.L().Warn("unknown read error", zap.Error(err))
+	return pb.DisconnectReason_Unknown
+}
+
+func decode(src []byte) (msgID uint32, data []byte, err error) {
 	const minDataLen = 4
-	if dataLen < minDataLen {
-		return 0, nil, errors.New("packet head < 6")
+	if len(src) < minDataLen {
+		return 0, nil, errors.New("packet head < 4")
 	}
 
 	msgID = binary.BigEndian.Uint32(src[0:4])
@@ -97,7 +165,7 @@ func Decode(src []byte) (msgID uint32, data []byte, err error) {
 }
 
 func (s *Session) forwardToSrv(src []byte) {
-	msgID, data, err := Decode(src)
+	msgID, data, err := decode(src)
 	if err != nil {
 		zap.L().Warn("read packet err", zap.Inline(s), zap.Error(err))
 		s.Close(pb.DisconnectReason_DecodeErr)
@@ -115,7 +183,7 @@ func (s *Session) forwardToSrv(src []byte) {
 	if err != nil {
 		zap.L().Warn("send to server err"+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
-			zap.String("to", serType.String()),
+			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint8("idx", serID),
 			zap.Inline(s),
 		)
@@ -124,7 +192,7 @@ func (s *Session) forwardToSrv(src []byte) {
 	if trace.Rule.ShouldLog(msgID, 0, s.Id) {
 		zap.L().Info(">>> to server: "+msgid.MsgIDC2S_name[int32(msgID)],
 			zap.Uint32("msgID", msgID),
-			zap.String("to", serType.String()),
+			zap.String("to", pb.Server_name[int32(serType)]),
 			zap.Uint8("idx", serID),
 			zap.Inline(s),
 		)

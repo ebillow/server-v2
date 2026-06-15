@@ -76,7 +76,8 @@ func loadAccInCache(account string, sdk pb.SdkType) (uint64, bool) {
 	ctx := context.Background()
 	accID, err := db.Redis.Get(ctx, model.KeyAccBind(FormatBindKey(sdk, account))).Uint64()
 	if err != nil {
-		zap.L().Fatal("loadAccInCache", zap.Error(err))
+		zap.L().Fatal("loadAccInCache", zap.Error(err), zap.String("account", account), zap.Int32("sdk", int32(sdk)))
+
 	}
 	acc := Account{}
 	ret := db.Redis.HMGet(ctx, model.KeyAccount(accID), AccFields()...)

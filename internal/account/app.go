@@ -33,8 +33,6 @@ func UnInit(ctx context.Context) {
 func OnServerMsg(c gmsg.Message) {
 	err := router.R().Handle(c)
 	if err != nil {
-		zap.L().Info("<<< msg.recv:",
-			zap.Inline(&c),
-		)
+		zap.L().Warn("handle msg error", zap.Inline(&c), zap.Error(err))
 	}
 }

@@ -60,41 +60,68 @@ func (s *Session) SendPB(msgID msgid.MsgIDS2C, msg pb.VTMessage) bool {
 	return true
 }
 
-// sendLoop todo 合并发送，应对波峰
+// sendLoop
 func (s *Session) sendLoop(ctx context.Context) {
 	defer func() {
-		s.Close(pb.DisconnectReason_NetErr)
-		waitGroup.Done()
+		s.onLoopExit()
 	}()
 
 	var headerBuf [4]byte
 	for {
 		select {
 		case <-s.out.Sig():
-			_ = s.conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
-			s.out.Range(func(v MsgSend) {
-				w, err := s.conn.NextWriter(websocket.BinaryMessage)
-				if err != nil {
-					zap.L().Warn("NextWriter error", zap.Error(err))
-					s.Close(pb.DisconnectReason_NetErr)
-				}
-
-				binary.BigEndian.PutUint32(headerBuf[0:4], v.ID)
-
-				_, err = w.Write(headerBuf[:])
-				if err == nil && len(v.Data) > 0 {
-					_, err = w.Write(v.Data)
-				}
-				// 立刻关闭 Writer 刷入网络
-				_ = w.Close()
-
-				if err != nil {
-					return
-				}
-			})
-
+			if err := s.drainAndWrite(headerBuf[:]); err != nil {
+				s.Close(pb.DisconnectReason_NetErr)
+				return
+			}
 		case <-ctx.Done():
+			_ = s.drainAndWrite(headerBuf[:])
+			s.writeCloseFrame()
 			return
 		}
 	}
+}
+
+// todo 合并发送，应对波峰
+// drainAndWrite 把队列中所有消息写到 conn
+func (s *Session) drainAndWrite(headerBuf []byte) error {
+	var firstErr error
+	_ = s.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+
+	s.out.Range(func(v MsgSend) {
+		if firstErr != nil {
+			return
+		}
+
+		w, err := s.conn.NextWriter(websocket.BinaryMessage)
+		if err != nil {
+			firstErr = err
+			return
+		}
+
+		binary.BigEndian.PutUint32(headerBuf[0:4], v.ID)
+		_, err = w.Write(headerBuf[:4])
+		if err == nil && len(v.Data) > 0 {
+			_, err = w.Write(v.Data)
+		}
+		if closeErr := w.Close(); err == nil {
+			err = closeErr
+		}
+		if err != nil {
+			firstErr = err
+		}
+	})
+
+	if firstErr != nil {
+		zap.L().Warn("write to client error",
+			zap.Error(firstErr), zap.Inline(s))
+	}
+	return firstErr
+}
+
+// writeCloseFrame 发送 WebSocket Close 帧
+func (s *Session) writeCloseFrame() {
+	_ = s.conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	msg := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
+	_ = s.conn.WriteMessage(websocket.CloseMessage, msg)
 }

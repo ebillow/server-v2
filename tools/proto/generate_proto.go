@@ -46,7 +46,7 @@ package pb
 import (
 	"reflect"
 	"server/api/pb/msgid"
-	"server/gmsg/gnet/pool"
+	"server/pkg/gnet/pool"
 )
 
 var (

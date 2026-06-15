@@ -71,6 +71,7 @@ func (h *MsgHandler) Handle(p gmsg.Message) error {
 	if trace.Rule.ShouldLog(p.Head.MsgID, p.Head.ActorID, p.Head.SesID) {
 		str, _ := sonic.MarshalString(msgPB)
 		zap.L().Info("recv",
+			zap.Uint32("msgID", p.Head.MsgID),
 			zap.String("type", fmt.Sprintf("%T", msgPB)),
 			zap.String("data", str),
 			zap.Inline(&p),
@@ -114,6 +115,7 @@ func (h *RpcHandler) Handle(p gmsg.Message) error {
 	if shouldLog {
 		str, _ := sonic.MarshalString(req)
 		zap.L().Info("recv rpc",
+			zap.Uint32("msgID", p.Head.MsgID),
 			zap.String("type", fmt.Sprintf("%T", req)),
 			zap.String("data", str),
 			zap.Inline(&p),
