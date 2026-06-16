@@ -77,7 +77,7 @@ func Run(ctx context.Context) {
 				curTick = 0
 			}
 		case <-tUpLoad.C:
-			discovery.UpdateLoad(int32(Mgr.Count()))
+			discovery.Default.UpdateLoad(int32(Mgr.Count()))
 		case <-ctx.Done():
 			return
 		}

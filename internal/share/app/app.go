@@ -64,10 +64,11 @@ func (a *App) init(ctx context.Context) error {
 		return err
 	}
 	lock.InitPool(db.Redis)
-	if err := discovery.Init(flag.EtcdAddr, db.Redis); err != nil {
+	err := discovery.InitDefault(conf.IID, flag.EtcdAddr, db.Redis)
+	if err != nil {
 		return err
 	}
-	discovery.Watch()
+	discovery.Default.Watch()
 
 	if err := msgq.Q.Init(conf.MsgQueue.SAddr, a.SrvType, flag.SvcIndex, nats.UserInfo(conf.MsgQueue.User, conf.MsgQueue.Pwd)); err != nil {
 		return err
@@ -117,7 +118,7 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 	}
 	flag.SetReady()
 
-	if err := discovery.RegisterDefault(flag.SrvName(a.SrvType), &discovery.Node{NodeID: int32(flag.SvcIndex)}); err != nil {
+	if err := discovery.Default.Register(flag.SrvName(a.SrvType), &discovery.Node{NodeID: int32(flag.SvcIndex)}); err != nil {
 		return err
 	}
 
@@ -130,7 +131,7 @@ func (a *App) action(ctx context.Context, wait *sync.WaitGroup) error {
 }
 
 func (a *App) unInit(ctx context.Context) error {
-	discovery.Close()
+	discovery.Default.Close()
 	a.UnInit(ctx)
 	// zap.L().Info("closing...")
 	_ = db.CloseMongo()

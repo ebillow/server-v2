@@ -3,11 +3,10 @@ package discovery
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"path"
+	"math/rand"
 	"server/pkg/thread"
+	"server/pkg/util"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +23,7 @@ type Discoverer struct {
 	redisCli redis.UniversalClient
 	ctx      context.Context
 	cancel   context.CancelFunc
+	wg       sync.WaitGroup
 }
 
 func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix string) *Discoverer {
@@ -38,14 +38,22 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 
 	s.syncFullState(cli) // 全量拉取一次
 
+	s.wg.Add(2)
 	thread.GoSafe(func() {
+		defer s.wg.Done()
 		s.watchLoop(cli)
 	})
 	thread.GoSafe(func() {
+		defer s.wg.Done()
 		s.syncLoadLoop()
 	})
 
 	return s
+}
+
+func (s *Discoverer) Close() {
+	s.cancel()
+	s.wg.Wait()
 }
 
 // watchLoop 包含断线重连的监听机制
@@ -55,7 +63,7 @@ func (s *Discoverer) watchLoop(cli *clientv3.Client) {
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second*2 + time.Duration(util.RandRange(0, 1000))*time.Millisecond):
 		}
 	}
 }
@@ -71,10 +79,15 @@ func (s *Discoverer) watch(cli *clientv3.Client) {
 		}
 		return
 	}
-	rch := cli.Watch(s.ctx, s.prefix, clientv3.WithPrefix(), clientv3.WithRev(revision+1))
+	rch := cli.Watch(s.ctx, s.prefix, clientv3.WithPrefix(), clientv3.WithRev(revision+1), clientv3.WithProgressNotify())
 	for wresp := range rch {
 		if wresp.Canceled {
-			zap.L().Warn("etcd watch canceled, reconnecting...")
+			if err := wresp.Err(); err != nil {
+				zap.L().Warn("etcd watch canceled",
+					zap.Error(err),
+					zap.Int64("compact_revision", wresp.CompactRevision),
+				)
+			}
 			break // 跳出内部循环，触发重连
 		}
 		for _, ev := range wresp.Events {
@@ -94,7 +107,7 @@ func (s *Discoverer) syncLoadLoop() {
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Second*2 + time.Duration(rand.Intn(1000))*time.Millisecond):
 		}
 	}
 }
@@ -140,7 +153,7 @@ func (s *Discoverer) syncLoad() {
 
 // syncFullState 全量加載
 func (s *Discoverer) syncFullState(cli *clientv3.Client) (ver int64) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	ctx, cancel := context.WithTimeout(s.ctx, time.Second*3)
 	defer cancel()
 
 	resp, err := cli.Get(ctx, s.prefix, clientv3.WithPrefix())
@@ -182,28 +195,29 @@ func (s *Discoverer) syncFullState(cli *clientv3.Client) (ver int64) {
 			SerID   int32
 		}{SerName: svcName, SerID: meta.NodeID}
 	}
-	if len(keys) == 0 {
-		return
-	}
-	// 使用 MGet 批量获取
-	res, err := s.redisCli.MGet(s.ctx, keys...).Result()
-	if err != nil {
-		zap.L().Error("failed to mget load from redis", zap.Error(err))
-		return
-	}
-
-	for i, val := range res {
-		if val == nil {
-			continue // 节点可能刚启动还未上报
+	if len(keys) > 0 {
+		ctx, cancel := context.WithTimeout(s.ctx, time.Second*3)
+		defer cancel()
+		// 使用 MGet 批量获取
+		res, err := s.redisCli.MGet(ctx, keys...).Result()
+		if err != nil {
+			zap.L().Error("failed to mget load from redis", zap.Error(err))
+			return
 		}
-		loadStr, ok := val.(string)
-		if !ok {
-			continue
-		}
-		load, _ := strconv.Atoi(loadStr)
 
-		meta := keyToMeta[keys[i]]
-		newAll[meta.SerName].UpdateLoad(meta.SerID, int32(load))
+		for i, val := range res {
+			if val == nil {
+				continue // 节点可能刚启动还未上报
+			}
+			loadStr, ok := val.(string)
+			if !ok {
+				continue
+			}
+			load, _ := strconv.Atoi(loadStr)
+
+			meta := keyToMeta[keys[i]]
+			newAll[meta.SerName].UpdateLoad(meta.SerID, int32(load))
+		}
 	}
 
 	s.mtx.Lock()
@@ -212,23 +226,6 @@ func (s *Discoverer) syncFullState(cli *clientv3.Client) (ver int64) {
 
 	zap.L().Info("[service discover] full replace completed", zap.Int("services_count", len(newAll)))
 	return resp.Header.Revision
-}
-
-func parseServicePath(key string) (srvName string, serID int32, err error) {
-	baseName := path.Base(key)
-	lastIdx := strings.LastIndex(baseName, "_")
-	if lastIdx == -1 {
-		return "", 0, fmt.Errorf("invalid service path: %s", key)
-	}
-
-	srvName = baseName[:lastIdx]
-	idStr := baseName[lastIdx+1:]
-
-	idx, err := strconv.Atoi(idStr)
-	if err != nil {
-		return "", 0, err
-	}
-	return srvName, int32(idx), nil
 }
 
 func (s *Discoverer) upsertNode(key string, val []byte) {
@@ -246,13 +243,14 @@ func (s *Discoverer) upsertNode(key string, val []byte) {
 	meta.NodeID = svcID
 
 	s.mtx.Lock()
-	defer s.mtx.Unlock()
 
 	one := s.services[svcName]
 	if one == nil {
 		one = newNodeGroup()
 		s.services[svcName] = one
 	}
+	s.mtx.Unlock()
+
 	one.Add(meta)
 	zap.L().Info("[service discover]add", zap.String("service", svcName), zap.Int32("id", svcID), zap.Any("meta", meta))
 }
@@ -265,13 +263,13 @@ func (s *Discoverer) removeNode(key string) {
 	}
 	s.mtx.Lock()
 	one := s.services[svcName]
-	defer s.mtx.Unlock()
 
 	if one != nil {
 		if one.Delete(svcID) {
 			delete(s.services, svcName)
 		}
 	}
+	s.mtx.Unlock()
 
 	zap.L().Info("[service discover]delete", zap.String("service", svcName), zap.Int32("id", svcID))
 }

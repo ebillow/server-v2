@@ -11,11 +11,11 @@ import (
 )
 
 func gameExists(gameID uint8) bool {
-	return discovery.Exists(flag.SrvName(pb.Server_Game), int32(gameID))
+	return discovery.Default.Exists(flag.SrvName(pb.Server_Game), int32(gameID))
 }
 
 func selectGameServer(_ uint32) (uint8, pb.LoginCode) {
-	id, ok := discovery.Select(flag.SrvName(pb.Server_Game))
+	id, ok := discovery.Default.Select(flag.SrvName(pb.Server_Game))
 	if !ok {
 		return 0, pb.LoginCode_LCNoGame
 	}

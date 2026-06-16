@@ -5,8 +5,6 @@ import (
 	"server/api/pb"
 	"server/pkg/gnet/gmsg"
 	"server/pkg/gnet/router"
-
-	"go.uber.org/zap"
 )
 
 func On[T pb.VTMessage](df func(req T, r *Role)) {
@@ -32,7 +30,7 @@ func register[T pb.VTMessage](usePool bool, df func(req T, r *Role)) {
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Error("register fail", zap.Error(err))
+		panic(err)
 		return
 	}
 
@@ -42,9 +40,8 @@ func register[T pb.VTMessage](usePool bool, df func(req T, r *Role)) {
 
 	err = router.R().Register(msgID, reqCreate, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("RegisterC2S failed: duplicate register",
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		panic(err)
+		return
 	}
 }
 
@@ -53,7 +50,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 
 	msgID, reqCreate, err := router.FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Error("register fail", zap.Error(err))
+		panic(err)
 		return
 	}
 
@@ -70,9 +67,6 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 
 	err = router.R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("Register failed: duplicate register",
-			zap.String("msgType", reflect.TypeOf(req).String()),
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		panic(err)
 	}
 }

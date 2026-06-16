@@ -60,6 +60,7 @@ type Aes struct {
 
 // Config 服务端总配置
 type Config struct {
+	IID      string   `yaml:"iid"`
 	MsgQueue MsgQueue `yaml:"MsgQueue"` // 全局Queue
 	LogQueue MsgQueue `yaml:"LogQueue"` // 日志服Queue
 

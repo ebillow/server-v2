@@ -2,8 +2,8 @@ package thread
 
 import (
 	"bufio"
+	"context"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"os"
 	"os/exec"
@@ -12,6 +12,8 @@ import (
 	"server/pkg/util"
 	"strings"
 	"syscall"
+
+	"go.uber.org/zap"
 )
 
 var CapturePanic bool // 这里用全局变量, 方便单元测试
@@ -48,6 +50,18 @@ func RunSafe(fn func()) (caught bool) {
 
 	fn()
 	return caught
+}
+
+// KeepRunSafe 除非ctx.Done,fn即使panic也一直运行，fn要退出需要通过ctx.Done
+func KeepRunSafe(ctx context.Context, fn func()) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			RunSafe(fn)
+		}
+	}
 }
 
 func WaitExit() {

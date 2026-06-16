@@ -5,6 +5,7 @@ import (
 	pb "server/api/pb"
 	"server/api/pb/msgid"
 	clinet2 "server/internal/robot/clinet"
+	"server/pkg/util"
 	"time"
 
 	"go.uber.org/zap"
@@ -100,7 +101,8 @@ func (r *Robot) OnDisconnect() {
 	r.stateTime = time.Now()
 	r.state = Disconnect
 	go func() {
-		<-time.After(time.Minute)
+		span := util.RandRange(time.Duration(3), 300)
+		<-time.After(time.Second * span)
 		s, err := clinet2.DailWebsocket(Setup.ServerAddr, cfg)
 		if err != nil {
 			return

@@ -7,8 +7,9 @@ import (
 	"server/api/pb"
 	"server/internal/share/model"
 	"server/pkg/db"
+	"strings"
+	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -75,18 +76,31 @@ func FormatBindKey(sdkType pb.SdkType, account string) string {
 	return fmt.Sprintf("%d@%s", sdkType, account)
 }
 
+// Clone 深度拷贝 Account
+func (acc *Account) Clone() *Account {
+	if acc == nil {
+		return nil
+	}
+	clone := *acc // 浅拷贝基础类型
+	// 深拷贝切片
+	if acc.Binds != nil {
+		clone.Binds = make([]string, len(acc.Binds))
+		copy(clone.Binds, acc.Binds)
+	}
+	return &clone
+}
+
 // UnmarshalBinds 解析 Redis 中的 JSON 数组
 func (acc *Account) UnmarshalBinds() {
 	if acc.BindsJSON != "" {
-		_ = sonic.Unmarshal([]byte(acc.BindsJSON), &acc.Binds)
+		acc.Binds = strings.Split(acc.BindsJSON, ",")
 	}
 }
 
 // MarshalBinds 写入 Redis 前序列化
 func (acc *Account) MarshalBinds() string {
 	if len(acc.Binds) > 0 {
-		b, _ := sonic.Marshal(acc.Binds)
-		acc.BindsJSON = string(b)
+		acc.BindsJSON = strings.Join(acc.Binds, ",")
 	}
 	return acc.BindsJSON
 }
@@ -125,11 +139,9 @@ func (acc *Account) CollectionName() string {
 	return AccountCollection
 }
 
-// BindNewSDK 玩家在游戏内绑定新渠道
+// BindNewSDK 玩家在游戏内绑定新渠道 todo
 func BindNewSDK(ctx context.Context, accID uint64, newSdkType pb.SdkType, newSdkID string) error {
 	newBindKey := FormatBindKey(newSdkType, newSdkID)
-
-	// $addToSet 保证数组元素不重复
 	update := bson.M{"$addToSet": bson.M{"binds": newBindKey}}
 
 	_, err := db.MongoDB().Collection(AccountCollection).UpdateOne(ctx, bson.M{"acc_id": accID}, update)
@@ -140,25 +152,22 @@ func BindNewSDK(ctx context.Context, accID uint64, newSdkType pb.SdkType, newSdk
 		return err
 	}
 
-	// 更新 Redis ...
+	// keyAcc := model.KeyAccount(accID)
+	keyBind := model.KeyAccBind(newBindKey)
+
+	pipe := db.Redis.Pipeline()
+	pipe.Set(ctx, keyBind, accID, time.Hour*24*7)
+
+	_, _ = pipe.Exec(ctx)
+
 	return nil
 }
 
 // InitDistributedAccID 在节点启动时同步一次最大ID到Redis
 func InitDistributedAccID(ctx context.Context) error {
-	// 先检查 Redis 是否已经有值（其他节点可能已经初始化过了）
-	exists, err := db.Redis.Exists(ctx, model.RedisKeyIDs).Result()
-	if err != nil {
-		return err
-	}
-	if exists > 0 {
-		return nil
-	}
-
-	// 如果Redis没有，从Mongo查最大的
 	acc := &Account{}
 	opts := options.FindOne().SetSort(bson.M{acc.FieldAccID(): -1})
-	err = db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, bson.M{}, opts).Decode(acc)
+	err := db.MongoDB().Collection(acc.CollectionName()).FindOne(ctx, bson.M{}, opts).Decode(acc)
 
 	var maxID = uint64(pb.ActorID_IDAccBegin)
 	if err == nil {
@@ -167,9 +176,22 @@ func InitDistributedAccID(ctx context.Context) error {
 		return err
 	}
 
-	// 使用 SetNX 防止多节点同时启动时的覆盖竞争
-	db.Redis.SetNX(ctx, model.RedisKeyIDs, maxID, 0)
-	zap.L().Info("init distributed acc id", zap.Uint64("max_id", maxID))
+	// 使用 Lua 脚本保证只增不减
+	const luaScript = `
+        local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+        local proposed = tonumber(ARGV[1])
+        if proposed > current then
+            redis.call('SET', KEYS[1], proposed)
+            return proposed
+        end
+        return current
+    `
+	result, err := db.Redis.Eval(ctx, luaScript, []string{model.RedisKeyIDs}, maxID).Result()
+	if err != nil {
+		return fmt.Errorf("init acc id failed: %w", err)
+	}
+
+	zap.L().Info("init distributed acc id", zap.Any("final_id", result))
 	return nil
 }
 

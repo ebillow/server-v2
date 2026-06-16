@@ -54,6 +54,8 @@ func (l *AccountLoader) run(ctx context.Context) {
 				uniqueRequests = append(uniqueRequests, req)
 			}
 			l.loadAccountsFromCache(uniqueRequests)
+			// clear(batch)
+			// clear(uniqueRequests)
 			batch = batch[:0]
 			uniqueRequests = uniqueRequests[:0]
 		}
@@ -70,7 +72,14 @@ func (l *AccountLoader) run(ctx context.Context) {
 		case <-t.C:
 			flush()
 		case <-ctx.Done():
-			return
+			for {
+				select {
+				case p := <-l.loading:
+					sendLoginFailure(p, pb.LoginCode_LCServerBusy)
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -87,6 +96,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 	cmdBind, err := pipeBind.Exec(ctx)
 	if err != nil && !errors.Is(err, redis.Nil) {
 		zap.L().Error("[login] redis load batch failed", zap.Error(err))
+		l.loadAccountsFromDB(batch)
 		return
 	}
 
@@ -110,6 +120,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 		_, err = pipeAcc.Exec(ctx)
 		if err != nil && !errors.Is(err, redis.Nil) {
 			zap.L().Error("[login] redis load batch pipeAcc failed", zap.Error(err))
+			l.loadAccountsFromDB(batch)
 			return
 		}
 		for i, c := range cmdAcc {
@@ -133,7 +144,7 @@ func (l *AccountLoader) loadAccountsFromCache(batch []*pb.S2SReqLogin) {
 	}
 
 	if len(batchFromDB) > 0 {
-		l.loadAccountsFromDB(ctx, batchFromDB)
+		l.loadAccountsFromDB(batchFromDB)
 	}
 }
 
@@ -142,16 +153,22 @@ type accWrap struct {
 	AccData *Account
 }
 
-func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SReqLogin) {
+func (l *AccountLoader) loadAccountsFromDB(batch []*pb.S2SReqLogin) {
 	bindKeys := make([]string, 0, len(batch))
 	for _, op := range batch {
 		bindKeys = append(bindKeys, op.BindAcc)
 	}
 	filter := bson.M{"binds": bson.M{"$in": bindKeys}}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
 	cursor, err := db.MongoDB().Collection(AccountCollection).Find(ctx, filter)
 	if err != nil {
 		zap.L().Error("[login] find role failed", zap.Error(err))
+		for _, req := range batch {
+			sendLoginFailure(req, pb.LoginCode_LCServerErr)
+		}
 		return
 	}
 	defer func() {
@@ -161,10 +178,13 @@ func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SR
 	var accDatas []*Account
 	if err = cursor.All(ctx, &accDatas); err != nil {
 		zap.L().Error("[login] cursor all failed", zap.Error(err))
+		for _, req := range batch {
+			sendLoginFailure(req, pb.LoginCode_LCServerErr)
+		}
 		return
 	}
 
-	// 可能redis中bind过期，acc状态还在，需要状态回填
+	// 可能redis中bind过期，acc状态还在，GameID,Seq Passwd数据库里没有，需要状态回填
 	if len(accDatas) > 0 {
 		pipe := db.Redis.Pipeline()
 		cmds := make([]*redis.SliceCmd, len(accDatas))
@@ -174,11 +194,14 @@ func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SR
 
 		if _, err := pipe.Exec(ctx); err != nil && !errors.Is(err, redis.Nil) {
 			zap.L().Warn("enrich account from redis failed", zap.Error(err))
-		} else {
-			for i, acc := range accDatas {
-				if cmds[i].Err() == nil {
-					_ = cmds[i].Scan(acc)
-				}
+			for _, op := range batch {
+				sendLoginFailure(op, pb.LoginCode_LCServerErr)
+			}
+			return
+		}
+		for i, acc := range accDatas {
+			if cmds[i].Err() == nil {
+				_ = cmds[i].Scan(acc)
 			}
 		}
 	}
@@ -192,22 +215,27 @@ func (l *AccountLoader) loadAccountsFromDB(ctx context.Context, batch []*pb.S2SR
 		}
 	}
 
-	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
 	updateAccBatch := make([]accWrap, 0, len(batch))
 	for _, op := range batch {
 		if r, ok := result[op.BindAcc]; ok {
-			dispatchEvent(Event{Op: OpAfterSDKCheck, Login: op, Acc: r})
 			updateAccBatch = append(updateAccBatch, accWrap{AccData: r, BindKey: op.BindAcc})
+		}
+	}
+	if len(updateAccBatch) > 0 {
+		l.syncAccountsToCache(ctx, updateAccBatch)
+	}
+
+	newAccBatch := make([]*pb.S2SReqLogin, 0, len(batch))
+	for _, op := range batch {
+		if r, ok := result[op.BindAcc]; ok {
+			dispatchEvent(Event{Op: OpAfterSDKCheck, Login: op, Acc: r.Clone()})
 		} else {
 			newAccBatch = append(newAccBatch, op)
 		}
 	}
 
 	if len(newAccBatch) > 0 {
-		l.registerNewAccounts(ctx, newAccBatch)
-	}
-	if len(updateAccBatch) > 0 {
-		l.syncAccountsToCache(ctx, updateAccBatch)
+		l.registerNewAccounts(newAccBatch)
 	}
 }
 
@@ -218,7 +246,8 @@ func (l *AccountLoader) syncAccountsToCache(ctx context.Context, batch []accWrap
 		keyAcc := model.KeyAccount(b.AccData.AccID)
 		pipe.HSet(ctx, keyAcc, b.AccData.FieldAccID(), b.AccData.AccID,
 			b.AccData.FieldFreeze(), b.AccData.Freeze,
-			b.AccData.FieldBinds(), b.AccData.MarshalBinds())
+			b.AccData.FieldBinds(), b.AccData.MarshalBinds(),
+		)
 		pipe.Expire(ctx, keyAcc, expiration)
 
 		pipe.Set(ctx, model.KeyAccBind(b.BindKey), b.AccData.AccID, expiration)
@@ -231,9 +260,18 @@ func (l *AccountLoader) syncAccountsToCache(ctx context.Context, batch []accWrap
 	}
 }
 
-func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2SReqLogin) {
+func (l *AccountLoader) registerNewAccounts(batch []*pb.S2SReqLogin) {
 	pipe := db.Redis.Pipeline()
 	const expiration = time.Hour * 24 * 7
+
+	type registered struct {
+		req *pb.S2SReqLogin
+		acc *Account
+	}
+	successList := make([]registered, 0, len(batch))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 
 	for _, req := range batch {
 		id, err := GenerateNextAccID(ctx)
@@ -269,14 +307,14 @@ func (l *AccountLoader) registerNewAccounts(ctx context.Context, batch []*pb.S2S
 		pipe.Expire(ctx, keyAcc, expiration)
 		pipe.Set(ctx, keyBind, acc.AccID, expiration)
 
-		dispatchEvent(Event{
-			Op:    OpAfterSDKCheck,
-			Login: req,
-			Acc:   acc,
-		})
+		successList = append(successList, registered{req: req, acc: acc})
 	}
 
 	if _, err := pipe.Exec(ctx); err != nil {
-		zap.L().Warn("redis batch set failed, will fallback to mongo next time", zap.Error(err))
+		zap.L().Warn("redis batch set failed, will fallback to mongo next time", zap.Error(err)) // mongo中已写入，可以登入
+	}
+
+	for _, s := range successList {
+		dispatchEvent(Event{Op: OpAfterSDKCheck, Login: s.req, Acc: s.acc})
 	}
 }

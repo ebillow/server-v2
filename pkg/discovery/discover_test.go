@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	err = Init([]string{"127.0.0.1:2379"}, db.Redis)
+	err = InitDefault("zt", []string{"127.0.0.1:2379"}, db.Redis)
 	if err != nil {
 		panic(err)
 	}
@@ -46,8 +46,8 @@ func TestParseServicePath(t *testing.T) {
 		wantNodeID int32
 		wantErr    bool
 	}{
-		{"正常路径", "/micro/registry/user_service_1001", "user_service", 1001, false},
-		{"包含多个下划线", "/micro/registry/my_complex_svc_name_2002", "my_complex_svc_name", 2002, false},
+		{"正常路径", "/micro/registry/user_service/1001", "user_service", 1001, false},
+		{"包含多个下划线", "/micro/registry/my_complex_svc_name/2002", "my_complex_svc_name", 2002, false},
 		{"缺少ID", "/micro/registry/user_service", "", 0, true},
 		{"ID不是数字", "/micro/registry/user_service_abc", "", 0, true},
 		{"空字符串", "", "", 0, true},
@@ -274,21 +274,21 @@ func TestNodeGroup_AllNodeIDs(t *testing.T) {
 }
 
 func TestFullState(t *testing.T) {
-	r1, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
+	r1, err := NewRegister(Default.etcdCli, Default.redisCli, "/service/zt", flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
 	require.NoError(t, err)
 	r1.UpdateLoad(2)
 
-	r2, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
+	r2, err := NewRegister(Default.etcdCli, Default.redisCli, "/service/zt", flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
 	require.NoError(t, err)
 	r2.UpdateLoad(4)
 
 	time.Sleep(time.Second * 3)
 
-	Watch()
+	Default.Watch()
 
-	exist := Exists(flag.SrvName(pb.Server_Game), 1)
+	exist := Default.Exists(flag.SrvName(pb.Server_Game), 1)
 	require.True(t, exist)
-	exist = Exists(flag.SrvName(pb.Server_Game), 2)
+	exist = Default.Exists(flag.SrvName(pb.Server_Game), 2)
 	require.True(t, exist)
 }
 

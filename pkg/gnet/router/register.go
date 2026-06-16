@@ -6,8 +6,6 @@ import (
 	"server/api/pb/msgid"
 	"server/pkg/gerror"
 	"server/pkg/gnet/gmsg"
-
-	"go.uber.org/zap"
 )
 
 var (
@@ -47,7 +45,7 @@ func register[T pb.VTMessage](usePool bool, df func(req T)) {
 	var req T
 	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Error("register fail", zap.Error(err))
+		panic(err)
 		return
 	}
 	handleFunc := func(p gmsg.Message, msg pb.VTMessage) {
@@ -56,10 +54,7 @@ func register[T pb.VTMessage](usePool bool, df func(req T)) {
 
 	err = R().Register(msgID, createFunc, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("register failed: duplicate register",
-			zap.String("msgType", reflect.TypeOf(req).String()),
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		panic(err)
 	}
 }
 
@@ -67,7 +62,7 @@ func registerWithHead[T pb.VTMessage](usePool bool, df func(h gmsg.Head, req T))
 	var req T
 	msgID, createFunc, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Error("register fail", zap.Error(err))
+		panic(err)
 		return
 	}
 	handleFunc := func(p gmsg.Message, msg pb.VTMessage) {
@@ -76,10 +71,7 @@ func registerWithHead[T pb.VTMessage](usePool bool, df func(h gmsg.Head, req T))
 
 	err = R().Register(msgID, createFunc, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("register failed: duplicate register",
-			zap.String("msgType", reflect.TypeOf(req).String()),
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		panic(err)
 	}
 }
 
@@ -88,14 +80,14 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 
 	msgID, reqCreate, err := FindMsgIDAndCreateFunc(req)
 	if err != nil {
-		zap.L().Error("register fail", zap.Error(err))
+		panic(err)
 		return
 	}
 
 	var res Res
 	resType := reflect.TypeOf(res)
 	resElemType := resType.Elem()
-	resCreate := func() pb.VTMessage {
+	resCreate := func() pb.VTMessage { // todo 注册到pb.help
 		return reflect.New(resElemType).Interface().(pb.VTMessage)
 	}
 
@@ -105,10 +97,7 @@ func registerRpc[Req pb.VTMessage, Res pb.VTMessage](usePool bool, df func(req R
 
 	err = R().RegisterRpc(msgID, reqCreate, resCreate, usePool, handleFunc)
 	if err != nil {
-		zap.L().Fatal("Register failed: duplicate register",
-			zap.String("msgType", reflect.TypeOf(req).String()),
-			zap.Uint32("msgID", msgID),
-			zap.Error(err))
+		panic(err)
 	}
 }
 

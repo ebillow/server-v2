@@ -43,33 +43,47 @@ func NewActor(subActor ISubActor, EventChanSize int) *Actor {
 func (a *Actor) Start(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	thread.GoSafe(func() {
-		t := time.NewTicker(time.Second)
 		defer func() {
 			a.sub.Exit()
 			wg.Done()
-			t.Stop()
 		}()
 		for {
 			select {
-			case <-a.Events.Sig():
-				a.Events.Range(func(evt Event) {
-					if evt.Func != nil {
-						evt.Func()
-					} else {
-						err := router.R().Handle(evt.Ctx)
-						if err != nil {
-							zap.L().Warn("actor hand err", zap.Error(err))
-						}
-					}
+			case <-ctx.Done():
+				return
+			default:
+				thread.RunSafe(func() {
+					a.run(ctx)
 				})
-				if ctx.Err() != nil {
-					return // 自己退出
-				}
-			case now := <-t.C:
-				a.sub.OnTick(now)
 			}
 		}
 	})
+}
+
+func (a *Actor) run(ctx context.Context) {
+	t := time.NewTicker(time.Second)
+	defer func() {
+		t.Stop()
+	}()
+	for {
+		select {
+		case <-a.Events.Sig():
+			a.Events.Range(func(evt Event) {
+				if evt.Func != nil {
+					evt.Func()
+				} else {
+					err := router.R().Handle(evt.Ctx)
+					if err != nil {
+						zap.L().Warn("actor hand err", zap.Error(err))
+					}
+				}
+			})
+		case now := <-t.C:
+			a.sub.OnTick(now)
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 func (a *Actor) Post(e Event) error {

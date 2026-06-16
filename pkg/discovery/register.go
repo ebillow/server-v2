@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"server/pkg/thread"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
@@ -25,9 +28,10 @@ type Register struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	currentLoad atomic.Int32 // 业务层更新此值
+	wg          sync.WaitGroup
 }
 
-func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName string, m *Node, ttl int64) (*Register, error) {
+func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, prefix string, svcName string, m *Node, ttl int64) (*Register, error) {
 	b, err := json.Marshal(m)
 	if err != nil {
 		return nil, err
@@ -37,7 +41,7 @@ func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName s
 	r := &Register{
 		cli:      cli,
 		redisCli: redisCli,
-		key:      fmt.Sprintf("%s%s_%d", Prefix, svcName, m.NodeID),
+		key:      etcdPath(prefix, svcName, m.NodeID),
 		value:    string(b),
 		ttl:      ttl,
 		svcName:  svcName,
@@ -46,10 +50,13 @@ func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, svcName s
 		cancel:   cancel,
 	}
 
+	r.wg.Add(2)
 	thread.GoSafe(func() {
+		defer r.wg.Done()
 		r.keepAliveLoop()
 	})
 	thread.GoSafe(func() {
+		defer r.wg.Done()
 		r.reportLoadLoop()
 	})
 
@@ -132,6 +139,8 @@ func (s *Register) UpdateLoad(load int32) {
 func (s *Register) reportLoadLoop() {
 	ticker := time.NewTicker(time.Second * 2)
 	defer ticker.Stop()
+	var lastReportedLoad int32
+	var ticksSinceLastReport int
 
 	for {
 		select {
@@ -139,19 +148,28 @@ func (s *Register) reportLoadLoop() {
 			return
 		case <-ticker.C:
 			load := s.currentLoad.Load()
-			msg := Node{
-				SvcName: s.svcName,
-				NodeID:  s.svcID,
-				Load:    load,
-			}
-			b, _ := json.Marshal(msg)
+			ticksSinceLastReport++
 
-			pipe := s.redisCli.Pipeline()
-			pipe.Set(s.ctx, redisKeyOfUpload(s.svcName, s.svcID), load, time.Minute)
-			pipe.Publish(s.ctx, RedisLoadChannel, string(b))
-			_, err := pipe.Exec(s.ctx)
-			if err != nil {
-				zap.L().Error("failed to report load to redis", zap.Error(err))
+			if math.Abs(float64(load-lastReportedLoad)) > 5 || ticksSinceLastReport > 5 {
+				msg := Node{
+					SvcName: s.svcName,
+					NodeID:  s.svcID,
+					Load:    load,
+				}
+				b, _ := sonic.MarshalString(msg)
+
+				ctx, cancel := context.WithTimeout(s.ctx, time.Second)
+				pipe := s.redisCli.Pipeline()
+				pipe.Set(ctx, redisKeyOfUpload(s.svcName, s.svcID), load, time.Minute)
+				pipe.Publish(ctx, RedisLoadChannel, b)
+				_, err := pipe.Exec(ctx)
+				cancel()
+				if err != nil {
+					zap.L().Error("failed to report load to redis", zap.Error(err))
+				}
+
+				lastReportedLoad = load
+				ticksSinceLastReport = 0
 			}
 		}
 	}
@@ -161,6 +179,7 @@ func (s *Register) reportLoadLoop() {
 func (s *Register) Close() {
 	zap.L().Debug("[service discover]context canceled")
 	s.cancel() // 停止所有后台循环
+	s.wg.Wait()
 
 	leaseID := s.leaseID.Load()
 	if leaseID != 0 {

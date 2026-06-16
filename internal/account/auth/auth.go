@@ -2,8 +2,9 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"hash/fnv"
-	"math/rand"
 	"server/api/pb"
 	"server/api/pb/msgid"
 	"server/internal/account/sdk"
@@ -53,28 +54,42 @@ func StartService(ctx context.Context) {
 	for i := 0; i < LoadThread; i++ {
 		l := newAccountLoader()
 		loading = append(loading, l)
-		thread.GoSafe(func() {
+		go thread.KeepRunSafe(ctx, func() {
 			l.run(ctx)
 		})
 	}
-	thread.GoSafe(func() {
-		for {
-			select {
-			case <-evt.Sig():
-				evt.Range(func(event Event) {
-					processEvent(event)
-				})
-			case <-ctx.Done():
-				return
-			}
-		}
+	go thread.KeepRunSafe(ctx, func() {
+		run(ctx)
 	})
+}
+
+func run(ctx context.Context) {
+	for {
+		select {
+		case <-evt.Sig():
+			evt.Range(func(event Event) {
+				processEvent(event)
+			})
+		case <-ctx.Done():
+			evt.Close()
+			// 排空残留事件
+			evt.Range(func(event Event) {
+				if event.Login != nil {
+					sendLoginFailure(event.Login, pb.LoginCode_LCServerBusy)
+				}
+			})
+			return
+		}
+	}
 }
 
 func PushToLoader(data *pb.S2SReqLogin) {
 	idx := hashAccount(data.Req.Account) % LoadThread
-	loading[idx].loading <- data
-	// zap.L().Debug("push to loader", zap.Any("req", data), zap.Uint32("idx", idx))
+	select {
+	case loading[idx].loading <- data:
+	default:
+		sendLoginFailure(data, pb.LoginCode_LCServerBusy)
+	}
 }
 
 func dispatchEvent(e Event) {
@@ -102,12 +117,6 @@ func HandleLoginRequest(req *pb.S2SReqLogin) {
 }
 
 func processEvent(e Event) {
-	defer func() {
-		if err := recover(); err != nil {
-			thread.PrintStack("Login event:", err)
-		}
-	}()
-
 	switch e.Op {
 	case OpLogin:
 		login(e.Login)
@@ -163,6 +172,7 @@ func authenticateWithSDK(req *pb.S2SReqLogin) {
 			Code:  pb.LoginCode_LCSDKErr,
 			Login: req,
 		})
+		return
 	}
 
 	thread.GoSafe(func() {
@@ -204,7 +214,7 @@ func finalizeLoginSession(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	}
 
 	if acc.Passwd == 0 {
-		acc.Passwd = rand.Uint64()
+		acc.Passwd = generatePasswd()
 	}
 
 	oldSeq := acc.Seq
@@ -229,6 +239,16 @@ func finalizeLoginSession(acc *Account, req *pb.S2SReqLogin) pb.LoginCode {
 	req.Seq = acc.Seq
 
 	return pb.LoginCode_LCSuccess
+}
+
+func generatePasswd() uint64 {
+	var pwd uint64
+	var buf [8]byte
+	for pwd == 0 {
+		_, _ = rand.Read(buf[:])
+		pwd = binary.LittleEndian.Uint64(buf[:])
+	}
+	return pwd
 }
 
 func OnSDKAuthSuccess(acc *Account, req *pb.S2SReqLogin) {

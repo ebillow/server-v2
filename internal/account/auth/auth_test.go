@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		panic(err)
 	}
-	discovery.Watch()
+	discovery.WatchDefault()
 	err = discovery.RegisterDefault(flag.SrvName(pb.Server_Game), &discovery.Node{SvcName: flag.SrvName(pb.Server_Game), NodeID: 1})
 	if err != nil {
 		panic(err)
