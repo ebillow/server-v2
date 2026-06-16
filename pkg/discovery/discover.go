@@ -3,13 +3,14 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math/rand"
 	"server/pkg/thread"
-	"server/pkg/util"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 
@@ -19,8 +20,13 @@ import (
 type Discoverer struct {
 	services map[string]*nodeGroup
 	mtx      sync.RWMutex
+
+	watching map[string]struct{} // 记录已经处于监听中的服务
+	watchMtx sync.Mutex          // 保护 watching map
+
 	prefix   string
 	redisCli redis.UniversalClient
+	etcdCli  *clientv3.Client
 	ctx      context.Context
 	cancel   context.CancelFunc
 	wg       sync.WaitGroup
@@ -31,23 +37,12 @@ func NewDiscovery(cli *clientv3.Client, redisCli redis.UniversalClient, prefix s
 	s := &Discoverer{
 		prefix:   prefix,
 		redisCli: redisCli,
+		etcdCli:  cli,
 		services: make(map[string]*nodeGroup),
+		watching: make(map[string]struct{}),
 		ctx:      ctx,
 		cancel:   cancel,
 	}
-
-	s.syncFullState(cli) // 全量拉取一次
-
-	s.wg.Add(2)
-	thread.GoSafe(func() {
-		defer s.wg.Done()
-		s.watchLoop(cli)
-	})
-	thread.GoSafe(func() {
-		defer s.wg.Done()
-		s.syncLoadLoop()
-	})
-
 	return s
 }
 
@@ -56,54 +51,138 @@ func (s *Discoverer) Close() {
 	s.wg.Wait()
 }
 
-// watchLoop 包含断线重连的监听机制
-func (s *Discoverer) watchLoop(cli *clientv3.Client) {
+func (s *Discoverer) Watch(svcName string) {
+	s.watchMtx.Lock()
+	if _, ok := s.watching[svcName]; ok {
+		s.watchMtx.Unlock()
+		return // 已经处于监听状态，直接返回
+	}
+	s.watching[svcName] = struct{}{}
+	s.watchMtx.Unlock()
+
+	zap.L().Info("[service discover] start watching dependencies", zap.String("service", svcName))
+
+	s.syncSvcFullState(svcName)
+
+	s.wg.Add(2)
+	thread.GoSafe(func() {
+		defer s.wg.Done()
+		s.watchEtcdLoop(svcName)
+	})
+
+	thread.GoSafe(func() {
+		defer s.wg.Done()
+		s.watchRedisLoop(svcName)
+	})
+}
+
+// watchEtcdLoop 针对单一服务的断线重连监听机制
+func (s *Discoverer) watchEtcdLoop(svcName string) {
+	svcPrefix := etcdSvcPrefix(s.prefix, svcName)
 	for {
-		s.watch(cli)
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-time.After(time.Second*2 + time.Duration(util.RandRange(0, 1000))*time.Millisecond):
+		default:
+		}
+
+		revision := s.syncSvcFullState(svcName)
+		if revision == 0 {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-time.After(time.Second * 2):
+			}
+			continue
+		}
+
+		rch := s.etcdCli.Watch(s.ctx, svcPrefix, clientv3.WithPrefix(), clientv3.WithRev(revision+1), clientv3.WithProgressNotify())
+		for wresp := range rch {
+			if wresp.Canceled {
+				if err := wresp.Err(); err != nil {
+					zap.L().Warn("etcd watch canceled",
+						zap.Error(err),
+						zap.Int64("compact_revision", wresp.CompactRevision),
+					)
+				}
+				break
+			}
+			for _, ev := range wresp.Events {
+				switch ev.Type {
+				case clientv3.EventTypePut:
+					s.upsertNode(string(ev.Kv.Key), ev.Kv.Value)
+				case clientv3.EventTypeDelete:
+					s.removeNode(string(ev.Kv.Key))
+				}
+			}
 		}
 	}
 }
 
-func (s *Discoverer) watch(cli *clientv3.Client) {
-	revision := s.syncFullState(cli) // 重新全量拉取一次兜底
-	if revision == 0 {
-		// 全量拉取失败，等待 2 秒后重试
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-time.After(time.Second * 2):
+// syncSvcFullState 只针对特定服务做全量状态加载
+func (s *Discoverer) syncSvcFullState(svcName string) (ver int64) {
+	ctx, cancel := context.WithTimeout(s.ctx, time.Second*3)
+	defer cancel()
+
+	svcPrefix := etcdSvcPrefix(s.prefix, svcName)
+	resp, err := s.etcdCli.Get(ctx, svcPrefix, clientv3.WithPrefix())
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return 0
 		}
-		return
+		zap.L().Error("Get etcd failed:", zap.Error(err), zap.String("svc", svcName))
+		return 0
 	}
-	rch := cli.Watch(s.ctx, s.prefix, clientv3.WithPrefix(), clientv3.WithRev(revision+1), clientv3.WithProgressNotify())
-	for wresp := range rch {
-		if wresp.Canceled {
-			if err := wresp.Err(); err != nil {
-				zap.L().Warn("etcd watch canceled",
-					zap.Error(err),
-					zap.Int64("compact_revision", wresp.CompactRevision),
-				)
-			}
-			break // 跳出内部循环，触发重连
+
+	newGroup := newNodeGroup()
+	var keys []string
+	var nodeIDs []int32
+
+	for _, kv := range resp.Kvs {
+		meta := Node{}
+		if err = json.Unmarshal(kv.Value, &meta); err != nil {
+			continue
 		}
-		for _, ev := range wresp.Events {
-			switch ev.Type {
-			case clientv3.EventTypePut:
-				s.upsertNode(string(ev.Kv.Key), ev.Kv.Value)
-			case clientv3.EventTypeDelete:
-				s.removeNode(string(ev.Kv.Key))
+		_, serID, err := parseServicePath(string(kv.Key))
+		if err != nil {
+			continue
+		}
+		meta.NodeID = serID
+		newGroup.Add(meta)
+
+		keys = append(keys, redisKeyOfUpload(svcName, meta.NodeID))
+		nodeIDs = append(nodeIDs, meta.NodeID)
+	}
+
+	// 拉取该组节点最新的 Redis Load
+	if len(keys) > 0 {
+		ctxM, cancelM := context.WithTimeout(s.ctx, time.Second*3)
+		res, err := s.redisCli.MGet(ctxM, keys...).Result()
+		cancelM()
+		if err == nil {
+			for i, val := range res {
+				if val == nil {
+					continue
+				}
+				if loadStr, ok := val.(string); ok {
+					load, _ := strconv.Atoi(loadStr)
+					newGroup.UpdateLoad(nodeIDs[i], int32(load))
+				}
 			}
 		}
 	}
+
+	// 更新内存
+	s.mtx.Lock()
+	s.services[svcName] = newGroup
+	s.mtx.Unlock()
+
+	return resp.Header.Revision
 }
 
-func (s *Discoverer) syncLoadLoop() {
+func (s *Discoverer) watchRedisLoop(svcName string) {
 	for {
-		s.syncLoad()
+		s.watchRedis(svcName)
 		select {
 		case <-s.ctx.Done():
 			return
@@ -112,13 +191,17 @@ func (s *Discoverer) syncLoadLoop() {
 	}
 }
 
-func (s *Discoverer) syncLoad() {
-	pubsub := s.redisCli.Subscribe(s.ctx, RedisLoadChannel)
+func (s *Discoverer) watchRedis(svcName string) {
+	channel := redisLoadChannel(svcName)
+	pubsub := s.redisCli.Subscribe(s.ctx, channel)
 	defer pubsub.Close()
 
 	// 确认是否订阅成功
 	_, err := pubsub.Receive(s.ctx)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return
+		}
 		zap.L().Error("failed to subscribe to redis channel", zap.Error(err))
 		return
 	}
@@ -136,7 +219,7 @@ func (s *Discoverer) syncLoad() {
 			}
 
 			var loadMsg Node
-			if err := json.Unmarshal([]byte(msg.Payload), &loadMsg); err != nil {
+			if err := sonic.Unmarshal([]byte(msg.Payload), &loadMsg); err != nil {
 				continue
 			}
 
@@ -149,83 +232,6 @@ func (s *Discoverer) syncLoad() {
 			}
 		}
 	}
-}
-
-// syncFullState 全量加載
-func (s *Discoverer) syncFullState(cli *clientv3.Client) (ver int64) {
-	ctx, cancel := context.WithTimeout(s.ctx, time.Second*3)
-	defer cancel()
-
-	resp, err := cli.Get(ctx, s.prefix, clientv3.WithPrefix())
-	if err != nil {
-		zap.L().Error("Get etcd failed:", zap.Error(err))
-		return 0
-	}
-	ver = resp.Header.Revision
-
-	newAll := make(map[string]*nodeGroup)
-	var keys []string
-	var keyToMeta = make(map[string]struct {
-		SerName string
-		SerID   int32
-	})
-
-	for _, kv := range resp.Kvs {
-		meta := Node{}
-		if err = json.Unmarshal(kv.Value, &meta); err != nil {
-			zap.L().Error("Unmarshal meta failed in loadParams", zap.Error(err))
-			continue
-		}
-		svcName, serID, err := parseServicePath(string(kv.Key))
-		if err != nil {
-			zap.L().Error("parse service path failed in loadParams", zap.Error(err))
-			continue
-		}
-		meta.NodeID = serID
-
-		if newAll[svcName] == nil {
-			newAll[svcName] = newNodeGroup()
-		}
-		newAll[svcName].Add(meta)
-
-		key := redisKeyOfUpload(svcName, meta.NodeID)
-		keys = append(keys, key)
-		keyToMeta[key] = struct {
-			SerName string
-			SerID   int32
-		}{SerName: svcName, SerID: meta.NodeID}
-	}
-	if len(keys) > 0 {
-		ctx, cancel := context.WithTimeout(s.ctx, time.Second*3)
-		defer cancel()
-		// 使用 MGet 批量获取
-		res, err := s.redisCli.MGet(ctx, keys...).Result()
-		if err != nil {
-			zap.L().Error("failed to mget load from redis", zap.Error(err))
-			return
-		}
-
-		for i, val := range res {
-			if val == nil {
-				continue // 节点可能刚启动还未上报
-			}
-			loadStr, ok := val.(string)
-			if !ok {
-				continue
-			}
-			load, _ := strconv.Atoi(loadStr)
-
-			meta := keyToMeta[keys[i]]
-			newAll[meta.SerName].UpdateLoad(meta.SerID, int32(load))
-		}
-	}
-
-	s.mtx.Lock()
-	s.services = newAll
-	s.mtx.Unlock()
-
-	zap.L().Info("[service discover] full replace completed", zap.Int("services_count", len(newAll)))
-	return resp.Header.Revision
 }
 
 func (s *Discoverer) upsertNode(key string, val []byte) {
@@ -274,12 +280,28 @@ func (s *Discoverer) removeNode(key string) {
 	zap.L().Info("[service discover]delete", zap.String("service", svcName), zap.Int32("id", svcID))
 }
 
-// Select 基于最小负载,选择节点
-func (s *Discoverer) Select(svcName string) (int32, bool) {
+func (s *Discoverer) getService(svcName string) (*nodeGroup, bool) {
 	s.mtx.RLock()
 	one, ok := s.services[svcName]
 	s.mtx.RUnlock()
 
+	// 如果不存在，尝试触发懒加载
+	if !ok {
+		s.Watch(svcName)
+
+		s.mtx.RLock()
+		one, ok = s.services[svcName]
+		s.mtx.RUnlock()
+
+		return one, ok
+	}
+
+	return one, ok
+}
+
+// Select 基于最小负载,选择节点
+func (s *Discoverer) Select(svcName string) (int32, bool) {
+	one, ok := s.getService(svcName)
 	if !ok {
 		return 0, false
 	}
@@ -287,10 +309,7 @@ func (s *Discoverer) Select(svcName string) (int32, bool) {
 }
 
 func (s *Discoverer) Exists(svcName string, id int32) bool {
-	s.mtx.RLock()
-	one, ok := s.services[svcName]
-	s.mtx.RUnlock()
-
+	one, ok := s.getService(svcName)
 	if !ok {
 		return false
 	}
@@ -299,10 +318,7 @@ func (s *Discoverer) Exists(svcName string, id int32) bool {
 }
 
 func (s *Discoverer) GetAllNodes(svcName string) ([]int32, bool) {
-	s.mtx.RLock()
-	one, ok := s.services[svcName]
-	s.mtx.RUnlock()
-
+	one, ok := s.getService(svcName)
 	if !ok {
 		return nil, false
 	}

@@ -29,6 +29,7 @@ type Register struct {
 	cancel      context.CancelFunc
 	currentLoad atomic.Int32 // 业务层更新此值
 	wg          sync.WaitGroup
+	first       bool
 }
 
 func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, prefix string, svcName string, m *Node, ttl int64) (*Register, error) {
@@ -48,6 +49,13 @@ func NewRegister(cli *clientv3.Client, redisCli redis.UniversalClient, prefix st
 		svcID:    m.NodeID,
 		ctx:      ctx,
 		cancel:   cancel,
+		first:    true,
+	}
+
+	err = r.initialRegister()
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("initial etcd register failed: %w", err)
 	}
 
 	r.wg.Add(2)
@@ -96,23 +104,27 @@ func (s *Register) keepAliveLoop() {
 	}
 }
 
-func (s *Register) keepAlive() error {
-	ctx, cancel := context.WithTimeout(s.ctx, time.Second*5)
+func (s *Register) initialRegister() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
 	resp, err := s.cli.Grant(ctx, s.ttl)
-	cancel()
 	if err != nil {
 		return err
 	}
 	s.leaseID.Store(int64(resp.ID))
 
-	ctx, cancel = context.WithTimeout(s.ctx, time.Second*5)
 	_, err = s.cli.Put(ctx, s.key, s.value, clientv3.WithLease(resp.ID))
-	cancel()
-	if err != nil {
-		return err
+	return err
+}
+
+func (s *Register) keepAlive() error {
+	if !s.first {
+		_ = s.initialRegister()
+		s.first = false
 	}
 
-	keepAliveCh, err := s.cli.KeepAlive(s.ctx, resp.ID)
+	keepAliveCh, err := s.cli.KeepAlive(s.ctx, clientv3.LeaseID(s.leaseID.Load()))
 	if err != nil {
 		return err
 	}
@@ -161,7 +173,7 @@ func (s *Register) reportLoadLoop() {
 				ctx, cancel := context.WithTimeout(s.ctx, time.Second)
 				pipe := s.redisCli.Pipeline()
 				pipe.Set(ctx, redisKeyOfUpload(s.svcName, s.svcID), load, time.Minute)
-				pipe.Publish(ctx, RedisLoadChannel, b)
+				pipe.Publish(ctx, redisLoadChannel(s.svcName), b)
 				_, err := pipe.Exec(ctx)
 				cancel()
 				if err != nil {

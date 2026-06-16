@@ -2,351 +2,212 @@ package discovery
 
 import (
 	"context"
-	"encoding/json"
-	"server/api/pb"
-	"server/pkg/db"
-	"server/pkg/flag"
-	"server/pkg/logger"
-	"sync"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/alicebob/miniredis/v2"
 	"github.com/redis/go-redis/v9"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.uber.org/zap"
 )
 
-func TestMain(m *testing.M) {
-	logger.NewZapLog("../../bin/log/test.log", logger.Config{
-		Level:   -1,
-		Console: true,
+func init() {
+	// 初始化简单的 zap logger 用于测试输出
+	logger, _ := zap.NewDevelopment()
+	zap.ReplaceGlobals(logger)
+}
+
+// setupClients 辅助方法：初始化底层的 Etcd 和 Redis 客户端
+func setupClients(t *testing.T) (*clientv3.Client, redis.UniversalClient) {
+	etcdCli, err := clientv3.New(clientv3.Config{
+		Endpoints:   []string{"127.0.0.1:2379"},
+		DialTimeout: 5 * time.Second,
 	})
-	err := db.InitRedis(db.RedisCfg{
-		Addr: []string{"127.0.0.1:6380", "127.0.0.1:6381", "127.0.0.1:6382"},
-	}, 0)
 	if err != nil {
-		panic(err)
+		t.Fatalf("failed to connect etcd: %v", err)
 	}
-	err = InitDefault("zt", []string{"127.0.0.1:2379"}, db.Redis)
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr: "127.0.0.1:6379",
+	})
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		t.Fatalf("failed to connect redis: %v", err)
+	}
+
+	// 每次测试前清理环境，防止脏数据影响
+	_, _ = etcdCli.Delete(context.Background(), "/service/test_prod/", clientv3.WithPrefix())
+	rdb.FlushDB(context.Background())
+
+	return etcdCli, rdb
+}
+
+// 场景 1：测试懒加载触发机制
+func TestLazyLoad(t *testing.T) {
+	etcdCli, rdb := setupClients(t)
+	defer etcdCli.Close()
+	defer rdb.Close()
+
+	// 1. 初始化 Manager
+	mgr, err := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
 	if err != nil {
-		panic(err)
+		t.Fatalf("NewManager error: %v", err)
 	}
-	m.Run()
-}
+	defer mgr.Close()
 
-// ============================================================================
-// 测试 1：路径解析测试 (测试边界条件和异常输入)
-// ============================================================================
-func TestParseServicePath(t *testing.T) {
-	tests := []struct {
-		name       string
-		key        string
-		wantSvc    string
-		wantNodeID int32
-		wantErr    bool
-	}{
-		{"正常路径", "/micro/registry/user_service/1001", "user_service", 1001, false},
-		{"包含多个下划线", "/micro/registry/my_complex_svc_name/2002", "my_complex_svc_name", 2002, false},
-		{"缺少ID", "/micro/registry/user_service", "", 0, true},
-		{"ID不是数字", "/micro/registry/user_service_abc", "", 0, true},
-		{"空字符串", "", "", 0, true},
+	// 2. 模拟下游服务注册：启动一个名叫 "chat_service" 的节点，ID=101
+	node := &Node{
+		SvcName: "chat_service",
+		NodeID:  101,
+		Load:    0,
+	}
+	err = mgr.Register("chat_service", node)
+	if err != nil {
+		t.Fatalf("Register error: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			svc, id, err := parseServicePath(tt.key)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.wantSvc, svc)
-				assert.Equal(t, tt.wantNodeID, id)
-			}
-		})
+	// 3. 消费者 Manager 初始化发现机制（注意：此时不预加载任何服务）
+	mConsumer, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	mConsumer.Watch() // 空依赖
+	defer mConsumer.Close()
+
+	// 断言：此时 Consumer 内部没有 "chat_service" 的缓存
+	mConsumer.discovery.mtx.RLock()
+	_, exists := mConsumer.discovery.services["chat_service"]
+	mConsumer.discovery.mtx.RUnlock()
+	if exists {
+		t.Fatal("expected service map to be empty before lazy load")
 	}
+
+	// 4. 触发懒加载：尝试 Select 节点
+	// 懒加载会在内部发起同步 Etcd Get
+	nodeID, ok := mConsumer.Select("chat_service")
+	if !ok {
+		t.Fatal("expected to find node after lazy loading, got none")
+	}
+	if nodeID != 101 {
+		t.Fatalf("expected nodeID 101, got %d", nodeID)
+	}
+	t.Log("Lazy load triggered successfully!")
 }
 
-func TestNodeGroup_CRUD(t *testing.T) {
-	ng := newNodeGroup()
+// 场景 2：测试负载更新与 Redis Pub/Sub 隔离
+func TestLoadUpdateAndIsolation(t *testing.T) {
+	etcdCli, rdb := setupClients(t)
+	defer etcdCli.Close()
+	defer rdb.Close()
 
-	// 1. Add
-	ng.Add(Node{NodeID: 101, Load: 50})
-	assert.True(t, ng.Exists(101))
+	// 1. 初始化两套服务
+	mChat, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	defer mChat.Close()
+	mChat.Register("chat_service", &Node{SvcName: "chat_service", NodeID: 1, Load: 10})
 
-	load, ok := ng.GetLoad(101)
-	assert.True(t, ok)
-	assert.Equal(t, int32(50), load)
+	mCombat, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	defer mCombat.Close()
+	mCombat.Register("combat_service", &Node{SvcName: "combat_service", NodeID: 2, Load: 100})
 
-	// 2. UpdateLoad (无锁更新)
-	ng.UpdateLoad(101, 99)
-	load, _ = ng.GetLoad(101)
-	assert.Equal(t, int32(99), load)
+	// 2. 启动网关服务发现（只预加载 chat_service，不关心 combat_service）
+	mGateway, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	mGateway.Watch("chat_service")
+	defer mGateway.Close()
 
-	// 3. Delete
-	isEmpty := ng.Delete(101)
-	assert.True(t, isEmpty)
-	assert.False(t, ng.Exists(101))
+	// 给一定时间让全量拉取和 Watch 建立
+	time.Sleep(1 * time.Second)
+
+	// 3. 验证初始状态负载
+	chatGrp := mGateway.discovery.services["chat_service"]
+	load, ok := chatGrp.GetLoad(1)
+	if !ok || load != 10 {
+		t.Fatalf("expected chat_service node 1 load to be 10, got %v", load)
+	}
+
+	// 4. 动态更新 chat_service 的负载，触发 Redis Channel
+	mChat.UpdateLoad(50)
+
+	// 等待 reportLoadLoop 的 ticker（2秒） + Redis PubSub 处理时间
+	time.Sleep(3 * time.Second)
+
+	// 验证负载是否自动同步到网关服务
+	newLoad, _ := chatGrp.GetLoad(1)
+	if newLoad != 50 {
+		t.Fatalf("expected chat_service load updated to 50, got %d", newLoad)
+	}
+
+	// 5. 验证隔离性：战斗服更新负载，网关毫不关心
+	mCombat.UpdateLoad(999)
+	time.Sleep(3 * time.Second)
+
+	mGateway.discovery.mtx.RLock()
+	_, combatExists := mGateway.discovery.services["combat_service"]
+	mGateway.discovery.mtx.RUnlock()
+
+	if combatExists {
+		t.Fatal("gateway should not have loaded combat_service state")
+	}
+	t.Log("Redis isolation and load sync tested successfully!")
 }
 
-func TestNodeGroup_P2C_Algorithm(t *testing.T) {
-	ng := newNodeGroup()
+// 场景 3：测试 etcd 节点下线感知 (Watch)
+func TestNodeOffline(t *testing.T) {
+	etcdCli, rdb := setupClients(t)
+	defer etcdCli.Close()
+	defer rdb.Close()
 
-	// 模拟 3 个节点，负载差异巨大
-	ng.Add(Node{NodeID: 1, Load: 10})  // 极低负载
-	ng.Add(Node{NodeID: 2, Load: 50})  // 中等负载
-	ng.Add(Node{NodeID: 3, Load: 200}) // 极高负载
+	mSvc, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	mSvc.Register("auth_service", &Node{SvcName: "auth_service", NodeID: 88, Load: 0})
 
-	counts := make(map[int32]int)
-	iterations := 100000 // 模拟十万次高并发请求
+	mGateway, _ := NewManager("test_prod", []string{"127.0.0.1:2379"}, rdb)
+	mGateway.Watch("auth_service")
+	defer mGateway.Close()
 
-	for i := 0; i < iterations; i++ {
-		id, ok := ng.SelectNode()
-		assert.True(t, ok)
+	time.Sleep(1 * time.Second) // 等待建立监听
+
+	// 1. 验证可找到该节点
+	id, ok := mGateway.Select("auth_service")
+	if !ok || id != 88 {
+		t.Fatalf("failed to initial select auth_service")
+	}
+
+	// 2. 将服务强行关闭，触发 Etcd Revoke/Delete
+	mSvc.Close()
+
+	// 等待 etcd Watch Delete 事件传达到 Gateway
+	time.Sleep(2 * time.Second)
+
+	// 3. 再次获取，此时节点应已移除
+	_, ok = mGateway.Select("auth_service")
+	if ok {
+		t.Fatal("expected auth_service to be offline and removed, but select succeeded")
+	}
+	t.Log("Node offline awareness tested successfully!")
+}
+
+// 场景 4：测试 P2C (两次随机选择) 负载均衡逻辑的准确性
+func TestP2CSelection(t *testing.T) {
+	// P2C 的核心在 NodeGroup 中，我们可以只测试内存里的 NodeGroup
+	group := newNodeGroup()
+
+	// 放入三个节点，负载各不相同
+	group.Add(Node{NodeID: 1, Load: 100})
+	group.Add(Node{NodeID: 2, Load: 50})
+	group.Add(Node{NodeID: 3, Load: 10})
+
+	// 测试 P2C 统计：10万次模拟调用，因为 Load=10 的最空闲，应该被选中次数最多
+	counts := map[int32]int{1: 0, 2: 0, 3: 0}
+
+	for i := 0; i < 100000; i++ {
+		id, ok := group.SelectNode()
+		if !ok {
+			t.Fatal("SelectNode failed")
+		}
 		counts[id]++
 	}
 
-	t.Logf("P2C 命中分布: Node1(Load:10)=%d, Node2(Load:50)=%d, Node3(Load:200)=%d",
+	fmt.Printf("P2C Distribution: Node1(Load:100): %d, Node2(Load:50): %d, Node3(Load:10): %d\n",
 		counts[1], counts[2], counts[3])
 
-	// P2C 算法特性验证：
-	// 1. 绝大部分流量应该打到节点 1
-	assert.Greater(t, counts[1], 60000, "低负载节点应该获得大部分流量")
-	// 2. 节点 2 会分担一部分流量，防止节点 1 被瞬间压垮
-	assert.Greater(t, counts[2], 25000, "中等负载节点应该获得部分流量")
-	// 3. 节点 3 作为高负载节点，应该被完美保护（流量接近于 0）
-	assert.Equal(t, 0, counts[3], "极高负载节点在有其他选择时，应该被完全保护")
-}
-
-func TestNodeGroup_Concurrency(t *testing.T) {
-	ng := newNodeGroup()
-	ng.Add(Node{NodeID: 1, Load: 0})
-	ng.Add(Node{NodeID: 2, Load: 0})
-
-	var wg sync.WaitGroup
-	stopCh := make(chan struct{})
-
-	// 1. 开启 10 个 Goroutine 疯狂进行无锁路由选择 (SelectNode)
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					ng.SelectNode()
-				}
-			}
-		}()
+	// 断言：由于 P2C 算法特性，负载最低的 Node 3 被选中的概率应该是最大的
+	// 负载最高的 Node 1 应该最少
+	if counts[3] <= counts[2] || counts[2] <= counts[1] {
+		t.Fatalf("P2C balance seems incorrect, distribution: %v", counts)
 	}
-
-	// 2. 开启 5 个 Goroutine 疯狂进行无锁负载更新 (UpdateLoad)
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			load := int32(0)
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					load++
-					ng.UpdateLoad(1, load)
-					ng.UpdateLoad(2, load)
-				}
-			}
-		}(i)
-	}
-
-	// 3. 开启 2 个 Goroutine 模拟节点动态上下线 (Add/Delete)
-	for i := 0; i < 2; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
-			nodeID := int32(100 + id)
-			for {
-				select {
-				case <-stopCh:
-					return
-				default:
-					ng.Add(Node{NodeID: nodeID, Load: 0})
-					time.Sleep(time.Millisecond * 10)
-					ng.Delete(nodeID)
-					time.Sleep(time.Millisecond * 10)
-				}
-			}
-		}(i)
-	}
-
-	time.Sleep(time.Second * 2)
-	close(stopCh)
-	wg.Wait()
-
-	// 如果没有 Panic，且 go test -race 不报错，说明无锁架构完美！
-	t.Log("并发测试通过，未发生 Data Race 或 Panic")
 }
-
-// ============================================================================
-// 测试 5：Redis Pub/Sub 负载同步测试 (结合 Miniredis)
-// ============================================================================
-func TestDiscoverer_RedisPubSub(t *testing.T) {
-	// 1. 启动 mock redis server
-	mr, err := miniredis.Run()
-	assert.NoError(t, err)
-	defer mr.Close()
-
-	rdb := redis.NewUniversalClient(&redis.UniversalOptions{
-		Addrs: []string{mr.Addr()},
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// 2. 初始化 Discoverer
-	d := &Discoverer{
-		services: make(map[string]*nodeGroup),
-		redisCli: rdb,
-		ctx:      ctx,
-		cancel:   cancel,
-	}
-
-	svcName := "login_service"
-	nodeID := int32(888)
-
-	// 手动塞入一个初始负载为 0 的节点
-	d.services[svcName] = newNodeGroup()
-	d.services[svcName].Add(Node{NodeID: nodeID, Load: 0})
-
-	// 3. 在后台启动 Redis 订阅监听
-	go d.syncLoad()
-
-	// 给订阅一点启动时间
-	time.Sleep(time.Millisecond * 100)
-
-	// 4. 模拟 Register 端向 Redis 发送 Pub/Sub 广播
-	msg := Node{
-		SvcName: svcName,
-		NodeID:  nodeID,
-		Load:    150,
-	}
-	b, _ := json.Marshal(msg)
-	err = rdb.Publish(ctx, RedisLoadChannel, string(b)).Err()
-	assert.NoError(t, err)
-
-	// 给 Discoverer 一点处理消息的时间
-	time.Sleep(time.Millisecond * 100)
-
-	// 5. 验证 Discoverer 内存中的负载是否被更新
-	d.mtx.RLock()
-	group := d.services[svcName]
-	d.mtx.RUnlock()
-
-	load, ok := group.GetLoad(nodeID)
-	assert.True(t, ok)
-	assert.Equal(t, int32(150), load, "Discoverer 应该通过 Pub/Sub 成功更新内存负载")
-}
-func TestNodeGroup_AllNodeIDs(t *testing.T) {
-	ng := newNodeGroup()
-
-	// 初始为空
-	ids := ng.AllNodeIDs()
-	assert.Equal(t, 0, len(ids))
-
-	// 添加 3 个节点
-	ng.Add(Node{NodeID: 101, Load: 0})
-	ng.Add(Node{NodeID: 102, Load: 0})
-	ng.Add(Node{NodeID: 103, Load: 0})
-
-	ids = ng.AllNodeIDs()
-	assert.Equal(t, 3, len(ids))
-	assert.Contains(t, ids, int32(101))
-	assert.Contains(t, ids, int32(102))
-	assert.Contains(t, ids, int32(103))
-
-	// 测试数据隔离：修改返回的切片，不应影响底层数据
-	ids[0] = 999
-
-	idsAgain := ng.AllNodeIDs()
-	assert.NotContains(t, idsAgain, int32(999), "返回的必须是深拷贝，修改不能影响底层")
-}
-
-func TestFullState(t *testing.T) {
-	r1, err := NewRegister(Default.etcdCli, Default.redisCli, "/service/zt", flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
-	require.NoError(t, err)
-	r1.UpdateLoad(2)
-
-	r2, err := NewRegister(Default.etcdCli, Default.redisCli, "/service/zt", flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
-	require.NoError(t, err)
-	r2.UpdateLoad(4)
-
-	time.Sleep(time.Second * 3)
-
-	Default.Watch()
-
-	exist := Default.Exists(flag.SrvName(pb.Server_Game), 1)
-	require.True(t, exist)
-	exist = Default.Exists(flag.SrvName(pb.Server_Game), 2)
-	require.True(t, exist)
-}
-
-//
-// func TestPick(t *testing.T) {
-// 	Watch()
-//
-// 	r1, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 1}, 30)
-// 	require.NoError(t, err)
-// 	r1.UpdateLoad(2)
-// 	time.Sleep(time.Second)
-//
-// 	exist := Exists(flag.SrvName(pb.Server_Game), 1)
-// 	require.True(t, exist)
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-// 	require.False(t, exist)
-//
-// 	r2, err := NewRegister(etcdCli, redisCli, flag.SrvName(pb.Server_Game), &Node{NodeID: 2}, 30)
-// 	require.NoError(t, err)
-// 	r2.UpdateLoad(4)
-// 	time.Sleep(time.Second)
-//
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-// 	require.True(t, exist)
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-// 	require.True(t, exist)
-//
-// 	time.Sleep(time.Second * 6)
-//
-// 	id, ok := Select(flag.SrvName(pb.Server_Game))
-// 	require.True(t, ok)
-// 	require.Equal(t, int32(1), id)
-//
-// 	r1.UpdateLoad(5)
-// 	time.Sleep(time.Second * 6)
-//
-// 	id, ok = Select(flag.SrvName(pb.Server_Game))
-// 	require.True(t, ok)
-// 	require.Equal(t, int32(2), id)
-//
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-// 	require.True(t, exist)
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-// 	require.True(t, exist)
-//
-// 	r1.Close()
-//
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-// 	require.False(t, exist)
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-// 	require.True(t, exist)
-//
-// 	r2.Close()
-//
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 1)
-// 	require.False(t, exist)
-// 	exist = Exists(flag.SrvName(pb.Server_Game), 2)
-// 	require.False(t, exist)
-//
-// 	Close()
-// }

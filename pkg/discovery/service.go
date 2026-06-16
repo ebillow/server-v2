@@ -12,10 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	RedisLoadChannel = "service:load:channel"
-)
-
 type Node struct {
 	SvcName string `json:"svc_name"`
 	NodeID  int32  `json:"node_id"`
@@ -67,8 +63,11 @@ func (m *Manager) Register(srvName string, n *Node) (err error) {
 	return err
 }
 
-func (m *Manager) Watch() {
+func (m *Manager) Watch(dependencies ...string) {
 	m.discovery = NewDiscovery(m.etcdCli, m.redisCli, m.prefix)
+	for _, dep := range dependencies {
+		m.discovery.Watch(dep)
+	}
 }
 
 // UpdateLoad 核心接口：业务层定时调用此方法上报当前进程负载
@@ -110,6 +109,16 @@ func redisKeyOfUpload(svcName string, serID int32) string {
 }
 func etcdPath(prefix string, svcName string, serID int32) string {
 	return fmt.Sprintf("%s/%s/%d", prefix, svcName, serID)
+}
+
+// 获取特定服务的 Redis 负载同步 Channel
+func redisLoadChannel(svcName string) string {
+	return fmt.Sprintf("service:load:channel:%s", svcName)
+}
+
+// 获取特定服务的 etcd 监听前缀
+func etcdSvcPrefix(prefix string, svcName string) string {
+	return fmt.Sprintf("%s/%s/", prefix, svcName)
 }
 
 func parseServicePath(key string) (srvName string, serID int32, err error) {
